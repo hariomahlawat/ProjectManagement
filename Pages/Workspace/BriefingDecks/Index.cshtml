@@ -103,6 +103,7 @@
     @* A div, not a second main element: the layout already gives the page its main landmark. *@
     <div class="cw-workspace-content pbd-shell" data-pbd-root
           data-search-url="@Url.Page("/Workspace/BriefingDecks/Index", "SearchProjects")"
+          data-filter-url="@Url.Page("/Workspace/BriefingDecks/Index", "FilterProjects")"
           data-reorder-url="@Url.Page("/Workspace/BriefingDecks/Index", "Reorder")"
           data-membership-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateMembership")"
           data-description-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateDescription")"
@@ -887,6 +888,9 @@
                         @await Html.PartialAsync("_RoleCharterEditor", Model)
                         @await Html.PartialAsync("_FfcGlobalFootprintEditor", Model)
 
+                        @* Add projects (docs/ux/briefing-add-projects.md): filters narrow one list of every project;
+                           ticks are kept when the filters change, so sets mix; Add saves the ticked projects at once,
+                           with Undo, through AddSelection; a project already in the deck has Remove. *@
                         <div class="modal fade pbd-add-projects" id="pbd-add-projects-modal" tabindex="-1" aria-labelledby="pbd-add-projects-title" aria-hidden="true">
                             <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
                                 <div class="modal-content pbd-modal">
@@ -894,131 +898,37 @@
                                         <div>
                                             <span class="pbd-eyebrow">Projects in this deck</span>
                                             <h2 class="modal-title" id="pbd-add-projects-title">Add projects</h2>
-                                            <p class="pbd-add-projects__lead">Quick selections and categories save at once, with Undo; in Manage individually, tick or untick and press Apply. The slides rebuild after each change.</p>
+                                            <p class="pbd-add-projects__lead">Narrow the list with the filters, tick projects and add them. Ticks stay when you change the filters, so you can mix sets. Adding saves at once, with Undo.</p>
                                         </div>
                                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                     </div>
-                                    <div class="modal-body">
+                                    <div class="modal-body pbd-filter" data-pbd-filter>
                                         <p class="pbd-add-projects__status" data-pbd-add-projects-status aria-live="polite"></p>
-
-                            <div class="pbd-selector-tabs" role="tablist" aria-label="Project selection methods">
-                                <button type="button" class="is-active" data-pbd-selector-tab="quick" role="tab" aria-selected="true"><i class="bi bi-lightning" aria-hidden="true"></i> Quick add</button>
-                                <button type="button" data-pbd-selector-tab="completed" role="tab" aria-selected="false"><i class="bi bi-check2-circle" aria-hidden="true"></i> Recently completed</button>
-                                <button type="button" data-pbd-selector-tab="project-category" role="tab" aria-selected="false"><i class="bi bi-folder2" aria-hidden="true"></i> Project category</button>
-                                <button type="button" data-pbd-selector-tab="technical-category" role="tab" aria-selected="false"><i class="bi bi-cpu" aria-hidden="true"></i> Technical category</button>
-                                <button type="button" data-pbd-selector-tab="individual" role="tab" aria-selected="false"><i class="bi bi-search" aria-hidden="true"></i> Manage individually</button>
-                            </div>
-
-                            <div class="pbd-selector-panel is-active" data-pbd-selector-panel="quick">
-                                <div class="pbd-quick-grid">
-                                    @* A Project Officer starts from their own projects. *@
-                                    @if (Model.MyProjectCount > 0)
-                                    {
-                                        <form method="post" asp-page-handler="AddSelection" class="pbd-quick-card" data-pbd-add-selection-form>
+                                        <label class="pbd-project-search">
+                                            <span class="visually-hidden">Search projects</span>
+                                            <i class="bi bi-search" aria-hidden="true"></i>
+                                            <input type="search" class="form-control" placeholder="Search by name, officer, case file or category" autocomplete="off" data-pbd-filter-query />
+                                        </label>
+                                        <div class="pbd-filter__chips" role="group" aria-label="Filters" data-pbd-filter-chips></div>
+                                        <div class="pbd-filter__panel" data-pbd-filter-panel role="group" hidden></div>
+                                        <div class="pbd-filter__summary">
+                                            <span data-pbd-filter-count aria-live="polite">Loading projects…</span>
+                                            <button type="button" class="btn btn-link btn-sm" data-pbd-filter-tick-all hidden></button>
+                                        </div>
+                                        <div class="pbd-filter__results" data-pbd-filter-results></div>
+                                        <script type="application/json" data-pbd-filter-options>@Html.Raw(Model.AddProjectsFilterOptionsJson)</script>
+                                        <form method="post" asp-page-handler="AddSelection" data-pbd-add-selection-form data-pbd-filter-add-form hidden>
                                             <input type="hidden" name="DeckId" value="@deck.Id" />
                                             <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
-                                            <input type="hidden" name="Kind" value="MyProjects" />
-                                            <span class="pbd-quick-card__icon"><i class="bi bi-person-check"></i></span>
-                                            <span><strong>My projects</strong><small>@Model.MyProjectCount @(Model.MyProjectCount == 1 ? "project" : "projects") you lead</small></span>
-                                            <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
+                                            <input type="hidden" name="Kind" value="IndividualProjects" />
                                         </form>
-                                    }
-                                    <form method="post" asp-page-handler="AddSelection" class="pbd-quick-card" data-pbd-add-selection-form>
-                                        <input type="hidden" name="DeckId" value="@deck.Id" />
-                                        <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
-                                        <input type="hidden" name="Kind" value="Ongoing" />
-                                        <span class="pbd-quick-card__icon"><i class="bi bi-kanban"></i></span>
-                                        <span><strong>All ongoing projects</strong><small>@Model.SelectionOptions.OngoingCount projects currently active</small></span>
-                                        <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
-                                    </form>
-                                    <form method="post" asp-page-handler="AddSelection" class="pbd-quick-card" data-pbd-add-selection-form>
-                                        <input type="hidden" name="DeckId" value="@deck.Id" />
-                                        <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
-                                        <input type="hidden" name="Kind" value="AvailableForProliferation" />
-                                        <span class="pbd-quick-card__icon"><i class="bi bi-boxes"></i></span>
-                                        <span><strong>Available for proliferation</strong><small>@Model.SelectionOptions.ProliferationAvailableCount projects marked available</small></span>
-                                        <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
-                                    </form>
-                                </div>
-                            </div>
-
-                            <div class="pbd-selector-panel" data-pbd-selector-panel="completed" hidden>
-                                <form method="post" asp-page-handler="AddSelection" class="pbd-inline-form" data-pbd-add-selection-form>
-                                    <input type="hidden" name="DeckId" value="@deck.Id" />
-                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
-                                    <input type="hidden" name="Kind" value="RecentlyCompleted" />
-                                    <label class="form-label"><span>From year</span><input class="form-control" type="number" name="CompletionYearFrom" min="@Model.SelectionOptions.MinimumCompletionYear" max="@Model.SelectionOptions.MaximumCompletionYear" value="@(Math.Max(Model.SelectionOptions.MinimumCompletionYear, Model.SelectionOptions.MaximumCompletionYear - 1))" /></label>
-                                    <label class="form-label"><span>To year</span><input class="form-control" type="number" name="CompletionYearTo" min="@Model.SelectionOptions.MinimumCompletionYear" max="@Model.SelectionOptions.MaximumCompletionYear" value="@Model.SelectionOptions.MaximumCompletionYear" /></label>
-                                    <div class="pbd-inline-form__context"><strong>@Model.SelectionOptions.CompletedCount completed projects</strong><span>Completion year falls back to completion date where required.</span></div>
-                                    <button type="submit" class="btn btn-primary">Add matching projects</button>
-                                </form>
-                            </div>
-
-                            <div class="pbd-selector-panel" data-pbd-selector-panel="project-category" hidden>
-                                <form method="post" asp-page-handler="AddSelection" class="pbd-category-form" data-pbd-add-selection-form>
-                                    <input type="hidden" name="DeckId" value="@deck.Id" />
-                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
-                                    <input type="hidden" name="Kind" value="ProjectCategory" />
-                                    <div class="pbd-category-grid">
-                                        @foreach (var category in Model.SelectionOptions.ProjectCategories)
-                                        {
-                                            <label class="pbd-filter-option @(category.ParentId.HasValue ? "is-child" : null)">
-                                                <input type="checkbox" name="ProjectCategoryIds" value="@category.Id" />
-                                                <span><strong>@category.Name</strong><small>@category.MatchCount projects</small></span>
-                                            </label>
-                                        }
-                                    </div>
-                                    <div class="pbd-category-form__footer"><span>Selecting a parent category also includes its child categories.</span><button type="submit" class="btn btn-primary">Add selected categories</button></div>
-                                </form>
-                            </div>
-
-                            <div class="pbd-selector-panel" data-pbd-selector-panel="technical-category" hidden>
-                                <form method="post" asp-page-handler="AddSelection" class="pbd-category-form" data-pbd-add-selection-form>
-                                    <input type="hidden" name="DeckId" value="@deck.Id" />
-                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
-                                    <input type="hidden" name="Kind" value="TechnicalCategory" />
-                                    <div class="pbd-category-grid">
-                                        @foreach (var category in Model.SelectionOptions.TechnicalCategories)
-                                        {
-                                            <label class="pbd-filter-option @(category.ParentId.HasValue ? "is-child" : null)">
-                                                <input type="checkbox" name="TechnicalCategoryIds" value="@category.Id" />
-                                                <span><strong>@category.Name</strong><small>@category.MatchCount projects</small></span>
-                                            </label>
-                                        }
-                                    </div>
-                                    <div class="pbd-category-form__footer"><span>Multiple technical categories can be added in one action.</span><button type="submit" class="btn btn-primary">Add selected categories</button></div>
-                                </form>
-                            </div>
-
-                            <div class="pbd-selector-panel" data-pbd-selector-panel="individual" hidden>
-                                <form method="post" asp-page-handler="AddSelection" class="pbd-individual-form" data-pbd-individual-form>
-                                    <input type="hidden" name="DeckId" value="@deck.Id" />
-                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
-                                    <input type="hidden" name="Kind" value="IndividualProjects" />
-                                    <div class="pbd-manage-search-row">
-                                        <label class="pbd-project-search">
-                                            <span class="visually-hidden">Search all projects</span>
-                                            <i class="bi bi-search" aria-hidden="true"></i>
-                                            <input type="search" class="form-control" placeholder="Search all projects by name, case file, officer or category" autocomplete="off" data-pbd-project-search />
-                                        </label>
-                                        <select class="form-select" data-pbd-membership-filter aria-label="Filter search results by deck membership">
-                                            <option value="all">All projects</option>
-                                            <option value="selected">In this deck</option>
-                                            <option value="unselected">Not in this deck</option>
-                                        </select>
-                                    </div>
-                                    <div class="pbd-search-status" data-pbd-search-status>Enter at least two characters.</div>
-                                    <div class="pbd-search-results" data-pbd-search-results></div>
-                                    <div class="pbd-individual-form__footer">
-                                        <span data-pbd-selected-count>No pending changes</span>
-                                        <button type="submit" class="btn btn-primary" disabled data-pbd-apply-membership>Apply changes</button>
-                                    </div>
-                                </form>
-                            </div>
                                     </div>
                                     @* Adding saves at once; Done only closes the dialog, so finishing never depends on finding the ×. *@
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-primary" data-bs-dismiss="modal" data-pbd-add-projects-done>Done</button>
+                                    <div class="modal-footer pbd-filter__footer">
+                                        <span class="pbd-filter__ticked" data-pbd-filter-ticked aria-live="polite">Nothing ticked</span>
+                                        <button type="button" class="btn btn-link btn-sm" data-pbd-filter-clear hidden>Clear ticks</button>
+                                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-pbd-add-projects-done>Done</button>
+                                        <button type="button" class="btn btn-primary" data-pbd-filter-add>Add projects</button>
                                     </div>
                                 </div>
                             </div>
