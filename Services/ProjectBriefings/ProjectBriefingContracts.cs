@@ -255,15 +255,14 @@ public sealed class ProjectBriefingSlideEstimateVm
     public int ClosingSlides { get; init; } = 1;
 }
 
-public sealed record ProjectBriefingLookupOptionVm(int Id, string Name, int MatchCount = 0, int? ParentId = null);
+// Depth: 0 for a top-level category, 1 for its sub-categories, and so on (listed in tree order).
+public sealed record ProjectBriefingLookupOptionVm(int Id, string Name, int MatchCount = 0, int? ParentId = null, int Depth = 0);
 
 public sealed class ProjectBriefingSelectionOptionsVm
 {
     public int OngoingCount { get; init; }
     public int CompletedCount { get; init; }
     public int ProliferationAvailableCount { get; init; }
-    public int MinimumCompletionYear { get; init; }
-    public int MaximumCompletionYear { get; init; }
     public IReadOnlyList<ProjectBriefingLookupOptionVm> ProjectCategories { get; init; }
         = Array.Empty<ProjectBriefingLookupOptionVm>();
     public IReadOnlyList<ProjectBriefingLookupOptionVm> TechnicalCategories { get; init; }

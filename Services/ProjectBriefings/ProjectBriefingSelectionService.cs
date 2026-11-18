@@ -11,15 +11,14 @@ namespace ProjectManagement.Services.ProjectBriefings;
 
 public interface IProjectBriefingSelectionService
 {
+    // Everything the Add projects filter offers, with counts: asked for when the dialog opens.
     Task<ProjectBriefingSelectionOptionsVm> GetOptionsAsync(CancellationToken cancellationToken = default);
+
+    // The category lists alone (no counts), for the page itself: two small reads.
+    Task<ProjectBriefingSelectionOptionsVm> GetCategoryOptionsAsync(CancellationToken cancellationToken = default);
 
     Task<ProjectBriefingSelectionResult> ResolveAsync(
         ProjectBriefingSelectionRequest request,
-        CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<ProjectBriefingSearchResultVm>> SearchAsync(
-        string? query,
-        int take = 25,
         CancellationToken cancellationToken = default);
 
     // The projects matching the Add projects filter (docs/ux/briefing-add-projects.md), by name.
@@ -47,18 +46,10 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
         CancellationToken cancellationToken = default)
     {
         var baseQuery = EligibleProjects();
-        var todayYear = _clock.UtcNow.Year;
 
         var lifecycleCounts = await baseQuery
             .GroupBy(project => project.LifecycleStatus)
             .Select(group => new { Status = group.Key, Count = group.Count() })
-            .ToListAsync(cancellationToken);
-
-        var completionYears = await baseQuery
-            .Where(project => project.LifecycleStatus == ProjectLifecycleStatus.Completed)
-            .Select(project => project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : (int?)null))
-            .Where(year => year.HasValue)
-            .Select(year => year!.Value)
             .ToListAsync(cancellationToken);
 
         var categoryCounts = await baseQuery
@@ -73,23 +64,8 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
             .Select(group => new { Id = group.Key, Count = group.Count() })
             .ToDictionaryAsync(row => row.Id, row => row.Count, cancellationToken);
 
-        var projectCategoryRows = await _db.ProjectCategories
-            .AsNoTracking()
-            .Where(category => category.IsActive)
-            .OrderBy(category => category.SortOrder)
-            .ThenBy(category => category.Name)
-            .Select(category => new CategoryOptionRow(category.Id, category.Name, category.ParentId))
-            .ToListAsync(cancellationToken);
-        var projectCategories = BuildCategoryOptions(projectCategoryRows, categoryCounts);
-
-        var technicalCategoryRows = await _db.TechnicalCategories
-            .AsNoTracking()
-            .Where(category => category.IsActive)
-            .OrderBy(category => category.SortOrder)
-            .ThenBy(category => category.Name)
-            .Select(category => new CategoryOptionRow(category.Id, category.Name, category.ParentId))
-            .ToListAsync(cancellationToken);
-        var technicalCategories = BuildCategoryOptions(technicalCategoryRows, technicalCounts);
+        var projectCategories = BuildCategoryOptions(await ProjectCategoryRowsAsync(cancellationToken), categoryCounts);
+        var technicalCategories = BuildCategoryOptions(await TechnicalCategoryRowsAsync(cancellationToken), technicalCounts);
 
         var proliferationCount = await baseQuery
             .CountAsync(project => _db.ProjectTechStatuses.Any(status =>
@@ -117,8 +93,6 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
             OngoingCount = lifecycleCounts.FirstOrDefault(row => row.Status == ProjectLifecycleStatus.Active)?.Count ?? 0,
             CompletedCount = lifecycleCounts.FirstOrDefault(row => row.Status == ProjectLifecycleStatus.Completed)?.Count ?? 0,
             ProliferationAvailableCount = proliferationCount,
-            MinimumCompletionYear = completionYears.Count == 0 ? todayYear : completionYears.Min(),
-            MaximumCompletionYear = completionYears.Count == 0 ? todayYear : completionYears.Max(),
             ProjectCategories = projectCategories,
             TechnicalCategories = technicalCategories,
             ArppYears = arppYears,
@@ -126,6 +100,35 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
             MaximumCompletionFinancialYear = completionFinancialYears.Length == 0 ? thisFinancialYear : completionFinancialYears.Max()
         };
     }
+
+    public async Task<ProjectBriefingSelectionOptionsVm> GetCategoryOptionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var none = new Dictionary<int, int>();
+        return new ProjectBriefingSelectionOptionsVm
+        {
+            ProjectCategories = BuildCategoryOptions(await ProjectCategoryRowsAsync(cancellationToken), none),
+            TechnicalCategories = BuildCategoryOptions(await TechnicalCategoryRowsAsync(cancellationToken), none)
+        };
+    }
+
+    private Task<List<CategoryOptionRow>> ProjectCategoryRowsAsync(CancellationToken cancellationToken)
+        => _db.ProjectCategories
+            .AsNoTracking()
+            .Where(category => category.IsActive)
+            .OrderBy(category => category.SortOrder)
+            .ThenBy(category => category.Name)
+            .Select(category => new CategoryOptionRow(category.Id, category.Name, category.ParentId))
+            .ToListAsync(cancellationToken);
+
+    private Task<List<CategoryOptionRow>> TechnicalCategoryRowsAsync(CancellationToken cancellationToken)
+        => _db.TechnicalCategories
+            .AsNoTracking()
+            .Where(category => category.IsActive)
+            .OrderBy(category => category.SortOrder)
+            .ThenBy(category => category.Name)
+            .Select(category => new CategoryOptionRow(category.Id, category.Name, category.ParentId))
+            .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<ProjectBriefingSearchResultVm>> FilterAsync(
         ProjectBriefingProjectFilter filter,
@@ -272,95 +275,22 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
         var query = EligibleProjects();
         string summary;
 
-        switch (request.Kind)
+        // Add projects sends the ticked projects (docs/ux/briefing-add-projects.md). The earlier ways
+        // (all ongoing, recently completed by calendar year, categories, proliferation, My projects)
+        // went with their tabs; a request for one of them is refused (cold review, L1).
+        if (request.Kind != ProjectBriefingSelectionKind.IndividualProjects)
         {
-            case ProjectBriefingSelectionKind.Ongoing:
-                query = query.Where(project => project.LifecycleStatus == ProjectLifecycleStatus.Active);
-                summary = "All ongoing projects";
-                break;
-
-            case ProjectBriefingSelectionKind.RecentlyCompleted:
-            {
-                var currentYear = _clock.UtcNow.Year;
-                var from = request.CompletionYearFrom ?? currentYear - 1;
-                var to = request.CompletionYearTo ?? currentYear;
-                if (from > to)
-                {
-                    (from, to) = (to, from);
-                }
-
-                query = query.Where(project =>
-                    project.LifecycleStatus == ProjectLifecycleStatus.Completed
-                    && (project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : 0)) >= from
-                    && (project.CompletedYear ?? (project.CompletedOn.HasValue ? project.CompletedOn.Value.Year : 0)) <= to);
-                summary = from == to
-                    ? $"Projects completed in {from}"
-                    : $"Projects completed from {from} to {to}";
-                break;
-            }
-
-            case ProjectBriefingSelectionKind.ProjectCategory:
-            {
-                var selected = request.ProjectCategoryIds.Where(id => id > 0).Distinct().ToArray();
-                if (selected.Length == 0)
-                {
-                    throw new InvalidOperationException("Select at least one project category.");
-                }
-
-                var expanded = await ExpandCategoryIdsAsync(selected, technical: false, cancellationToken);
-                query = query.Where(project => project.CategoryId.HasValue && expanded.Contains(project.CategoryId.Value));
-                summary = "Selected project categories";
-                break;
-            }
-
-            case ProjectBriefingSelectionKind.TechnicalCategory:
-            {
-                var selected = request.TechnicalCategoryIds.Where(id => id > 0).Distinct().ToArray();
-                if (selected.Length == 0)
-                {
-                    throw new InvalidOperationException("Select at least one technical category.");
-                }
-
-                var expanded = await ExpandCategoryIdsAsync(selected, technical: true, cancellationToken);
-                query = query.Where(project => project.TechnicalCategoryId.HasValue && expanded.Contains(project.TechnicalCategoryId.Value));
-                summary = "Selected technical categories";
-                break;
-            }
-
-            case ProjectBriefingSelectionKind.AvailableForProliferation:
-                query = query.Where(project => _db.ProjectTechStatuses.Any(status =>
-                    status.ProjectId == project.Id && status.AvailableForProliferation == true));
-                summary = "Projects available for proliferation";
-                break;
-
-            case ProjectBriefingSelectionKind.MyProjects:
-            {
-                var officer = request.OfficerUserId?.Trim();
-                if (string.IsNullOrWhiteSpace(officer))
-                {
-                    throw new InvalidOperationException("Your projects could not be found.");
-                }
-
-                query = query.Where(project => project.LeadPoUserId == officer);
-                summary = "My projects";
-                break;
-            }
-
-            case ProjectBriefingSelectionKind.IndividualProjects:
-            {
-                var ids = request.ProjectIds.Where(id => id > 0).Distinct().ToArray();
-                if (ids.Length == 0)
-                {
-                    throw new InvalidOperationException("Select at least one project.");
-                }
-                query = query.Where(project => ids.Contains(project.Id));
-                summary = "Individually selected projects";
-                break;
-            }
-
-            default:
-                throw new InvalidOperationException("The project-selection method is not supported.");
+            throw new InvalidOperationException("This way of adding projects is no longer available. Tick the projects in the list instead.");
         }
+
+        var ids = request.ProjectIds.Where(id => id > 0).Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            throw new InvalidOperationException("Select at least one project.");
+        }
+
+        query = query.Where(project => ids.Contains(project.Id));
+        summary = "Individually selected projects";
 
         var projectIds = await query
             .OrderBy(project => project.Name)
@@ -378,21 +308,6 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
         });
 
         return new ProjectBriefingSelectionResult(projectIds, summary, rulesJson);
-    }
-
-    public async Task<IReadOnlyList<ProjectBriefingSearchResultVm>> SearchAsync(
-        string? query,
-        int take = 25,
-        CancellationToken cancellationToken = default)
-    {
-        var normalized = query?.Trim();
-        if (string.IsNullOrWhiteSpace(normalized) || normalized.Length < 2)
-        {
-            return Array.Empty<ProjectBriefingSearchResultVm>();
-        }
-
-        take = Math.Clamp(take, 1, 50);
-        return await BuildResultsAsync(WhereMatches(EligibleProjects(), normalized), take, cancellationToken);
     }
 
     private static IQueryable<Project> WhereMatches(IQueryable<Project> query, string text)
@@ -563,13 +478,38 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
             return count;
         }
 
-        return rows
-            .Select(row => new ProjectBriefingLookupOptionVm(
-                row.Id,
-                row.Name,
-                Aggregate(row.Id, new HashSet<int>()),
-                row.ParentId))
-            .ToList();
+        // Depth-first: SortOrder is numbered within each parent, so a flat sort mixed one parent's
+        // sub-categories in among the other parents (cold review, M3). A row whose parent is not
+        // listed (inactive) stands at the top level.
+        var listed = rows.Select(row => row.Id).ToHashSet();
+        var ordered = new List<ProjectBriefingLookupOptionVm>(rows.Count);
+        var placed = new HashSet<int>();
+        void Place(CategoryOptionRow row, int depth)
+        {
+            if (!placed.Add(row.Id))
+            {
+                return;
+            }
+
+            ordered.Add(new ProjectBriefingLookupOptionVm(row.Id, row.Name, Aggregate(row.Id, new HashSet<int>()), row.ParentId, depth));
+            foreach (var child in rows.Where(candidate => candidate.ParentId == row.Id))
+            {
+                Place(child, depth + 1);
+            }
+        }
+
+        foreach (var row in rows.Where(row => !row.ParentId.HasValue || !listed.Contains(row.ParentId.Value)))
+        {
+            Place(row, 0);
+        }
+
+        // Anything left (a loop in the parents) still appears, at the top level.
+        foreach (var row in rows)
+        {
+            Place(row, 0);
+        }
+
+        return ordered;
     }
 
     private static string? BuildOfficerDisplay(string? rank, string? name)

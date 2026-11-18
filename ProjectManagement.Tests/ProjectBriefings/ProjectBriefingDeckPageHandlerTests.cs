@@ -675,6 +675,23 @@ public sealed class ProjectBriefingDeckPageHandlerTests
         public List<(string Action, string? DeckId)> Entries { get; } = new();
     }
 
+    // Add projects lists and its choices are for a deck the person may change: another officer's
+    // personal deck is not found, and the selection service (a stub that throws) is never asked
+    // (cold review, L8).
+    [Fact]
+    public async Task AddProjectsReads_ADeckThePersonCannotChangeIsNotFound()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, Officer, ProjectBriefingDeckScope.Personal);
+        var page = CreatePage(db, Hod, ajax: true);
+
+        var list = await page.OnGetFilterProjectsAsync(new IndexModel.FilterProjectsInput { DeckId = deck.Id }, CancellationToken.None);
+        var options = await page.OnGetFilterOptionsAsync(deck.Id, CancellationToken.None);
+
+        Assert.IsType<NotFoundObjectResult>(list);
+        Assert.IsType<NotFoundObjectResult>(options);
+    }
+
     private sealed class NoSelection : IProjectBriefingSelectionService
     {
         public Task<ProjectBriefingSelectionOptionsVm> GetOptionsAsync(CancellationToken cancellationToken = default)
@@ -683,8 +700,8 @@ public sealed class ProjectBriefingDeckPageHandlerTests
         public Task<ProjectBriefingSelectionResult> ResolveAsync(ProjectBriefingSelectionRequest request, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task<IReadOnlyList<ProjectBriefingSearchResultVm>> SearchAsync(string? query, int take = 25, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+        public Task<ProjectBriefingSelectionOptionsVm> GetCategoryOptionsAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new ProjectBriefingSelectionOptionsVm());
 
         public Task<IReadOnlyList<ProjectBriefingSearchResultVm>> FilterAsync(ProjectBriefingProjectFilter filter, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
