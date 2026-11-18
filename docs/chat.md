@@ -495,7 +495,9 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   answers to this page's own send, reaction or edit, and a repeated push of a message already
   shown) keeps that part as the live change left it
   (`settleFetched`, `changedSince` in `chat/actions.js`). New code that merges server copies of
-  existing messages must go through the same check.
+  existing messages must go through the same check. A pushed edit changes the text only: its
+  reaction list was read when the edit was saved and may be older than a `ReactionsChanged`
+  already shown, so live reactions come from `ReactionsChanged` alone.
 
 - **Phase 5 (#records, Remind me, do not disturb)** changes the chat scripts and stylesheet and
   adds three attributes to the chat root in `_Layout.cshtml` (`data-record-search-url`,
