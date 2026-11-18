@@ -2205,6 +2205,8 @@ if (root) {
     if (!filterResults) return;
     filterResults.replaceChildren();
     // The ticked view lists every ticked project, also those the current filters hide (M2).
+    // With nothing left ticked (all unticked, or all added) it returns to the list (Codex review).
+    if (ticked.size === 0) showTicked = false;
     const rows = showTicked ? [...ticked.values()] : filterRows;
     const notInDeck = rows.filter((row) => !row.isSelected);
     const inDeck = rows.length - notInDeck.length;
