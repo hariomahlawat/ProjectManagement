@@ -21,7 +21,7 @@
     'PrismCollageRender', 'PrismCollageLibraryDialog', 'PrismCollageSettings', 'PrismCollagePhotos',
     'PrismCollageSave', 'PrismCollagePage', 'PrismCollageDraftsScreen', 'PrismCollagePanels',
     'PrismCollageTray', 'PrismCollageKeys', 'PrismCollageState', 'PrismCollageAddPanels', 'PrismCollageActions', 'PrismCollageStart', 'PrismCollageToolbar',
-    'PrismCollageMessages', 'PrismCollageModel', 'PDFLib', 'PrismPhotoTools'
+    'PrismCollageMessages', 'PrismCollageModel', 'PDFLib', 'PrismPhotoTools', 'PrismCollageDesigns', 'PrismCollageCard'
   ];
   const missing = parts.filter((name) => !window[name]);
   if (missing.length) {
@@ -80,6 +80,8 @@
   // The frame the next chosen photo goes into (Replace, or Add photo on an empty frame), or null.
   let targetId = null;
   let panel = 'photos';
+  // The invitation card part, made below (collage-card.js); read by updateUndo, which can run first.
+  let card = null;
   // The settings panel has two tabs: the selected item's settings, and Layers (every item, to
   // pick, hide or lock), so Layers is never far below a long list of settings.
   let propsTab = 'settings';
@@ -255,6 +257,9 @@
     clampedCrop: () => clampedCrop,
     layoutTextItem: () => layoutTextItem,
     stickerSource: () => stickerSource,
+    stickerImage: () => stickerImage,
+    measureText: () => measureText,
+    fontsReady: () => fontsReady,
     visibleSheetTop: () => visibleSheetTop,
     setShift: () => setShift,
     fontsArrived: () => fontsArrived
@@ -283,7 +288,8 @@
     refreshTitle: () => refreshTitle,
     applyLayoutKey: () => applyLayoutKey,
     setPanel: () => setPanel,
-    renderBackgroundPanel: () => renderBackgroundPanel
+    renderBackgroundPanel: () => renderBackgroundPanel,
+    renderCardPanel: () => card.renderPanel
   });
   const laterParts = window.PrismCollageState.createLaterParts({
     hideToolbar: () => hideToolbar,
@@ -354,7 +360,11 @@
     zoom = 1;
   }
 
-  async function startCollage(sizeKey, layoutKey) {
+  /**
+   * A new collage at this size, from a layout, or a card in a ready-made design
+   * (docs/ux/invitations-posters.md, PR 5), which opens with its Card details.
+   */
+  async function startCollage(sizeKey, layoutKey, designKey) {
     const request = ++openRequest;
     // When this browser already keeps the most drafts it can, the user is asked now, while
     // choosing, rather than later from the autosave in the middle of their work.
@@ -371,6 +381,9 @@
     if (layoutKey) {
       collage = frozen(core.applyLayout(collage, layoutKey, core.LAYOUT_LIMITS.defaultGap, 0, [], newItemId).collage);
     }
+    if (designKey && window.PrismCollageDesigns.DESIGNS[designKey]) {
+      collage = frozen(window.PrismCollageDesigns.applyDesign(collage, designKey, window.PrismCollageDesigns.DEFAULT_DETAILS, { measure: measureText, newId: newItemId }));
+    }
     changes.start(collage);
     // A new draft: it is first stored once it has a photo.
     session.begin({ id: nextId('d'), off: !room });
@@ -379,7 +392,8 @@
     refreshTitle();
     sizeSelect.value = collage.size;
     showView('editor');
-    setPanel('photos');
+    card?.refresh();
+    setPanel(collage.card ? 'card' : 'photos');
     syncAll();
   }
 
@@ -699,6 +713,8 @@
   function updateUndo() {
     $('[data-action="undo"]').disabled = !changes.canUndo();
     $('[data-action="redo"]').disabled = !changes.canRedo();
+    // Runs after every change, Undo and Redo: the Card details follow the card.
+    card?.refresh();
   }
 
   function restore(next) {
@@ -897,6 +913,10 @@
     photos, announce, showAlert, collageTitle, hasContent, stopAdjust, flushNudge
   });
 
+  // Invitation cards: the start screen's designs and the Card details panel (collage-card.js).
+  card = window.PrismCollageCard.createCard({
+    state, core, draw, designs: window.PrismCollageDesigns, ui, doc, history, messages, surface, selection, screens
+  });
   // The keyboard (shortcuts, nudges, Enter and Esc) and the mouse wheel (collage-keys.js).
   window.PrismCollageKeys.createKeys({
     state, change: changesFor(), core, ui, doc, messages, surface, selection, history
@@ -906,6 +926,7 @@
   // ---------------------------------------------------------------------------
 
   renderStart();
+  card.renderStart();
   renderTextPanel();
   renderStickerPanel();
   loadUnitStickers();

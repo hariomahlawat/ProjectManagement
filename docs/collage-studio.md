@@ -81,6 +81,27 @@ its npm package by hand; the libman entry records the version.
   one of seven sizes: A4 landscape or portrait, A3 poster, Slide 16:9, Square, Phone status 9:16
   and Banner 3:1. Drafts are listed below, newest first, with Delete (shown on hover or focus, always on
   touch screens) and a 10-second Undo in PRISM's glass toast.
+- **Invitation cards** ([ux/invitations-posters.md](ux/invitations-posters.md), PR 5).
+  - **Start screen:** "Make an invitation card" shows each ready-made design drawn at the chosen
+    **Card size** (A5 at first; any size from the Cards group). Each picture is drawn the way Save
+    draws. Clicking a design opens the card in the editor, with the SDD logo and realistic
+    wording, every part editable.
+  - **Card panel:** a card has a **Card** button at the top of the rail, which opens **Card
+    details**. It has:
+    - the designs, with the current one pressed;
+    - a field for each part of the wording: occasion (with quick picks such as Raising Day Dinner,
+      Barakhana and Change of Command), host, invitation line, guest's name (empty leaves a line
+      to write it on), the words before the occasion, date and time, venue, dress (with quick
+      picks), R.S.V.P. and the note at the bottom.
+  - **Typing:** typing in a field changes the words on the card at once. They're kept in the
+    draft, and recorded for Undo when typing pauses, as on the page. Words typed on the card show
+    in the field the next time the panel is drawn. A field emptied takes its words off the card;
+    filled again, they come back in the design's place. Words set by their left or right edge
+    keep that edge as they grow.
+  - **Changing the design** keeps every word, replaces only the design's own parts, keeps
+    anything the user added, and offers Undo.
+  - **Title:** a card's automatic title is its occasion ("Raising Day Dinner card").
+  - A plain collage has no Card button.
 - **Card sizes** ([ux/invitations-posters.md](ux/invitations-posters.md), PR 4). The page size
   menu (top bar and Page settings) groups every size: **Pages and screens** (the seven above),
   **Cards** and **Pocket cards**. Every card size is a true paper size, both ways round:
@@ -166,7 +187,7 @@ its npm package by hand; the libman entry records the version.
 | --- | --- |
 | `wwwroot/js/collage/collage-core.js` (`window.PrismCollage`) | The collage as plain JSON and every pure rule: sizes, layouts, crop and pan, frames, shapes, looks, text layout, snapping, lining up, Save sizes, reading a draft back safely, undo history |
 | `wwwroot/js/collage/collage-draw.js` (`window.PrismCollageDraw`) | Drawing a photo, text, sticker, shape (line, rectangle, oval) and background on a 2D canvas. The editor uses it inside Konva shapes and Save uses it on its own canvas, so **the saved picture always matches the screen** |
-| `wwwroot/js/collage/collage-designs.js` (`window.PrismCollageDesigns`) | Ready-made card designs as data ([ux/invitations-posters.md](ux/invitations-posters.md), PR 4b). There are two so far: Classic ivory and Navy and gold. Each has a portrait and a landscape arrangement, with parts placed by fractions of the page and sized by the card's scale (`unitOf`: 1 on A5, following the page's area, at most 1.3× the shorter side). `applyDesign(collage, key, details, { measure, newId })` makes ordinary items: borders and rules (`shape`), the SDD logo (`logo:sdd`), and words that fit a width, each linked to its `field` and marked with a `role`. It replaces the parts of a design applied before and keeps the user's own items in front. `detailsOf` reads the wording back, with words typed on the card winning. The card's design and wording are kept in the collage's `card` field, which drafts read back. The editor doesn't offer the designs yet (PR 5) |
+| `wwwroot/js/collage/collage-designs.js` (`window.PrismCollageDesigns`) | Ready-made card designs as data ([ux/invitations-posters.md](ux/invitations-posters.md), PR 4b). There are two so far: Classic ivory and Navy and gold. Each has a portrait and a landscape arrangement, with parts placed by fractions of the page and sized by the card's scale (`unitOf`: 1 on A5, following the page's area, at most 1.3× the shorter side). `applyDesign(collage, key, details, { measure, newId })` makes ordinary items: borders and rules (`shape`), the SDD logo (`logo:sdd`), and words that fit a width, each linked to its `field` and marked with a `role`. It replaces the parts of a design applied before and keeps the user's own items in front. `detailsOf` reads the wording back, with words typed on the card winning. The card's design and wording are kept in the collage's `card` field, which drafts read back. The start screen and the Card panel offer them (PR 5, `collage-card.js`) |
 | `wwwroot/js/collage/collage-stickers.js` | The sticker catalogue, the drawn stickers as SVG and the search |
 | `wwwroot/js/collage/collage-drafts.js` | The IndexedDB store; every call fails softly, and the editor still works when the browser refuses storage |
 | `wwwroot/js/collage/collage-render.js` | Save's drawing from the original photos (same drawing as the page), the largest canvas a browser can draw, and what was left out |

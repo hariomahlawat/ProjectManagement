@@ -144,10 +144,22 @@
    */
   function detailsOf(collage) {
     const details = { ...DEFAULT_DETAILS, ...(collage?.card?.details || {}) };
+    // A field the design placed on the card but which has no words now was emptied or deleted
+    // on the page: it stays empty, so the next design does not bring it back. A field the design
+    // never placed (the page was turned since, say) keeps its words for when it is.
+    for (const field of collage?.card?.placed || []) if (FIELDS.includes(field)) details[field] = '';
     for (const item of collage?.items || []) {
       if (item.kind === 'text' && FIELDS.includes(item.field)) details[item.field] = item.text;
     }
     return details;
+  }
+
+  /** The fields a design shows words for: on a page of this size, or in either arrangement. */
+  function fieldsOf(designKey, sizeKey) {
+    const design = DESIGNS[designKey];
+    if (!design) return [];
+    const parts = sizeKey ? (isPortrait(sizeKey) ? design.portrait : design.landscape) : [...design.portrait, ...design.landscape];
+    return [...new Set(parts.filter((part) => part.kind === 'text').map((part) => part.field))];
   }
 
   /**
@@ -206,7 +218,12 @@
       background: { ...design.background },
       layout: null,
       items: [...made, ...own],
-      card: { design: designKey, details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) }
+      card: {
+        design: designKey,
+        details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])),
+        // The fields this design put on the card, so a missing one is known to be deleted.
+        placed: [...new Set(made.filter((item) => item.field).map((item) => item.field))]
+      }
     };
   }
 
@@ -222,5 +239,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, unitOf, isPortrait, detailsOf, applyDesign, fieldItem });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, fieldsOf });
 });

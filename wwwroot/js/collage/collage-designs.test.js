@@ -53,7 +53,8 @@ test('a design makes ordinary items: the SDD logo, borders, and words linked to 
   // No guest's name yet: a line to write it on, no words.
   assert.ok(card.items.some((item) => item.role === 'guestline'));
   assert.ok(!card.items.some((item) => item.field === 'guest'));
-  assert.deepEqual(card.card, { design: 'classic', details: { ...designs.DEFAULT_DETAILS } });
+  assert.deepEqual([card.card.design, card.card.details], ['classic', { ...designs.DEFAULT_DETAILS }]);
+  assert.ok(card.card.placed.includes('occasion') && !card.card.placed.includes('guest'), 'the fields the design placed');
   // Every item is one a draft reads back as it is.
   const read = core.readDraftModel(JSON.parse(JSON.stringify(card)), []);
   assert.equal(read.items.length, card.items.length);
@@ -128,4 +129,38 @@ test('a field filled again gets the item its design has for it', () => {
   assert.equal(note.role, 'note');
   assert.equal(designs.fieldItem(card, 'note', { note: '' }, { measure, newId }), null);
   assert.equal(designs.fieldItem(core.newCollage('a5p'), 'note', { note: 'x' }, { measure, newId }), null, 'not a card');
+});
+
+test('a field deleted on the page stays empty when the design changes; a duplicate is the user\'s own', () => {
+  const card = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
+  const note = card.items.find((item) => item.field === 'note');
+  const without = { ...card, items: card.items.filter((item) => item !== note) };
+  assert.equal(designs.detailsOf(without).note, '');
+  const navy = designs.applyDesign(without, 'navy', designs.detailsOf(without), { measure, newId });
+  assert.ok(!navy.items.some((item) => item.field === 'note'), 'the deleted note does not come back');
+  // A field this design does not show keeps its words for a design that does.
+  assert.equal(designs.detailsOf({ ...card, card: { ...card.card, details: { ...card.card.details, hostHi: 'x' } } }).hostHi, 'x');
+  // A copy of a linked item shows no field, so editing the field changes one item only.
+  const copy = core.duplicateItem(note, 'n2');
+  assert.equal(copy.field, undefined);
+  assert.equal(copy.role, undefined);
+  assert.equal(copy.text, note.text);
+  assert.deepEqual(designs.fieldsOf('classic', 'a5l').includes('at'), false);
+  assert.deepEqual(designs.fieldsOf('classic', 'a5p').includes('at'), true);
+});
+
+test('a field the design never placed keeps its words when the page is turned', () => {
+  // Classic landscape has no place for "at the"; turned to portrait without a new design, the
+  // words are still the card's, not taken as deleted.
+  const wide = designs.applyDesign(core.newCollage('a5l'), 'classic', { at: 'at the' }, { measure, newId });
+  assert.ok(!wide.items.some((item) => item.field === 'at'));
+  assert.ok(!wide.card.placed.includes('at'));
+  const turned = core.changeSize(wide, 'a5p');
+  assert.equal(designs.detailsOf(turned).at, 'at the');
+  const portrait = designs.applyDesign(turned, 'classic', designs.detailsOf(turned), { measure, newId });
+  assert.equal(portrait.items.find((item) => item.field === 'at').text, 'at the');
+  // A draft keeps the placed fields.
+  const read = core.readDraftModel(JSON.parse(JSON.stringify(portrait)), []);
+  assert.ok(read.card.placed.includes('at'));
+  assert.deepEqual(core.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: {}, placed: ['at', '<x>', 7] } }, []).card.placed, ['at']);
 });

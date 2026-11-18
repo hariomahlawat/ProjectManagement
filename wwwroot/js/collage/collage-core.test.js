@@ -1268,3 +1268,10 @@ test('words with a width wrap onto new lines, then get smaller, and never change
   assert.equal('maxWidth' in read.items[1], false);
   assert.equal('maxLines' in read.items[1], false);
 });
+
+test('a card is called by its occasion', () => {
+  const host = collage.textItem('h', 'The Commandant and Officers', { x: 0, y: 0 });
+  const occasion = { ...collage.textItem('o', 'Raising Day Dinner', { x: 0, y: 0 }), field: 'occasion' };
+  assert.equal(collage.autoTitleFromText([host, occasion]), 'Raising Day Dinner card');
+  assert.equal(collage.autoTitleFromText([host, { ...occasion, text: '  ' }]), 'The Commandant and Officers');
+});

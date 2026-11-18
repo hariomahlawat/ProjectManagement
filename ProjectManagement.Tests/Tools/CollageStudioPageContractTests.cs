@@ -22,6 +22,8 @@ public sealed class CollageStudioPageContractTests
         "js/collage/collage-draft-session.js",
         "js/collage/collage-draw.js",
         "js/collage/collage-stickers.js",
+        "js/collage/collage-designs.js",
+        "js/collage/collage-card.js",
         "js/collage/collage-library.js",
         "js/collage/collage-focus.js",
         "js/collage/collage-edits.js",
