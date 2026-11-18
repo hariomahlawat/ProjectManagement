@@ -490,3 +490,34 @@ test('a card can be saved with an empty back showing, since its front has the in
   await page.keyboard.press('Escape');
   expect(errors).toEqual([]);
 });
+
+test('a logo still being read when the card is turned over stays in the tray, not on the back', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await page.locator('[data-card-side="front"]').click();
+  // A large picture, so it is still being read when the card is turned.
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 3000;
+    canvas.height = 3000;
+    const context = canvas.getContext('2d');
+    for (let i = 0; i < 400; i += 1) { context.fillStyle = `hsl(${i}, 60%, 50%)`; context.fillRect((i * 37) % 3000, (i * 91) % 3000, 300, 300); }
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  const chosen = page.locator('[data-card-logo-file]').setInputFiles({ name: 'big-logo.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await page.locator('[data-card-side="back"]').click();
+  await chosen;
+  await expect(page.locator('[data-prism-toast]').filter({ hasText: 'turned over while your logo was read' })).toBeVisible({ timeout: 20000 });
+  // A word typed, so the draft is saved and can be read.
+  await page.locator('[data-card-field="venue"]').fill('Sudarshan Hall');
+  await page.locator('[data-card-field="venue"]').blur();
+  await expect.poll(async () => Boolean(await newestDraft(page))).toBe(true);
+  const model = (await newestDraft(page)).model;
+  const front = model.side === 'back' ? model.back.items : model.items;
+  const back = model.side === 'back' ? model.items : model.back.items;
+  expect(front.find((item) => item.role === 'logo').sticker).toBe('logo:sdd');
+  expect(back.some((item) => item.role === 'logo')).toBe(false);
+  expect(errors).toEqual([]);
+});

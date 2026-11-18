@@ -404,6 +404,12 @@
       if (!stillOpen()) { window.PrismCollagePhotos.releasePhoto(photo); return; }
       doc.photos.set(photo.id, photo);
       parts.renderTray();
+      // The logo is the front's: a card turned over while the picture was read keeps it in the
+      // tray, to be chosen again from the front.
+      if (state.collage.side === 'back') {
+        messages.showAlert('The card was turned over while your logo was read. It is in the photo tray: turn to the front and choose Your own logo again.');
+        return;
+      }
       // The second logo it was chosen for may have been removed meanwhile: then it is the logo.
       const into = role === 'logo2' && state.collage.items.some((item) => item.role === 'logo2') ? 'logo2' : 'logo';
       setLogo((place) => core.photoItem(doc.newItemId(), photo.id, photo.aspect, place), into === 'logo2' ? 'Your own logo is the second logo.' : 'Your own logo is on the card.', into);
