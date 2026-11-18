@@ -4471,3 +4471,39 @@ test('a reaction from someone else arriving before my own reaction is answered i
     window.close();
   }
 });
+
+test("someone's reaction arriving while my edit is saved is kept, and the saved text is shown", async () => {
+  const now = Date.now();
+  let answer;
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return threeMessages(now);
+    if (url.endsWith('/edit')) {
+      const body = JSON.parse(init.body);
+      await new Promise((resolve) => { answer = resolve; });
+      // Read before the peer reacted: no reactions yet.
+      return { status: 200, body: directMessage(2, 'me', body.body, { clientMessageId: 'c-2', sentUtc: new Date(now - 30000).toISOString(), editedUtc: new Date().toISOString(), reactions: [] }) };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.editMs = 15 * 60000;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    win.log.querySelector('[data-focus-key="edit:2"]').click();
+    win.input.value = 'Sending it now, with the annex';
+    app.send(win);
+    await tick();
+    app.onReactions({ messageId: 2, groupId: null, reactions: [{ kind: 'noted', userIds: ['peer'] }] });
+    answer();
+    await tick(); await tick(); await tick();
+    const item = win.log.querySelector('[data-message-id="2"]');
+    assert.match(item.querySelector('.pm-chat__bubble').textContent, /with the annex/, 'the saved text');
+    assert.equal(item.querySelector('.pm-chat__reaction').textContent, '✓ Noted1', "the peer's reaction stays");
+    assert.equal(app.messageEventAt.get(2).reactions.list.length, 1, 'the stale empty list is not recorded as newest');
+  } finally {
+    window.close();
+  }
+});

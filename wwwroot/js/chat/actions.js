@@ -386,12 +386,24 @@
   };
 
   /** MessageEdited / GroupMessageEdited, or the answer to this page's own edit. */
-  ChatApp.prototype.onEdited = function (message) {
-    if (!message || !message.id || this.unsentIds.has(message.id)) return;
-    this.noteMessageEvent(message.id, {
-      text: { body: message.body, editedUtc: message.editedUtc, mentionedUserIds: message.mentionedUserIds },
-      reactions: message.reactions || [],
-    });
+  /**
+   * A pushed edit (MessageEdited) is live: both its text and its reactions are the newest.
+   * `answeredSince` is set for the answer to this page's own edit, asked for when the live
+   * numbering stood there: a part that changed live since keeps its live content, and only the
+   * parts taken from the answer are recorded.
+   */
+  ChatApp.prototype.onEdited = function (incoming, answeredSince) {
+    if (!incoming || !incoming.id || this.unsentIds.has(incoming.id)) return;
+    const isAnswer = typeof answeredSince === 'number';
+    const message = isAnswer ? this.settleFetched([incoming], answeredSince)[0] : incoming;
+    const change = {};
+    if (!isAnswer || !this.changedSince(message.id, 'text', answeredSince)) {
+      change.text = { body: message.body, editedUtc: message.editedUtc, mentionedUserIds: message.mentionedUserIds };
+    }
+    if (!isAnswer || !this.changedSince(message.id, 'reactions', answeredSince)) {
+      change.reactions = message.reactions || [];
+    }
+    if (change.text || change.reactions) this.noteMessageEvent(message.id, change);
     this.windows.forEach((win) => {
       const held = win.messages.some((m) => m.id === message.id);
       const heldLive = (win.heldLive || []).some((m) => m.id === message.id);
@@ -508,7 +520,8 @@
       const saved = await this.request('POST', `/messages/${id}/edit`, { body: text, mentionedUserIds: mentioned });
       const view = this.viewFor(win);
       if (view.editing && view.editing.id === id) this.cancelComposing(view);
-      if (!this.changedSince(id, 'text', mark)) this.onEdited(saved);
+      // Settled per part: newer live text (another tab) or reactions (someone reacting) stay.
+      this.onEdited(saved, mark);
       this.announce('Message edited.');
     } catch (error) {
       this.composeNote(this.viewFor(win), error.message);
