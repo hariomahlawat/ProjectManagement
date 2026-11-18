@@ -149,3 +149,14 @@ test('emptying the field of a locked item does not delete it', async ({ page }) 
   await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'note')?.text).toBe('Kindly bring this card');
   expect(errors).toEqual([]);
 });
+
+test('Undo straight after a quick pick puts the field back too', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-pick="occasion"][data-value="Barakhana"]').click();
+  await expect(page.locator('[data-card-field="occasion"]')).toHaveValue('Barakhana');
+  // The quick pick keeps the focus; Ctrl+Z undoes it.
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('[data-card-field="occasion"]')).toHaveValue('Raising Day Dinner');
+  expect(errors).toEqual([]);
+});

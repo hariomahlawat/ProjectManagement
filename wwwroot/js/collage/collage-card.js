@@ -132,7 +132,9 @@
         return;
       }
       if (pressing) { waiting = true; return; }
-      if (state.panel === 'card' && !form.contains(document.activeElement)) renderPanel();
+      // Drawn again unless a field in it is being typed in; a focused button keeps its focus.
+      const typing = form.contains(document.activeElement) && document.activeElement.matches('input:not([type="color"]), textarea');
+      if (state.panel === 'card' && !typing) messages.keepingFocus(() => renderPanel());
       else renderStrip();
     }
 
