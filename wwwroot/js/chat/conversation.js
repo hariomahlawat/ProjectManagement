@@ -43,35 +43,6 @@
     }
     return 0;
   }
-
-  /** Copies text to the clipboard: the Clipboard API where the page may use it, else a fallback. */
-  async function copyText(text) {
-    if (global.isSecureContext && global.navigator && global.navigator.clipboard) {
-      try {
-        await global.navigator.clipboard.writeText(text);
-        return true;
-      } catch (_) { /* fall back */ }
-    }
-    // Plain http on the LAN has no Clipboard API: copy through a hidden text box.
-    const area = document.createElement('textarea');
-    area.value = text;
-    area.setAttribute('readonly', '');
-    area.style.position = 'fixed';
-    area.style.opacity = '0';
-    const back = document.activeElement;
-    document.body.append(area);
-    area.focus({ preventScroll: true });
-    area.select();
-    let done = false;
-    try {
-      done = document.execCommand('copy');
-    } catch (_) {
-      done = false;
-    }
-    area.remove();
-    if (back && typeof back.focus === 'function') back.focus({ preventScroll: true });
-    return done;
-  }
   const PREVIEW_DELAY_MS = 40; // gather the links of one redraw (or several) into one request
 
   /** The cards for a message's PRISM links that are known; unknown links are asked for. */
@@ -452,6 +423,7 @@
       }
       const mine = message.senderUserId === this.me;
       const item = el('li', `pm-chat__msg ${mine ? 'is-mine' : 'is-theirs'}`);
+      if (message.id) item.dataset.messageId = String(message.id);
       // A run: the same person again within a few minutes sits closer to the message before.
       const continues = message.senderUserId === lastSender && sent.getTime() - lastSentAt < RUN_GAP_MS;
       if (continues) {
@@ -483,6 +455,8 @@
         // Links are anchors (built from text, never parsed as HTML); links to PRISM records get
         // a card when the server says this user may open the record.
         appendLinked(bubble, message.body || '', global.location.origin);
+        // chat/actions.js: "@Name" marked for the people mentioned; a mention of me stands out.
+        if (this.decorateMentions(bubble, message, win)) item.classList.add('is-mentioned');
         cards = this.cardsFor(message);
       }
       const meta = el('span', 'pm-chat__time');
@@ -500,6 +474,11 @@
       } else {
         meta.textContent = timeFormat.format(sent);
         meta.title = fullTime(sent);
+        if (message.editedUtc && !message.isUnsent) {
+          const edited = el('span', 'pm-chat__edited', 'Edited');
+          edited.title = `Edited ${fullTime(new Date(message.editedUtc))}`;
+          meta.append(' · ', edited);
+        }
         if (mine) {
           // Read ticks: one tick once stored, two (coloured) once read. In a group, two ticks
           // once everyone has read it; the label says who has.
@@ -542,19 +521,15 @@
       item.append(bubble, ...files, ...cards, meta);
       bubble.title = meta.title || '';
       previousItem = message.failed || !message.id ? null : item;
-      if (message.id && !message.isUnsent && message.body) {
-        // Shown on hover or keyboard focus within the message (CSS), always in the tab order.
-        const copy = el('button', 'pm-chat__msg-action', 'Copy');
-        copy.type = 'button';
-        copy.dataset.focusKey = `copy:${message.id}`;
-        copy.setAttribute('aria-label', `Copy message from ${mine ? 'you' : who}`);
-        copy.addEventListener('click', async () => {
-          const ok = await copyText(message.body);
-          this.announce(ok ? 'Message copied.' : 'The message could not be copied. Select the text and press Ctrl+C.');
-          copy.textContent = ok ? 'Copied' : 'Copy';
-          if (ok) global.setTimeout(() => { if (copy.isConnected) copy.textContent = 'Copy'; }, 1500);
-        });
-        item.append(copy);
+      // chat/actions.js: the quote of what this replies to, its reactions, and its toolbar.
+      const quote = this.replyQuote(win, message);
+      if (quote) item.insertBefore(quote, bubble);
+      const chips = this.reactionChips(win, message);
+      if (chips) item.insertBefore(chips, meta);
+      const actions = this.actionBar(win, message, mine, who);
+      if (actions) {
+        item.append(actions.node);
+        if (actions.expiresIn) nextExpiry = Math.min(nextExpiry, actions.expiresIn);
       }
       items.push(item);
     }
@@ -602,6 +577,10 @@
   };
 
   ChatApp.prototype.send = function (win) {
+    if (win.editing) {
+      this.submitEdit(win); // chat/actions.js
+      return;
+    }
     const text = win.input.value.replace(/\r\n?/g, '\n').trim();
     const files = this.readyFiles(win);
     if (files.busy) {
@@ -621,7 +600,12 @@
       sentUtc: new Date().toISOString(),
       attachments: files.attachments,
       attachmentIds: files.attachments.map((a) => a.id),
+      replyToMessageId: win.replyTo || null,
+      mentionedUserIds: win.groupId ? this.mentionsIn(win, text) : [],
     };
+    win.replyTo = 0;
+    win.mentionIds = new Map();
+    this.renderComposing(win);
     this.clearSentFiles(win, files.attachments);
     // Replying: the person has caught up, so "New messages" and "↓ new" go.
     win.unreadFromId = 0;
@@ -653,12 +637,15 @@
           clientMessageId: message.clientMessageId,
           body: message.body,
           attachmentIds: message.attachmentIds || [],
+          replyToMessageId: message.replyToMessageId || null,
+          mentionedUserIds: message.mentionedUserIds || [],
         })
         : await this.request('POST', '/messages', {
           recipientUserId: win.peerId,
           clientMessageId: message.clientMessageId,
           body: message.body,
           attachmentIds: message.attachmentIds || [],
+          replyToMessageId: message.replyToMessageId || null,
         });
       // Checked now, not when sending: the person may have opened an older slice meanwhile,
       // or the conversation may have moved to another view (dock to Messages page).

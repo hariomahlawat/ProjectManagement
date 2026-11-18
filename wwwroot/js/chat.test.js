@@ -3668,3 +3668,301 @@ test('a dropped connection shows "Reconnecting…" after a few seconds, and it c
     window.close();
   }
 });
+
+// ----- Phase 3: reply, react, edit, @mention ------------------------------------------------
+
+function threeMessages(now) {
+  return {
+    messages: [
+      directMessage(1, 'peer', 'Can you share the trial report? It is needed for the review on Friday, with the annexes and the cost sheet', { sentUtc: new Date(now - 60000).toISOString() }),
+      directMessage(2, 'me', 'Sending it now', { sentUtc: new Date(now - 30000).toISOString() }),
+      directMessage(3, 'peer', 'Thanks', { sentUtc: new Date(now).toISOString(), replyToMessageId: 2 }),
+    ],
+    hasMore: false,
+  };
+}
+
+test('Reply quotes the message above the box, goes with the send, and the reply shows the quote', async () => {
+  const now = Date.now();
+  const posts = [];
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return threeMessages(now);
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      posts.push(body);
+      return { status: 200, body: directMessage(4, 'me', body.body, { clientMessageId: body.clientMessageId, replyToMessageId: body.replyToMessageId }) };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+
+    // A loaded reply quotes its original by name and opening words.
+    const quote = win.log.querySelector('[data-message-id="3"] .pm-chat__quote');
+    assert.equal(quote.textContent, 'Me MyselfSending it now'.replace('Me Myself', app.nameOf('me', win)));
+
+    win.log.querySelector('[data-focus-key="reply:1"]').click();
+    assert.equal(win.composing.hidden, false);
+    assert.match(win.composing.textContent, /Replying to Peer Person: Can you share the trial report\? It is needed/);
+    assert.match(win.composing.textContent, /…$/, 'a long message is shortened');
+
+    // Esc cancels the reply without minimising the window.
+    win.input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    assert.equal(win.composing.hidden, true);
+    assert.equal(win.minimized, false);
+
+    win.log.querySelector('[data-focus-key="reply:1"]').click();
+    win.input.value = 'Attached';
+    app.send(win);
+    await tick(); await tick();
+    assert.equal(posts[0].replyToMessageId, 1);
+    assert.equal(win.composing.hidden, true);
+    assert.match(win.log.querySelector('[data-message-id="4"] .pm-chat__quote').textContent, /Peer PersonCan you share/);
+  } finally {
+    window.close();
+  }
+});
+
+test('a reply to a message not loaded says "An earlier message" and opens the conversation there', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) {
+      asked.push(url);
+      return { messages: [directMessage(50, 'peer', 'As I said', { replyToMessageId: 7 })], hasMore: true };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const win = window.PMChat.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const quote = win.log.querySelector('.pm-chat__quote');
+    assert.equal(quote.textContent, 'An earlier message');
+    quote.click();
+    await tick();
+    assert.ok(asked.some((url) => url.includes('before=8')), 'opened around message 7');
+  } finally {
+    window.close();
+  }
+});
+
+test('reactions: the toolbar adds one at once, chips show who, and live changes from others arrive', async () => {
+  const reacts = [];
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Submit the DPR by Friday')], hasMore: false };
+    if (url.endsWith('/react')) {
+      const body = JSON.parse(init.body);
+      reacts.push(body);
+      return { status: 200, body: { messageId: 1, groupId: null, reactions: body.on ? [{ kind: body.kind, userIds: ['me'] }] : [] } };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const noted = win.log.querySelector('[data-focus-key="react-noted:1"]');
+    assert.equal(noted.textContent, '✓ Noted');
+    assert.equal(noted.getAttribute('aria-pressed'), 'false');
+    noted.click();
+    // Shown before the server answers.
+    let chip = win.log.querySelector('.pm-chat__reaction');
+    assert.ok(chip);
+    assert.equal(chip.getAttribute('aria-pressed'), 'true');
+    await tick(); await tick();
+    assert.deepEqual(reacts, [{ kind: 'noted', on: true }]);
+
+    app.onReactions({ messageId: 1, groupId: null, reactions: [{ kind: 'noted', userIds: ['me', 'peer'] }, { kind: 'like', userIds: ['peer'] }] });
+    const chips = Array.from(win.log.querySelectorAll('.pm-chat__reaction'));
+    assert.deepEqual(chips.map((c) => c.textContent), ['✓ Noted2', '👍1']);
+    assert.equal(chips[0].title, 'Noted: you and Peer Person');
+    assert.equal(chips[1].getAttribute('aria-pressed'), 'false');
+
+    // The chip takes it back.
+    chips[0].click();
+    await tick(); await tick();
+    assert.deepEqual(reacts[1], { kind: 'noted', on: false });
+  } finally {
+    window.close();
+  }
+});
+
+test('a refused reaction is taken back off the screen and the reason shown', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'hello')], hasMore: false };
+    if (url.endsWith('/react')) return { status: 400, body: { detail: 'This message cannot be reacted to.' } };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const heard = said(app);
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    win.log.querySelector('[data-focus-key="react-like:1"]').click();
+    await tick(); await tick(); await tick();
+    assert.equal(win.log.querySelector('.pm-chat__reaction'), null);
+    assert.ok(heard.includes('This message cannot be reacted to.'));
+  } finally {
+    window.close();
+  }
+});
+
+test('Edit puts my message in the box, Send saves it as edited, and Esc gives back what I was typing', async () => {
+  const now = Date.now();
+  const edits = [];
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return threeMessages(now);
+    if (url.endsWith('/edit')) {
+      const body = JSON.parse(init.body);
+      edits.push(body);
+      return { status: 200, body: directMessage(2, 'me', body.body, { clientMessageId: 'c-2', sentUtc: new Date(now - 30000).toISOString(), editedUtc: new Date().toISOString() }) };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.editMs = 15 * 60000;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    assert.equal(win.log.querySelector('[data-focus-key="edit:1"]'), null, 'not on their messages');
+
+    win.input.value = 'half-typed reply';
+    win.log.querySelector('[data-focus-key="edit:2"]').click();
+    assert.equal(win.input.value, 'Sending it now');
+    assert.match(win.composing.textContent, /Editing your message/);
+    win.input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    assert.equal(win.input.value, 'half-typed reply', 'the draft comes back');
+
+    // ↑ in an empty box edits my last message.
+    win.input.value = '';
+    win.input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+    assert.equal(win.input.value, 'Sending it now');
+    win.input.value = 'Sent it, see the attachment';
+    app.send(win);
+    await tick(); await tick(); await tick();
+    assert.deepEqual(edits, [{ body: 'Sent it, see the attachment', mentionedUserIds: [] }]);
+    const mine = win.log.querySelector('[data-message-id="2"]');
+    assert.match(mine.querySelector('.pm-chat__bubble').textContent, /Sent it, see the attachment/);
+    assert.ok(mine.querySelector('.pm-chat__edited'));
+    assert.equal(win.input.value, '', 'the box is free again');
+
+    // Someone else's edit arrives live; one this window never loaded is ignored.
+    app.onEdited(directMessage(1, 'peer', 'Can you share the report?', { editedUtc: new Date().toISOString() }));
+    assert.match(win.log.querySelector('[data-message-id="1"] .pm-chat__bubble').textContent, /^Can you share the report\?$/);
+    app.onEdited(directMessage(99, 'peer', 'never loaded', { editedUtc: new Date().toISOString() }));
+    assert.equal(win.log.querySelector('[data-message-id="99"]'), null);
+  } finally {
+    window.close();
+  }
+});
+
+test('the message toolbar is one tab stop; ← → move inside it', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'hello')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const win = window.PMChat.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const bar = win.log.querySelector('.pm-chat__actions');
+    assert.equal(bar.getAttribute('role'), 'toolbar');
+    const buttons = Array.from(bar.querySelectorAll('button'));
+    assert.deepEqual(buttons.map((b) => b.tabIndex), [0, -1, -1, -1, -1]);
+    assert.deepEqual(buttons.map((b) => b.textContent), ['✓ Noted', '👍', '👀', 'Reply', 'Copy']);
+    buttons[0].focus();
+    bar.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    assert.equal(window.document.activeElement, buttons[1]);
+    bar.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    bar.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    assert.equal(window.document.activeElement, buttons[4], 'wraps around');
+  } finally {
+    window.close();
+  }
+});
+
+test('@ in a group suggests members; choosing one mentions them, and the mention is marked', async () => {
+  const posts = [];
+  const window = groupApp(async (url, init) => {
+    if (url.endsWith('/groups/5/messages') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      posts.push(body);
+      return { status: 200, body: groupMessage(70, 'me', body.body, { clientMessageId: body.clientMessageId, mentionedUserIds: body.mentionedUserIds }) };
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: true });
+    await tick(); await tick();
+    const type = (text) => {
+      win.input.value = text;
+      win.input.setSelectionRange(text.length, text.length);
+      win.input.dispatchEvent(new window.Event('input'));
+    };
+    const key = (k) => {
+      const event = new window.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true });
+      win.input.dispatchEvent(event);
+      return event;
+    };
+
+    type('Please check @');
+    assert.equal(win.mentionList.hidden, false);
+    assert.equal(win.input.getAttribute('aria-expanded'), 'true');
+    assert.deepEqual(Array.from(win.mentionList.children, (o) => o.textContent), ['Peer Person', 'Third Officer'], 'never myself');
+    key('ArrowDown');
+    assert.equal(win.input.getAttribute('aria-activedescendant'), win.mentionList.children[1].id);
+    type('Please check @th');
+    assert.deepEqual(Array.from(win.mentionList.children, (o) => o.textContent), ['Third Officer']);
+    const enter = key('Enter');
+    assert.equal(enter.defaultPrevented, true);
+    assert.equal(posts.length, 0, 'Enter chose the person; it did not send');
+    assert.equal(win.input.value, 'Please check @Third Officer ');
+    assert.equal(win.mentionList.hidden, true);
+
+    win.input.value += 'and @Nobody';
+    app.send(win);
+    await tick(); await tick();
+    assert.deepEqual(posts[0].mentionedUserIds, ['third']);
+    const mention = win.log.querySelector('[data-message-id="70"] .pm-chat__mention');
+    assert.equal(mention.textContent, '@Third Officer');
+  } finally {
+    window.close();
+  }
+});
+
+test('a mention of me gets through a muted group, and stands out', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    let alerts = 0;
+    app.alert = () => { alerts += 1; };
+    app.setMuted(5, true);
+    app.onMessage(groupMessage(80, 'peer', 'Nothing for you'));
+    assert.equal(alerts, 0);
+    app.onMessage(groupMessage(81, 'peer', '@Me Myself your view?', { mentionedUserIds: ['me'] }));
+    assert.equal(alerts, 1);
+    const win = app.windows.get('g:5');
+    assert.ok(win, 'it popped open');
+    await tick(); await tick();
+    const item = win.log.querySelector('[data-message-id="81"]');
+    assert.ok(item.classList.contains('is-mentioned'));
+    assert.ok(item.querySelector('.pm-chat__mention.is-me'));
+  } finally {
+    window.close();
+  }
+});

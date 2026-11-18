@@ -213,6 +213,7 @@
       jump, offline, counter, newBelow: 0, unreadFromId: 0,
     };
     this.buildAttach(win); // chat/files.js: attach button and waiting files, when attachments are on
+    this.bindComposer(win); // chat/actions.js: replies, edits and (groups) @mentions
 
     people.addEventListener('click', () => {
       if (win.panelOpen) {
@@ -265,6 +266,8 @@
       this.maybeMarkRead(win);
     });
     input.addEventListener('keydown', (event) => {
+      // chat/actions.js first: the @mention list, and Esc to stop replying or editing.
+      if (this.composerKey(win, event)) return;
       if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
         event.preventDefault();
         form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));

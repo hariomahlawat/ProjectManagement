@@ -445,6 +445,109 @@ public sealed class ChatServiceTests
         Assert.Equal(expected.OrderBy(id => id), first.Ids.Concat(second.Ids).OrderBy(id => id));
     }
 
+    [Fact]
+    public async Task Reply_IsStoredWithTheMessage_AndOnlyToAMessageOfTheSameConversation()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var question = await scope.Service.SendAsync("bob", Request("alice", "Which annex?"));
+        var elsewhere = await scope.Service.SendAsync("carol", Request("alice", "Not this one"));
+
+        var answer = await scope.Service.SendAsync("alice", new ChatSendRequest("bob", Guid.NewGuid(), "Annex B", ReplyToMessageId: question.Message!.Id));
+        Assert.Equal(ChatSendStatus.Sent, answer.Status);
+        Assert.Equal(question.Message.Id, answer.Message!.ReplyToMessageId);
+        Assert.Equal(question.Message.Id, (await scope.Service.GetHistoryAsync("bob", "alice", null, 40)).Messages.Last().ReplyToMessageId);
+
+        // Another conversation's message cannot be quoted here (its text would leak to Bob).
+        var wrong = await scope.Service.SendAsync("alice", new ChatSendRequest("bob", Guid.NewGuid(), "Sneaky", ReplyToMessageId: elsewhere.Message!.Id));
+        Assert.Equal(ChatSendStatus.Invalid, wrong.Status);
+        Assert.Equal(3, await scope.Db.ChatMessages.CountAsync());
+    }
+
+    [Fact]
+    public async Task Edit_WithinTheWindow_ReplacesTheTextAndMarksItEdited()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var sent = await scope.Service.SendAsync("alice", Request("bob", "Meeting at 1500"));
+
+        var edit = await scope.Service.EditAsync("alice", sent.Message!.Id, new ChatEditRequest("  Meeting at 1600 "));
+
+        Assert.Equal(ChatChangeStatus.Done, edit.Status);
+        Assert.Equal("Meeting at 1600", edit.Message!.Body);
+        Assert.NotNull(edit.Message.EditedUtc);
+        Assert.Equal("bob", edit.Message.RecipientUserId);
+        Assert.Equal(new[] { "alice", "bob" }, edit.NotifyUserIds.OrderBy(id => id));
+        var bobView = (await scope.Service.GetHistoryAsync("bob", "alice", null, 40)).Messages.Single();
+        Assert.Equal("Meeting at 1600", bobView.Body);
+        Assert.NotNull(bobView.EditedUtc);
+        Assert.Single(await scope.Service.SearchAsync("bob", "1600", 50));
+        Assert.Empty(await scope.Service.SearchAsync("bob", "1500", 50));
+    }
+
+    [Fact]
+    public async Task Edit_IsRefused_AfterTheWindow_ForSomeoneElse_EmptyOrUnsent()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var sent = await scope.Service.SendAsync("alice", Request("bob", "Draft one"));
+        var id = sent.Message!.Id;
+
+        Assert.Equal(ChatChangeStatus.NotFound, (await scope.Service.EditAsync("bob", id, new ChatEditRequest("Hijacked"))).Status);
+        Assert.Equal(ChatChangeStatus.Invalid, (await scope.Service.EditAsync("alice", id, new ChatEditRequest("   "))).Status);
+        Assert.Equal(ChatChangeStatus.Invalid, (await scope.Service.EditAsync("alice", id, new ChatEditRequest(new string('x', ChatMessage.MaxBodyLength + 1)))).Status);
+
+        scope.Clock.Advance(TimeSpan.FromMinutes(16));
+        Assert.Equal(ChatChangeStatus.TooLate, (await scope.Service.EditAsync("alice", id, new ChatEditRequest("Too late"))).Status);
+
+        var other = await scope.Service.SendAsync("alice", Request("bob", "Withdrawn"));
+        await scope.Service.UnsendAsync("alice", other.Message!.Id);
+        Assert.Equal(ChatChangeStatus.Invalid, (await scope.Service.EditAsync("alice", other.Message.Id, new ChatEditRequest("Back"))).Status);
+        Assert.Equal("Draft one", (await scope.Db.ChatMessages.AsNoTracking().SingleAsync(m => m.Id == id)).Body);
+    }
+
+    [Fact]
+    public async Task React_TogglesOnePersonsReaction_AndBothPeopleSeeTheSameList()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var sent = await scope.Service.SendAsync("alice", Request("bob", "Please submit the DPR by Friday"));
+        var id = sent.Message!.Id;
+
+        var noted = await scope.Service.ReactAsync("bob", id, ChatReactionKind.Noted, on: true);
+        Assert.Equal(ChatChangeStatus.Done, noted.Status);
+        Assert.Equal(new[] { "alice", "bob" }, noted.NotifyUserIds.OrderBy(x => x));
+        var reaction = Assert.Single(noted.Reactions!.Reactions);
+        Assert.Equal(ChatReactionKind.Noted, reaction.Kind);
+        Assert.Equal(new[] { "bob" }, reaction.UserIds);
+
+        // Again: no duplicate. Another kind, and the sender's own.
+        await scope.Service.ReactAsync("bob", id, ChatReactionKind.Noted, on: true);
+        await scope.Service.ReactAsync("bob", id, ChatReactionKind.Like, on: true);
+        await scope.Service.ReactAsync("alice", id, ChatReactionKind.Like, on: true);
+        var aliceView = (await scope.Service.GetHistoryAsync("alice", "bob", null, 40)).Messages.Single().Reactions!;
+        Assert.Equal(new[] { ChatReactionKind.Noted, ChatReactionKind.Like }, aliceView.Select(r => r.Kind));
+        Assert.Equal(new[] { "bob", "alice" }, aliceView.Single(r => r.Kind == ChatReactionKind.Like).UserIds);
+
+        var off = await scope.Service.ReactAsync("bob", id, ChatReactionKind.Like, on: false);
+        Assert.Equal(new[] { "alice" }, off.Reactions!.Reactions.Single(r => r.Kind == ChatReactionKind.Like).UserIds);
+    }
+
+    [Fact]
+    public async Task React_IsRefused_OutsideTheConversation_ForUnknownKinds_AndUnsentMessages()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var sent = await scope.Service.SendAsync("alice", Request("bob", "Between us"));
+        var id = sent.Message!.Id;
+
+        Assert.Equal(ChatChangeStatus.NotFound, (await scope.Service.ReactAsync("carol", id, ChatReactionKind.Like, true)).Status);
+        Assert.Equal(ChatChangeStatus.Invalid, (await scope.Service.ReactAsync("bob", id, "heart", true)).Status);
+        Assert.Equal(ChatChangeStatus.NotFound, (await scope.Service.ReactAsync("bob", 9999, ChatReactionKind.Like, true)).Status);
+        Assert.Equal(0, await scope.Db.ChatMessageReactions.CountAsync());
+
+        await scope.Service.ReactAsync("bob", id, ChatReactionKind.Noted, true);
+        await scope.Service.UnsendAsync("alice", id);
+        Assert.Equal(0, await scope.Db.ChatMessageReactions.CountAsync()); // gone with the text
+        Assert.Equal(ChatChangeStatus.Invalid, (await scope.Service.ReactAsync("bob", id, ChatReactionKind.Noted, true)).Status);
+        Assert.Null((await scope.Service.GetHistoryAsync("bob", "alice", null, 40)).Messages.Single().Reactions);
+    }
+
     private static ChatSendRequest Request(string recipient, string body)
         => new(recipient, Guid.NewGuid(), body);
 

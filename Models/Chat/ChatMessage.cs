@@ -38,5 +38,15 @@ public sealed class ChatMessage
     /// <summary>The notice's subject: the added/removed user id, or the new group name.</summary>
     public string? EventData { get; set; }
 
+    /// <summary>
+    /// The message this one replies to, in the same conversation. No foreign key: like the rest
+    /// of chat, rows are never deleted one by one, and the reply keeps its id when the original
+    /// is unsent (the browser then shows "Message unsent" in the quote).
+    /// </summary>
+    public long? ReplyToMessageId { get; set; }
+
+    /// <summary>When the sender last edited the text (only possible shortly after sending).</summary>
+    public DateTimeOffset? EditedUtc { get; set; }
+
     public ChatConversation? Conversation { get; set; }
 }

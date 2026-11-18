@@ -2,13 +2,14 @@
  * PRISM chat: buddy list and docked one-to-one chat windows (bottom-right, Gmail-style), plus
  * the full Messages page (/Chat) when it is on screen.
  *
- * Eight plain scripts, loaded in this order by Pages/Shared/_ChatScripts.cshtml (no build step):
+ * Nine plain scripts, loaded in this order by Pages/Shared/_ChatScripts.cshtml (no build step):
  *   core.js          constants, pure helpers, DOM helpers, the chime; hands them on as PMChatParts
  *   app.js           ChatApp: state, browser storage, HTTP, the live connection, polling, away
  *   events.js        what arrives: messages, reads, presence, unsends, status, groups
  *   dock.js          the contact list, New group, chat buttons next to names, the launcher badge
  *   windows.js       conversation windows and the group people panel
  *   conversation.js  one conversation: reading, history paging, drawing messages, sending
+ *   actions.js       what can be done to a message: reply, react, edit, copy; @mentions
  *   files.js         file attachments: upload, waiting files, files in messages, removing
  *   page.js          the Messages page, and start-up (window.PMChat)
  * Each later file adds methods to ChatApp.prototype; nothing runs until page.js starts it.
@@ -21,13 +22,16 @@
  *   POST {api}/with/{peer}/read                 { upToMessageId }
  *   GET/POST {api}/status                       { message } (own status message)
  *   POST {api}/messages/{id}/unsend             own message, shortly after sending
+ *   POST {api}/messages/{id}/edit               { body, mentionedUserIds } own message, within the edit window
+ *   POST {api}/messages/{id}/react              { kind: noted|like|looking, on }
  *   GET  {api}/unsent?since=                    ids unsent while this page was not listening
  *   GET  {api}/previews?link=&link=             cards for links to PRISM records the user may open
  *   GET/POST {api}/groups, GET {api}/groups/{id}, …/messages, …/read, …/members,
  *            …/members/{user}/remove, …/leave, …/rename      group chats (410 = not in the group)
  *   hub  in:  ReceiveMessage / ConversationRead / PeerRead / PresenceChanged / Typing /
  *             MessageUnsent / StatusChanged / ReceiveGroupMessage / GroupMessageUnsent /
- *             GroupChanged / GroupRemoved / GroupRead / GroupTyping
+ *             GroupChanged / GroupRemoved / GroupRead / GroupTyping / MessageEdited /
+ *             GroupMessageEdited / ReactionsChanged
  *   hub  out: also TypingInGroup(groupId)
  *
  * Conversations are keyed by the other person's user id (direct) or "g:{groupId}" (group).

@@ -3686,9 +3686,15 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
+                    b.Property<DateTimeOffset?>("EditedUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("EventKind")
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
+
+                    b.Property<long?>("ReplyToMessageId")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("SenderUserId")
                         .IsRequired()
@@ -3713,6 +3719,44 @@ namespace ProjectManagement.Migrations
                             t.HasCheckConstraint("CK_ChatMessages_Event", "\"EventKind\" IS NULL OR (\"EventKind\" IN ('Created','Added','Removed','Left','Renamed') AND \"Body\" = '')");
 
                             t.HasCheckConstraint("CK_ChatMessages_UnsentHasNoBody", "\"UnsentUtc\" IS NULL OR \"Body\" = ''");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Chat.ChatMessageMention", b =>
+                {
+                    b.Property<long>("MessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("MessageId", "UserId");
+
+                    b.ToTable("ChatMessageMentions");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Chat.ChatMessageReaction", b =>
+                {
+                    b.Property<long>("MessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("MessageId", "UserId", "Kind");
+
+                    b.ToTable("ChatMessageReactions", t =>
+                        {
+                            t.HasCheckConstraint("CK_ChatMessageReactions_Kind", "\"Kind\" IN ('like','noted','looking')");
                         });
                 });
 
@@ -11140,6 +11184,28 @@ namespace ProjectManagement.Migrations
                         .IsRequired();
 
                     b.Navigation("Conversation");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Chat.ChatMessageMention", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Chat.ChatMessage", "Message")
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Message");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Chat.ChatMessageReaction", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Chat.ChatMessage", "Message")
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Message");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Chat.ChatParticipant", b =>

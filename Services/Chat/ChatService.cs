@@ -38,6 +38,26 @@ public enum ChatUnsendStatus
 /// </summary>
 public sealed record ChatUnsendResult(ChatUnsendStatus Status, ChatMessageDto? Message, IReadOnlyList<string>? NotifyUserIds = null);
 
+public enum ChatChangeStatus
+{
+    Done,
+    NotFound,
+    TooLate,
+    Invalid,
+}
+
+/// <summary>An edit: the message as it now is, and everyone who can see it.</summary>
+public sealed record ChatEditResult(ChatChangeStatus Status, ChatMessageDto? Message, IReadOnlyList<string> NotifyUserIds, string? Error = null)
+{
+    public static ChatEditResult Fail(ChatChangeStatus status, string? error = null) => new(status, null, Array.Empty<string>(), error);
+}
+
+/// <summary>A reaction turned on or off: the message's reactions now, and everyone who can see it.</summary>
+public sealed record ChatReactResult(ChatChangeStatus Status, ChatReactionsDto? Reactions, IReadOnlyList<string> NotifyUserIds, string? Error = null)
+{
+    public static ChatReactResult Fail(ChatChangeStatus status, string? error = null) => new(status, null, Array.Empty<string>(), error);
+}
+
 /// <summary>
 /// Direct person-to-person chat. Everyone may chat with every active (human) user. Messages are
 /// kept indefinitely and are only ever returned to the two people in the conversation; there is
@@ -69,6 +89,13 @@ public sealed class ChatService
     }
 
     public TimeSpan UnsendWindow => TimeSpan.FromMinutes(Math.Max(0, _options.CurrentValue.UnsendWindowMinutes));
+
+    public TimeSpan EditWindow => TimeSpan.FromMinutes(Math.Max(0, _options.CurrentValue.EditWindowMinutes));
+
+    internal const string ReplyGoneError = "The message you replied to is not in this conversation any more. Send it without the reply.";
+
+    /// <summary>The most people one message may mention (a group's size).</summary>
+    public const int MaxMentions = ChatConversation.MaxGroupMembers;
 
     /// <summary>
     /// The buddy list: every active human user, plus anyone the caller has a conversation with
@@ -202,7 +229,7 @@ public sealed class ChatService
                 m.UnsentUtc is not null))
             .ToList();
 
-        return new ChatHistoryDto(peerUserId, await ChatAttachmentService.WithAttachmentsAsync(_db, messages, cancellationToken), hasMore, hasNewer, peerLastRead);
+        return new ChatHistoryDto(peerUserId, await ChatMessageDetails.WithDetailsAsync(_db, messages, cancellationToken), hasMore, hasNewer, peerLastRead);
     }
 
     /// <summary>
@@ -353,7 +380,7 @@ public sealed class ChatService
         if (existing is not null)
         {
             return existing.GroupId is null && string.Equals(existing.RecipientUserId, recipientUserId, StringComparison.Ordinal)
-                ? new ChatSendResult(ChatSendStatus.Sent, await ChatAttachmentService.WithAttachmentsAsync(_db, existing, cancellationToken), null)
+                ? new ChatSendResult(ChatSendStatus.Sent, await ChatMessageDetails.WithDetailsAsync(_db, existing, cancellationToken), null)
                 : ChatSendResult.Invalid("This message identifier was already used for a different conversation.");
         }
 
@@ -372,6 +399,12 @@ public sealed class ChatService
         }
 
         var conversation = await GetOrCreateDirectConversationAsync(senderUserId, recipientUserId, cancellationToken);
+        if (request.ReplyToMessageId is { } replyTo
+            && !await CanReplyToAsync(_db, conversation.Id, replyTo, joinedUtc: null, cancellationToken))
+        {
+            return ChatSendResult.Invalid(ReplyGoneError);
+        }
+
         var now = _clock.UtcNow;
         var message = new ChatMessage
         {
@@ -380,6 +413,7 @@ public sealed class ChatService
             ClientMessageId = request.ClientMessageId,
             Body = body,
             SentUtc = now,
+            ReplyToMessageId = request.ReplyToMessageId,
         };
 
         _db.ChatMessages.Add(message);
@@ -417,7 +451,7 @@ public sealed class ChatService
                 throw;
             }
 
-            return new ChatSendResult(ChatSendStatus.Sent, await ChatAttachmentService.WithAttachmentsAsync(_db, existing, cancellationToken), null);
+            return new ChatSendResult(ChatSendStatus.Sent, await ChatMessageDetails.WithDetailsAsync(_db, existing, cancellationToken), null);
         }
 
         fileError = await ChatAttachmentService.ClaimAsync(_db, senderUserId, fileIds, message.Id, cancellationToken);
@@ -439,7 +473,7 @@ public sealed class ChatService
 
         return new ChatSendResult(
             ChatSendStatus.Sent,
-            await ChatAttachmentService.WithAttachmentsAsync(
+            await ChatMessageDetails.WithDetailsAsync(
                 _db,
                 new ChatMessageDto(message.Id, senderUserId, recipientUserId, message.ClientMessageId, message.Body, message.SentUtc),
                 cancellationToken),
@@ -547,6 +581,11 @@ public sealed class ChatService
                         .SetProperty(a => a.RemovalReason, ChatAttachmentRemovalReason.Unsent)
                         .SetProperty(a => a.RemovedByUserId, userId),
                     cancellationToken);
+            // The text is gone, and with it who it mentioned and how people reacted to it.
+            await _db.ChatMessageMentions.Where(m => m.MessageId == message.Id).ExecuteDeleteAsync(cancellationToken);
+            await _db.ChatMessageReactions.Where(r => r.MessageId == message.Id).ExecuteDeleteAsync(cancellationToken);
+            Forget<ChatMessageMention>(_db, m => m.MessageId == message.Id);
+            Forget<ChatMessageReaction>(_db, r => r.MessageId == message.Id);
             if (transaction is not null)
             {
                 await transaction.CommitAsync(cancellationToken);
@@ -566,6 +605,226 @@ public sealed class ChatService
     /// so a page that missed live unsend events (connection down) can blank them. Bounded: unsend is
     /// only possible shortly after sending, and the caller passes when it lost its connection.
     /// </summary>
+    /// <summary>
+    /// Edits the caller's own message within <see cref="EditWindow"/> of sending it, in a
+    /// conversation they are still in. The text is replaced (earlier text is not kept) and the
+    /// message says "Edited"; in a group, the mentions are replaced too.
+    /// </summary>
+    public async Task<ChatEditResult> EditAsync(string userId, long messageId, ChatEditRequest request, CancellationToken cancellationToken = default)
+    {
+        if (EditWindow <= TimeSpan.Zero)
+        {
+            return ChatEditResult.Fail(ChatChangeStatus.Invalid, "Messages cannot be edited.");
+        }
+
+        var message = await _db.ChatMessages
+            .Where(m => m.Id == messageId && m.SenderUserId == userId && m.EventKind == null
+                && m.Conversation!.Participants.Any(p => p.UserId == userId))
+            .Include(m => m.Conversation)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (message is null)
+        {
+            return ChatEditResult.Fail(ChatChangeStatus.NotFound);
+        }
+
+        if (message.UnsentUtc is not null)
+        {
+            return ChatEditResult.Fail(ChatChangeStatus.Invalid, "An unsent message cannot be edited.");
+        }
+
+        var now = _clock.UtcNow;
+        if (now - message.SentUtc > EditWindow)
+        {
+            return ChatEditResult.Fail(ChatChangeStatus.TooLate);
+        }
+
+        var body = NormalizeBody(request.Body);
+        if (body.Length > ChatMessage.MaxBodyLength)
+        {
+            return ChatEditResult.Fail(ChatChangeStatus.Invalid, $"A message can be at most {ChatMessage.MaxBodyLength} characters.");
+        }
+
+        if (body.Length == 0
+            && !await _db.ChatAttachments.AnyAsync(a => a.MessageId == message.Id && a.RemovedUtc == null, cancellationToken))
+        {
+            return ChatEditResult.Fail(ChatChangeStatus.Invalid, "A message needs some text. To take it back, use Unsend.");
+        }
+
+        var isGroup = message.Conversation!.Kind == ChatConversation.GroupKind;
+        var mentions = isGroup
+            ? await ValidMentionsAsync(_db, message.ConversationId, userId, request.MentionedUserIds, cancellationToken, message.SentUtc)
+            : Array.Empty<string>();
+
+        await using var transaction = _db.Database.CurrentTransaction is null
+            ? await _db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+        if (!string.Equals(body, message.Body, StringComparison.Ordinal))
+        {
+            message.Body = body;
+            message.EditedUtc = now;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        if (isGroup)
+        {
+            await _db.ChatMessageMentions.Where(m => m.MessageId == message.Id).ExecuteDeleteAsync(cancellationToken);
+            Forget<ChatMessageMention>(_db, m => m.MessageId == message.Id);
+            AddMentions(_db, message.Id, mentions);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
+
+        var audience = await AudienceAsync(_db, message.ConversationId, isGroup, message.SentUtc, cancellationToken);
+        var recipient = isGroup ? string.Empty : audience.FirstOrDefault(id => !string.Equals(id, userId, StringComparison.Ordinal)) ?? string.Empty;
+        var dto = await ChatMessageDetails.WithDetailsAsync(
+            _db,
+            new ChatMessageDto(message.Id, userId, recipient, message.ClientMessageId, message.Body, message.SentUtc,
+                GroupId: isGroup ? message.ConversationId : null),
+            cancellationToken);
+        return new ChatEditResult(ChatChangeStatus.Done, dto, audience);
+    }
+
+    /// <summary>
+    /// Turns one of the caller's reactions to a message on or off. Anyone who can read the
+    /// message may react (in a group: members who had joined by the time it was sent); notices
+    /// and unsent messages take no reactions. Repeating an on or off changes nothing.
+    /// </summary>
+    public async Task<ChatReactResult> ReactAsync(string userId, long messageId, string? kind, bool on, CancellationToken cancellationToken = default)
+    {
+        if (!ChatReactionKind.IsKnown(kind))
+        {
+            return ChatReactResult.Fail(ChatChangeStatus.Invalid, "That reaction is not offered.");
+        }
+
+        var message = await _db.ChatMessages
+            .AsNoTracking()
+            .Where(m => m.Id == messageId && m.EventKind == null)
+            .Select(m => new { m.Id, m.ConversationId, m.SentUtc, m.UnsentUtc, m.Conversation!.Kind })
+            .SingleOrDefaultAsync(cancellationToken);
+        var isGroup = message?.Kind == ChatConversation.GroupKind;
+        if (message is null
+            || !await _db.ChatParticipants.AnyAsync(
+                p => p.ConversationId == message.ConversationId && p.UserId == userId && (!isGroup || p.JoinedUtc <= message.SentUtc),
+                cancellationToken))
+        {
+            return ChatReactResult.Fail(ChatChangeStatus.NotFound);
+        }
+
+        if (message.UnsentUtc is not null)
+        {
+            return ChatReactResult.Fail(ChatChangeStatus.Invalid, "An unsent message cannot be reacted to.");
+        }
+
+        if (on)
+        {
+            var exists = await _db.ChatMessageReactions.AnyAsync(r => r.MessageId == messageId && r.UserId == userId && r.Kind == kind, cancellationToken);
+            if (!exists)
+            {
+                var reaction = new ChatMessageReaction { MessageId = messageId, UserId = userId, Kind = kind!, CreatedUtc = _clock.UtcNow };
+                _db.ChatMessageReactions.Add(reaction);
+                try
+                {
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
+                catch (DbUpdateException)
+                {
+                    // The same reaction from another tab at the same moment: it is there either way.
+                }
+                finally
+                {
+                    // Not kept in the context: turning it off deletes in the database directly.
+                    _db.Entry(reaction).State = EntityState.Detached;
+                }
+            }
+        }
+        else
+        {
+            await _db.ChatMessageReactions
+                .Where(r => r.MessageId == messageId && r.UserId == userId && r.Kind == kind)
+                .ExecuteDeleteAsync(cancellationToken);
+            Forget<ChatMessageReaction>(_db, r => r.MessageId == messageId && r.UserId == userId && r.Kind == kind);
+        }
+
+        var reactions = await ChatMessageDetails.ReactionsOfAsync(_db, messageId, cancellationToken);
+        var audience = await AudienceAsync(_db, message.ConversationId, isGroup, message.SentUtc, cancellationToken);
+        return new ChatReactResult(ChatChangeStatus.Done, new ChatReactionsDto(messageId, isGroup ? message.ConversationId : null, reactions), audience);
+    }
+
+    /// <summary>
+    /// Whether a new message may reply to <paramref name="replyToMessageId"/>: a message (not a
+    /// notice) of the same conversation, sent after <paramref name="joinedUtc"/> when given (a
+    /// group member replies only to what they can see).
+    /// </summary>
+    internal static Task<bool> CanReplyToAsync(ApplicationDbContext db, long conversationId, long replyToMessageId, DateTimeOffset? joinedUtc, CancellationToken cancellationToken)
+        => db.ChatMessages.AnyAsync(
+            m => m.Id == replyToMessageId && m.ConversationId == conversationId && m.EventKind == null
+                && (joinedUtc == null || m.SentUtc >= joinedUtc),
+            cancellationToken);
+
+    /// <summary>
+    /// The asked-for mentions that are members of the group now and can see the message (joined
+    /// by <paramref name="sentUtc"/>, when editing an existing one), the sender left out; others
+    /// are dropped.
+    /// </summary>
+    internal static async Task<IReadOnlyList<string>> ValidMentionsAsync(
+        ApplicationDbContext db,
+        long conversationId,
+        string senderUserId,
+        IReadOnlyList<string>? requested,
+        CancellationToken cancellationToken,
+        DateTimeOffset? sentUtc = null)
+    {
+        var wanted = (requested ?? Array.Empty<string>())
+            .Where(id => !string.IsNullOrWhiteSpace(id) && id.Length <= 450 && !string.Equals(id, senderUserId, StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .Take(MaxMentions)
+            .ToList();
+        if (wanted.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        return await db.ChatParticipants
+            .AsNoTracking()
+            .Where(p => p.ConversationId == conversationId && wanted.Contains(p.UserId)
+                && (sentUtc == null || p.JoinedUtc <= sentUtc))
+            .Select(p => p.UserId)
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Stops tracking rows a set delete (ExecuteDelete) just removed: the context would otherwise
+    /// still hold them, and adding the same key again in this request would fail.
+    /// </summary>
+    internal static void Forget<T>(ApplicationDbContext db, Func<T, bool> removed)
+        where T : class
+    {
+        foreach (var entry in db.ChangeTracker.Entries<T>().Where(e => removed(e.Entity)).ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
+    }
+
+    internal static void AddMentions(ApplicationDbContext db, long messageId, IReadOnlyList<string> userIds)
+    {
+        foreach (var id in userIds)
+        {
+            db.ChatMessageMentions.Add(new ChatMessageMention { MessageId = messageId, UserId = id });
+        }
+    }
+
+    /// <summary>Who can see a message: both people of a direct chat; a group's members who had joined by the time it was sent.</summary>
+    internal static async Task<IReadOnlyList<string>> AudienceAsync(ApplicationDbContext db, long conversationId, bool isGroup, DateTimeOffset sentUtc, CancellationToken cancellationToken)
+        => await db.ChatParticipants
+            .AsNoTracking()
+            .Where(p => p.ConversationId == conversationId && (!isGroup || p.JoinedUtc <= sentUtc))
+            .Select(p => p.UserId)
+            .ToListAsync(cancellationToken);
+
     public async Task<ChatUnsentPageDto> ListUnsentSinceAsync(
         string userId,
         DateTimeOffset since,

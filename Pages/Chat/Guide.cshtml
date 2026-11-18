@@ -5,6 +5,7 @@
     var options = Model.Options;
     var attachments = options.Attachments;
     var unsend = options.UnsendWindowMinutes;
+    var edit = options.EditWindowMinutes;
 }
 
 <article class="pm-chat-guide">
@@ -37,7 +38,13 @@
                 {
                     <li>Sent too soon? <strong>Unsend</strong> it within @unsend @(unsend == 1 ? "minute" : "minutes").</li>
                 }
+                @if (edit > 0)
+                {
+                    <li>Spotted a mistake? <strong>Edit</strong> it within @edit @(edit == 1 ? "minute" : "minutes") (or press <kbd>&uarr;</kbd> in an empty box).</li>
+                }
                 <li>One tick: sent. Two blue ticks: read.</li>
+                <li>Point at a message to <strong>Reply</strong> to it, react with <strong>&#x2713; Noted</strong>, &#x1F44D; or &#x1F440;, or <strong>Copy</strong> it.</li>
+                <li>In a group, type <kbd>@@</kbd> to mention someone. They are alerted even if they muted the group.</li>
             </ul>
         </section>
 

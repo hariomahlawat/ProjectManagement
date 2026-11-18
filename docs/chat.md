@@ -95,7 +95,34 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   an "Unsend" link. Unsending erases the text on the server (the row stays, so the
   conversation shows "Message unsent" in its place for both people), takes it out of search
   and unread counts, and reaches the other person live. After the window the link disappears
-  and the server refuses.
+  and the server refuses. Unsending also clears the message's reactions and mentions.
+- **Message toolbar** (Phase 3, owner defaults of 2026-11-18): pointing at a message (or
+  keyboard focus in it) shows a toolbar over its corner: **✓ Noted**, **👍**, **👀** (looking
+  into it), **Reply**, **Copy**, and on your own recent messages **Edit**. It is one tab stop
+  (`role=toolbar`); ← → Home End move inside it. In a conversation you can no longer write to
+  (inactive account, removed from the group) only Copy is offered.
+- **Replies**: Reply shows "Replying to Ravi: …" above the message box (× or Esc cancels); the
+  sent message carries a quote of the original (who, and its opening words). Clicking the quote
+  goes to the original and highlights it, or opens the conversation there if it is not loaded
+  ("An earlier message"). The server stores only which message it replies to, and checks it is
+  in the same conversation and, in a group, one the sender could see; the quote is built in the
+  browser from messages it has, so a reply never carries text from before a member joined.
+- **Reactions**: a fixed set (✓ Noted, 👍, 👀), not an emoji picker. Each shows as a chip
+  under the message with a count ("✓ Noted 3"); its tooltip and label name who reacted, and
+  your own chips are highlighted. Clicking a chip (or the toolbar button) adds or takes back
+  yours; the change shows at once and reaches everyone who can see the message live. Anyone
+  who can read a message may react to it (in a group, members who had joined by then).
+- **Edit**: your own messages for 15 minutes after sending (`Chat:EditWindowMinutes`). Edit
+  (or ↑ in an empty message box) puts the text in the box ("Editing your message"; × or Esc
+  restores what you were typing); Send saves it. The message says "Edited" (its tooltip gives
+  when); the earlier text is not kept (owner default). The new text reaches everyone live and
+  is what search finds. Files cannot be changed by editing (remove a file instead).
+- **@mentions** (groups): typing `@` in a group's message box lists its members (never
+  yourself); ↑ ↓ choose, Enter or Tab inserts "@Name", Esc closes the list. The message stores
+  who was mentioned (members only; others are dropped on the server). Mentions are marked in the
+  text, and a mention of you is highlighted and **gets through a muted group**: the group pops
+  open, chimes and is announced (owner default). Editing a message can change its mentions,
+  but only to members who could see it.
 - **Chat buttons next to names**: a small chat icon after a person's name opens a chat with
   them. Present on the Project Overview header (PO and HoD) and the Ongoing projects list
   (PO). To add it elsewhere, mark the element `data-chat-user="{userId}"` (and optionally
@@ -215,6 +242,10 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   the people search carry `aria-keyshortcuts="Alt+C"`. "↓ N new messages" is a button that
   says where it goes; the "Reconnecting…" notes are announced once through the live region
   rather than being live regions themselves.
+- The message toolbar is one tab stop (`role=toolbar`, roving tabindex) so a long conversation
+  does not cost dozens of Tab presses; reaction buttons and chips are toggle buttons
+  (`aria-pressed`) labelled with who reacted. The @mention list is a `listbox` driven from the
+  message box (`aria-autocomplete=list`, `aria-activedescendant`, `aria-expanded`).
 - The image viewer is a modal dialog (`aria-modal`, labelled by its caption): focus starts on
   Close, Tab stays inside it, Esc closes it. The drop overlay is decorative (`aria-hidden`);
   dropping is a shortcut for the attach button, which stays the keyboard route.
@@ -225,8 +256,9 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 
 | Piece | Where |
 | --- | --- |
-| Tables | `ChatConversations`, `ChatParticipants`, `ChatMessages` (`Models/Chat`, migration `20261217110004_AddChat`); `ChatUserStatuses` and `ChatMessages.UnsentUtc` (migration `20261217163005_AddChatStatusAndUnsend`); group name/manager and notices (migration `20261217220006_AddChatGroups`) |
+| Tables | `ChatConversations`, `ChatParticipants`, `ChatMessages` (`Models/Chat`, migration `20261217110004_AddChat`); `ChatUserStatuses` and `ChatMessages.UnsentUtc` (migration `20261217163005_AddChatStatusAndUnsend`); group name/manager and notices (migration `20261217220006_AddChatGroups`); replies, edits, reactions and mentions: `ChatMessages.ReplyToMessageId`/`EditedUtc`, `ChatMessageReactions`, `ChatMessageMentions` (migration `20270108080026_AddChatRepliesReactionsMentions`) |
 | Group rules | `Services/Chat/ChatGroupService.cs` |
+| Replies, edits, reactions, mentions | `ChatService.EditAsync` / `ReactAsync` and the send paths; `Services/Chat/ChatMessageDetails.cs` adds files, reply id, edit time, mentions and reactions to every message returned or pushed; browser: `wwwroot/js/chat/actions.js` |
 | Rules | `Services/Chat/ChatService.cs` |
 | Online status | `Services/Chat/ChatPresenceTracker.cs` (in-memory, per process) |
 | HTTP API | `Features/Chat/ChatApi.cs`, under `/api/chat` |
@@ -278,6 +310,11 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 - Group conversations have `Kind = 'Group'`, a `Title` and a `ManagerUserId`, and no pair
   key; check constraints enforce both shapes. Notices are `ChatMessages` rows with an
   `EventKind` and empty body. Leaving or removal deletes the `ChatParticipants` row.
+- **Edit and react** (`POST /api/chat/messages/{id}/edit` `{ body, mentionedUserIds }`,
+  `POST …/react` `{ kind, on }`): own messages within the edit window; reactions by anyone who
+  can read the message. Refusals are 400 (409 when too late to edit), never 404. Pushed as
+  `MessageEdited` / `GroupMessageEdited` (the message) and `ReactionsChanged`
+  (`{ messageId, groupId, reactions }`) to everyone who can see the message.
 - **Previews** (`GET /api/chat/previews?link=…&link=…`, at most 10 links, each a path with
   its query, including the path base): `Services/Chat/ChatLinkPreviewService.cs` recognises
   the record pages above and builds a card for each record the caller may open (for repository
@@ -377,6 +414,7 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 | `Chat:Attachments:UndoHours` | `24` | How long a removal can be undone before the file is deleted from disk (unsending is final). |
 | `Chat:Attachments:UploadPermitLimit` / `UploadWindowSeconds` | `30` / `60` | Uploads one person may start per window. |
 | `Chat:UnsendWindowMinutes` | `5` | How long after sending a message its sender may unsend it. `0` turns unsend off. |
+| `Chat:EditWindowMinutes` | `15` | How long after sending a message its sender may edit it. `0` turns editing off (the Edit button is not offered). |
 
 ## Deployment notes
 
@@ -413,6 +451,22 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   scripts and stylesheet: no server, migration or setting change. Alt+C is new to the page; it
   was not used elsewhere in PRISM. The page's name-button observer now ignores chat's own
   redraws, so it no longer rescans the page on every chat update.
+
+- **Phase 3 (replies, reactions, edits, mentions)** adds migration
+  `20270108080026_AddChatRepliesReactionsMentions`: two nullable columns on `ChatMessages`
+  (`ReplyToMessageId`, `EditedUtc`) and two tables, `ChatMessageReactions` (message, user,
+  kind; check constraint on the three kinds) and `ChatMessageMentions` (message, user), both
+  removed with their message. Additive; no existing row changes. As with every migration, the
+  previous build refuses to start against the migrated database, so rollback is the rollback
+  SOP: restore, or this migration's Down (drops reactions, mentions and the reply/edit marks;
+  message text is untouched). New setting `Chat:EditWindowMinutes` (default 15, in
+  `appsettings.json`). New endpoints `POST /api/chat/messages/{id}/edit` and `…/react` (send
+  rate limit) and hub events `MessageEdited`, `GroupMessageEdited` and `ReactionsChanged`: a page
+  loaded before this release does not know them and shows edits and reactions on its next load;
+  it sends replies and mentions as plain messages. The model snapshot is updated for the chat
+  tables, checked by `ChatModelSnapshotTests`; `ChatPostgresIntegrationTests` runs the new
+  queries on a migrated PostgreSQL database. Missed live edits and reactions (connection down)
+  are picked up by the catch-up's history pages, which refresh every message they cover.
 
 ## Not yet built
 

@@ -27,6 +27,8 @@
     this.guideUrl = root.dataset.guideUrl || '';
     this.maxLength = Number(root.dataset.maxLength) || 4000;
     this.unsendMs = (Number(root.dataset.unsendMinutes) || 0) * 60000;
+    // Missing (a page from an older server): no Edit offered.
+    this.editMs = (Number(root.dataset.editMinutes) || 0) * 60000;
     // File attachments (chat/files.js), when switched on for this server.
     this.attachments = {
       enabled: root.dataset.attachments === 'on',
@@ -321,6 +323,10 @@
     connection.on('GroupTyping', (typing) => this.onGroupTyping(typing));
     connection.on('AttachmentRemoved', (removed) => this.onAttachmentRemoved(removed));
     connection.on('AttachmentRestored', (restored) => this.onAttachmentRestored(restored));
+    // Phase 3 (chat/actions.js): edits and reactions.
+    connection.on('MessageEdited', (message) => this.onEdited(message));
+    connection.on('GroupMessageEdited', (message) => this.onEdited(message));
+    connection.on('ReactionsChanged', (reactions) => this.onReactions(reactions));
     connection.onreconnecting(() => {
       this.markOffline();
       this.startPolling();

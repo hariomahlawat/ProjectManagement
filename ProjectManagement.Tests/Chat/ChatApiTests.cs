@@ -24,6 +24,7 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Contracts.Chat;
 using ProjectManagement.Data;
 using ProjectManagement.Hubs;
+using ProjectManagement.Models.Chat;
 using ProjectManagement.Services.Chat;
 using ProjectManagement.Models;
 using ProjectManagement.Tests.Infrastructure;
@@ -91,7 +92,7 @@ public sealed class ChatApiTests
             .ToList();
 
         Assert.Equal(
-            new[] { "core", "app", "events", "dock", "windows", "conversation", "files", "page" }.Select(n => $"/js/chat/{n}.js"),
+            new[] { "core", "app", "events", "dock", "windows", "conversation", "actions", "files", "page" }.Select(n => $"/js/chat/{n}.js"),
             scripts);
         Assert.DoesNotContain("/js/chat.js", html);
         foreach (var src in scripts)
@@ -292,6 +293,8 @@ public sealed class ChatApiTests
     [InlineData("/api/chat/status")]
     [InlineData("/api/chat/groups")]
     [InlineData("/api/chat/with/bob/read")]
+    [InlineData("/api/chat/messages/1/edit")]
+    [InlineData("/api/chat/messages/1/react")]
     public async Task Writes_WithoutTheAntiforgeryToken_AreRefused(string path)
     {
         await using var host = await ChatHost.CreateAsync();
@@ -316,6 +319,42 @@ public sealed class ChatApiTests
         var push = Assert.Single(host.Hub.Pushes);
         Assert.Equal(nameof(IChatClient.ReceiveMessage), push.Method);
         Assert.Equal(new[] { "alice", "bob" }, push.Targets.OrderBy(t => t));
+    }
+
+    [Fact]
+    public async Task EditAndReact_OverHttp_PushToBothPeople_AndAStrangerGetsNoHint()
+    {
+        await using var host = await ChatHost.CreateAsync();
+        using var alice = host.ClientFor("alice");
+        var aliceToken = await host.TokenAsync(alice);
+        var sent = await host.PostAsync(alice, aliceToken, "/api/chat/messages", new ChatSendRequest("bob", Guid.NewGuid(), "Report by 1500"));
+        var message = await sent.Content.ReadFromJsonAsync<ChatMessageDto>();
+        host.Hub.Pushes.Clear();
+
+        var edited = await host.PostAsync(alice, aliceToken, $"/api/chat/messages/{message!.Id}/edit", new ChatEditRequest("Report by 1600"));
+        Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+        Assert.Equal("Report by 1600", (await edited.Content.ReadFromJsonAsync<ChatMessageDto>())!.Body);
+        var editPush = Assert.Single(host.Hub.Pushes);
+        Assert.Equal(nameof(IChatClient.MessageEdited), editPush.Method);
+        Assert.Equal(new[] { "alice", "bob" }, editPush.Targets.OrderBy(t => t));
+
+        using var bob = host.ClientFor("bob");
+        var bobToken = await host.TokenAsync(bob);
+        host.Hub.Pushes.Clear();
+        var reacted = await host.PostAsync(bob, bobToken, $"/api/chat/messages/{message.Id}/react", new ChatReactRequest(ChatReactionKind.Noted, true));
+        Assert.Equal(HttpStatusCode.OK, reacted.StatusCode);
+        var reactPush = Assert.Single(host.Hub.Pushes);
+        Assert.Equal(nameof(IChatClient.ReactionsChanged), reactPush.Method);
+        Assert.Equal(new[] { "alice", "bob" }, reactPush.Targets.OrderBy(t => t));
+
+        // Bob cannot edit Alice's message; Carol cannot react to a conversation she is not in.
+        // Both are 400, never 404 (which the browser reads as "chat is off").
+        Assert.Equal(HttpStatusCode.BadRequest, (await host.PostAsync(bob, bobToken, $"/api/chat/messages/{message.Id}/edit", new ChatEditRequest("mine now"))).StatusCode);
+        using var carol = host.ClientFor("carol");
+        var carolToken = await host.TokenAsync(carol);
+        host.Hub.Pushes.Clear();
+        Assert.Equal(HttpStatusCode.BadRequest, (await host.PostAsync(carol, carolToken, $"/api/chat/messages/{message.Id}/react", new ChatReactRequest(ChatReactionKind.Like, true))).StatusCode);
+        Assert.Empty(host.Hub.Pushes);
     }
 
     [Fact]
