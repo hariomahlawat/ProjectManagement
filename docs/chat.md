@@ -485,7 +485,8 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   it sends replies and mentions as plain messages. The model snapshot is updated for the chat
   tables, checked by `ChatModelSnapshotTests`; `ChatPostgresIntegrationTests` runs the new
   queries on a migrated PostgreSQL database. Edits and reactions missed while the live
-  connection was down are brought in on reconnect: the page asks
+  connection was down are brought in on every 30-second poll while it is down and once more on
+  reconnect: the page asks
   `GET /api/chat/messages/current?ids=…` (at most 500 ids per request, the same who-may-read
   rule as history; others are left out) for the current state of every message it has loaded,
   and redraws those that changed. An older server answers 404 and the page carries on.

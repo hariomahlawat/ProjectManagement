@@ -4618,3 +4618,32 @@ test('a pushed edit changes the text only: a reaction pushed just before it stay
     window.close();
   }
 });
+
+test('while polling without a live connection, edits to older loaded messages are brought in', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/messages/current')) {
+      asked.push(url);
+      return [directMessage(1, 'peer', 'Corrected during the outage', { editedUtc: new Date().toISOString() })];
+    }
+    if (url.includes('/with/peer/messages')) {
+      return { messages: [directMessage(1, 'peer', 'Original text'), directMessage(2, 'me', 'unchanged')], hasMore: false };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    await app.syncUnsent(); // what each poll does
+    assert.equal(asked.length, 1);
+    assert.match(win.log.querySelector('[data-message-id="1"] .pm-chat__bubble').textContent, /Corrected during the outage/);
+    assert.ok(app.offlineSince, 'still offline: the final catch-up runs on reconnect');
+  } finally {
+    window.close();
+  }
+});

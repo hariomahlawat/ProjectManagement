@@ -542,9 +542,10 @@
         this.windows.forEach((w) => this.renderMessages(w, { stickToBottom: false }));
         if (this.page) this.page.refreshResults();
       }
-      // Back live: edits and reactions missed meanwhile on messages already on screen (catch-up
-      // only fetches newer messages). A failure retries with the rest of this catch-up.
-      if (done) await this.refreshLoaded();
+      // Edits and reactions missed on messages already on screen (history catch-up only fetches
+      // newer messages): on every poll while the live connection is down, and once more when it
+      // is back. A failure retries with the next poll, or with the rest of the final catch-up.
+      await this.refreshLoaded();
       // Live again: events cover the rest, unless the connection dropped again while this ran
       // (that outage still needs its own catch-up).
       const stillLive = !this.connection || this.isConnected();
