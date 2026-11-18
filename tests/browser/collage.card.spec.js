@@ -95,3 +95,17 @@ test('words typed on the card show in the Card details, and a plain collage has 
   await expect(page.locator('[data-card-field="venue"]')).toHaveValue('Sudarshan Hall');
   expect(errors).toEqual([]);
 });
+
+test('a design pressed straight after typing in Card details still changes the design', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  const occasion = page.locator('[data-card-field="occasion"]');
+  // Type, and at once (well inside the pause that records the typing) press another design.
+  await occasion.fill('Barakhana');
+  await page.locator('[data-card-design="navy"]').click();
+  await expect(page.locator('[data-card-design="navy"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(async () => (await newestDraft(page))?.model?.card?.design).toBe('navy');
+  const model = (await newestDraft(page)).model;
+  expect(model.items.find((item) => item.field === 'occasion').text).toBe('Barakhana');
+  expect(errors).toEqual([]);
+});

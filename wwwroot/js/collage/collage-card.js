@@ -127,10 +127,22 @@
       renderStrip();
     }
 
+    /**
+     * The design buttons, made once and then only marked: a held edit written when a button is
+     * pressed redraws the panel, and a button replaced under the pointer would lose its click.
+     */
     function renderStrip() {
       if (!strip) return;
       const current = state.collage?.card?.design;
-      strip.innerHTML = Object.values(designs.DESIGNS).map((design) => `<button type="button" class="btn btn-sm ${design.key === current ? 'btn-primary' : 'btn-outline-secondary'}" data-card-design="${design.key}" aria-pressed="${design.key === current}">${escapeHtml(design.label)}</button>`).join('');
+      if (!strip.children.length) {
+        strip.innerHTML = Object.values(designs.DESIGNS).map((design) => `<button type="button" class="btn btn-sm" data-card-design="${design.key}">${escapeHtml(design.label)}</button>`).join('');
+      }
+      for (const button of strip.querySelectorAll('[data-card-design]')) {
+        const on = button.dataset.cardDesign === current;
+        button.classList.toggle('btn-primary', on);
+        button.classList.toggle('btn-outline-secondary', !on);
+        button.setAttribute('aria-pressed', String(on));
+      }
     }
 
     /**
