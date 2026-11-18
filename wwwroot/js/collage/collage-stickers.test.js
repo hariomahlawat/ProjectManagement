@@ -93,7 +93,8 @@ test('crests and logos come first, take only PRISM picture addresses, and are fo
     { id: 3, name: 'Twice', width: 10, height: 10, url: '/api/collage/stickers/3/image?v=1' }
   ]);
   assert.equal(count, 1);
-  assert.deepEqual(stickers.groups()[0].items.map((item) => item.id), ['unit:3']);
+  // PRISM's own SDD logo comes first, then the crests PRISM listed (docs/ux/invitations-posters.md, PR 4).
+  assert.deepEqual(stickers.groups()[0].items.map((item) => item.id), ['logo:sdd', 'unit:3']);
   const found = stickers.find('unit:3');
   assert.equal(found.kind, 'unit');
   assert.equal(found.label, 'Signals crest');
@@ -295,4 +296,18 @@ test('under a path base, PRISM is asked and trusted only at addresses below it; 
   assert.equal(library.setBasePath('//elsewhere.example'), '');
   assert.equal(stickers.setBasePath('/'), '');
   assert.equal(stickers.find('unit:9').url, '/api/collage/stickers/9/image');
+});
+
+test('PRISM’s own SDD logo is a sticker drawn from the picture shipped with PRISM', () => {
+  const sdd = stickers.find('logo:sdd');
+  assert.equal(sdd.kind, 'logo');
+  assert.equal(sdd.label, 'SDD');
+  assert.equal(sdd.url, '/img/logos/sdd-hd.webp');
+  assert.ok(Math.abs(sdd.aspect - 1732 / 2940) < 1e-9);
+  assert.equal(stickers.find('logo:nope'), null);
+  assert.deepEqual(stickers.search('sdd').map((item) => item.id), ['logo:sdd']);
+  // Under a sub-path the picture is read from there.
+  stickers.setBasePath('/prism');
+  assert.equal(stickers.find('logo:sdd').url, '/prism/img/logos/sdd-hd.webp');
+  stickers.setBasePath('');
 });

@@ -192,8 +192,8 @@
         ui.props.innerHTML = `
           <h2 class="clg-panel-title">Page</h2>
           <label class="clg-field"><span class="clg-field__label">Size</span>
-            <select class="form-select form-select-sm" data-page-size>${Object.entries(core.SIZES)
-              .map(([key, size]) => `<option value="${key}"${key === state.collage.size ? ' selected' : ''}>${escapeHtml(size.label)} · ${escapeHtml(size.note)}</option>`).join('')}</select></label>
+            <select class="form-select form-select-sm" data-page-size>${core.sizesByGroup().map((group) => `<optgroup label="${escapeHtml(group.label)}">${group.keys
+              .map((key) => `<option value="${key}"${key === state.collage.size ? ' selected' : ''}>${escapeHtml(core.SIZES[key].label)} · ${escapeHtml(core.SIZES[key].note)}</option>`).join('')}</optgroup>`).join('')}</select></label>
           <div class="clg-section">
             <p class="clg-section__title">How to</p>
             <ul class="clg-tips clg-for-mouse">

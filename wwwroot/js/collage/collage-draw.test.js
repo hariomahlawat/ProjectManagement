@@ -224,3 +224,13 @@ test('a line thicker than a small shape stays inside its box: the inset is half 
   assert.equal(y, width / 2, 'the outer edge of the line is the top of the box');
   assert.equal(x, width / 2);
 });
+
+test('words fitted to a width are drawn at the size the layout chose', () => {
+  const ctx = recorder();
+  const item = collage.textItem('t', 'A long heading here', { x: 0, y: 0 }, { size: 40, maxWidth: 100, maxLines: 1 });
+  const layout = collage.layoutText(item, (text, font) => [...text].length * Number(/(\d+(?:\.\d+)?)px/.exec(font)[1]) / 2);
+  assert.ok(layout.size < 40);
+  draw.drawText(ctx, item, layout);
+  const font = ctx.calls.find((c) => c[0] === 'font')[1];
+  assert.match(font, new RegExp(`${layout.size}px`));
+});

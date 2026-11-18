@@ -25,16 +25,62 @@
    * Page sizes. `width` and `height` are the pixels of a print-quality picture: 300 dots per inch
    * for paper, a full-resolution picture for screens. `mm` is the paper size, for a PDF.
    */
+  // A card or pocket card (docs/ux/invitations-posters.md, PR 4), from its paper size in mm, at
+  // 300 dots per inch. Sizes in inches are given in exact mm (an inch is 25.4 mm).
+  const card = (group, label, note, mm) => Object.freeze({
+    group, label, note, width: Math.round(mm[0] / 25.4 * 300), height: Math.round(mm[1] / 25.4 * 300), mm
+  });
+  const turned = (size, label) => Object.freeze({ ...size, label, width: size.height, height: size.width, mm: [size.mm[1], size.mm[0]] });
+  const A5 = card('card', 'A5 card', '148 × 210 mm', [148, 210]);
+  const A6 = card('card', 'A6 card', '105 × 148 mm', [105, 148]);
+  const IN57 = card('card', '5 × 7 in card', '127 × 178 mm', [127, 177.8]);
+  const IN46 = card('card', '4 × 6 in card', '102 × 152 mm', [101.6, 152.4]);
+  const DL = card('card', 'DL card', '99 × 210 mm', [99, 210]);
+  const IN45 = card('card', 'Correspondence card 4 × 5 in', 'Crest at the top, service style', [101.6, 127]);
+  const A7 = card('pocket', 'A7 pocket card', '74 × 105 mm', [74, 105]);
+  const IN355 = card('pocket', 'RSVP card 3.5 × 5 in', '89 × 127 mm', [88.9, 127]);
+  const PASS = card('pocket', 'Entry card or car pass', 'Visiting card, 89 × 51 mm', [88.9, 50.8]);
+
   const SIZES = Object.freeze({
-    a4l: Object.freeze({ label: 'A4 landscape', note: '297 × 210 mm', width: 3508, height: 2480, mm: [297, 210] }),
-    a4p: Object.freeze({ label: 'A4 portrait', note: '210 × 297 mm', width: 2480, height: 3508, mm: [210, 297] }),
-    a3p: Object.freeze({ label: 'A3 poster', note: '297 × 420 mm', width: 3508, height: 4961, mm: [297, 420] }),
-    slide: Object.freeze({ label: 'Slide 16:9', note: 'Briefing slides', width: 3840, height: 2160, mm: null }),
-    square: Object.freeze({ label: 'Square', note: 'WhatsApp, posts', width: 3000, height: 3000, mm: null }),
-    story: Object.freeze({ label: 'Phone status', note: '9:16, full screen', width: 2160, height: 3840, mm: null }),
-    banner: Object.freeze({ label: 'Banner 3:1', note: 'Notice board strip', width: 6000, height: 2000, mm: null })
+    a4l: Object.freeze({ group: 'page', label: 'A4 landscape', note: '297 × 210 mm', width: 3508, height: 2480, mm: [297, 210] }),
+    a4p: Object.freeze({ group: 'page', label: 'A4 portrait', note: '210 × 297 mm', width: 2480, height: 3508, mm: [210, 297] }),
+    a3p: Object.freeze({ group: 'page', label: 'A3 poster', note: '297 × 420 mm', width: 3508, height: 4961, mm: [297, 420] }),
+    slide: Object.freeze({ group: 'page', label: 'Slide 16:9', note: 'Briefing slides', width: 3840, height: 2160, mm: null }),
+    square: Object.freeze({ group: 'page', label: 'Square', note: 'WhatsApp, posts', width: 3000, height: 3000, mm: null }),
+    story: Object.freeze({ group: 'page', label: 'Phone status', note: '9:16, full screen', width: 2160, height: 3840, mm: null }),
+    banner: Object.freeze({ group: 'page', label: 'Banner 3:1', note: 'Notice board strip', width: 6000, height: 2000, mm: null }),
+    a5p: A5,
+    a5l: turned(A5, 'A5 card, landscape'),
+    a6p: A6,
+    a6l: turned(A6, 'A6 card, landscape'),
+    in57p: IN57,
+    in57l: turned(IN57, '5 × 7 in card, landscape'),
+    in46p: IN46,
+    in46l: turned(IN46, '4 × 6 in card, landscape'),
+    dlp: DL,
+    dll: turned(DL, 'DL card, landscape'),
+    in45p: IN45,
+    in45l: turned(IN45, 'Correspondence card 4 × 5 in, landscape'),
+    sq5: card('card', 'Square card 5 in', '127 × 127 mm', [127, 127]),
+    sq6: card('card', 'Square card 6 in', '152 × 152 mm', [152.4, 152.4]),
+    a7p: A7,
+    a7l: turned(A7, 'A7 pocket card, landscape'),
+    in355p: IN355,
+    in355l: turned(IN355, 'RSVP card 3.5 × 5 in, landscape'),
+    passl: PASS,
+    passp: turned(PASS, 'Entry card or car pass, upright')
   });
   const DEFAULT_SIZE = 'a4l';
+
+  /** The size menus' groups, in order, with the sizes in each (docs/ux/invitations-posters.md). */
+  const SIZE_GROUPS = Object.freeze([
+    Object.freeze({ key: 'page', label: 'Pages and screens' }),
+    Object.freeze({ key: 'card', label: 'Cards' }),
+    Object.freeze({ key: 'pocket', label: 'Pocket cards' })
+  ]);
+  function sizesByGroup() {
+    return SIZE_GROUPS.map((group) => ({ ...group, keys: Object.keys(SIZES).filter((key) => SIZES[key].group === group.key) }));
+  }
 
   /** Photos a collage takes. A photo larger than MAX_BYTES is refused before it is read. */
   const PHOTO_LIMITS = Object.freeze({
@@ -655,7 +701,8 @@
   /** Sticker sizes in page units: never too small to grab, never far larger than the page. */
   const STICKER_LIMITS = Object.freeze({ width: [20, 700] });
   // "unit:<id>" is a crest or logo an administrator uploaded to PRISM (Crests and logos).
-  const STICKER_ID = /^(tw:[0-9a-f]+(-[0-9a-f]+)*|draw:[a-z]+|unit:[1-9][0-9]{0,8})$/;
+  // "logo:<name>" is one of PRISM's own logos, shipped with it (docs/ux/invitations-posters.md, PR 4).
+  const STICKER_ID = /^(tw:[0-9a-f]+(-[0-9a-f]+)*|draw:[a-z]+|unit:[1-9][0-9]{0,8}|logo:[a-z]+)$/;
 
   /**
    * A sticker: `sticker` names it in the catalogue (collage-stickers.js), "tw:" for an emoji
@@ -723,9 +770,49 @@
    * text keeps its lines and alignment; curved text is one line set along an arc, bent up for a
    * curve above 0 and down below it. Letter spacing is in hundredths of the font size.
    */
+  /**
+   * Fitting words to a width (docs/ux/invitations-posters.md, PR 4): a text item with a
+   * `maxWidth` (in page units) wraps its words onto new lines within it, up to `maxLines`, and
+   * when they still do not fit its letters get smaller, down to `smallest` of its size. The
+   * words the user typed never change; only how they are laid out. Curved text is not fitted.
+   */
+  const TEXT_FIT = Object.freeze({ maxLines: [1, 6], defaultLines: 3, smallest: 0.4 });
+
   function layoutText(item, measure) {
-    const size = item.size;
-    const font = fontOf(item);
+    if (!(item.maxWidth > 0) || item.curve) return layoutTextAt(item, item.size, measure, 0);
+    const lines = Number.isInteger(item.maxLines) ? item.maxLines : TEXT_FIT.defaultLines;
+    const smallest = Math.max(TEXT_LIMITS.size[0], item.size * TEXT_FIT.smallest);
+    let size = item.size;
+    let layout = null;
+    for (let step = 0; step < 16; step += 1) {
+      layout = layoutTextAt(item, size, measure, item.maxWidth);
+      if ((layout.width <= item.maxWidth + 0.5 && layout.lines <= lines) || size <= smallest) break;
+      // Smaller by what the width needs, and at least a little each time.
+      size = Math.max(smallest, size * Math.min(0.94, item.maxWidth / layout.width));
+    }
+    return layout;
+  }
+
+  /** Words broken onto lines no wider than `width` (whole words; a word longer than it stands alone). */
+  function wrapLine(line, width, measureLine) {
+    const words = line.split(/ +/);
+    const out = [];
+    let current = '';
+    for (const word of words) {
+      const tried = current ? `${current} ${word}` : word;
+      if (current && measureLine(tried) > width) {
+        out.push(current);
+        current = word;
+      } else {
+        current = tried;
+      }
+    }
+    out.push(current);
+    return out;
+  }
+
+  function layoutTextAt(item, size, measure, wrapWidth) {
+    const font = fontOf(item, size);
     const gap = (item.spacing || 0) / 100 * size;
     const pad = (item.outline || 0) + size * 0.08;
     const labelX = item.label && !item.curve ? size * 0.5 : 0;
@@ -734,9 +821,14 @@
 
     if (Math.abs(theta) < 1e-3) {
       // Whole lines, measured and drawn as one run each, so joined letters (Hindi) stay joined.
-      const lines = String(item.text || ' ').split('\n').map((line) => line || ' ');
+      const runWidth = (line) => measure(line, font) + gap * Math.max(0, graphemes(line).length - 1);
+      let lines = String(item.text || ' ').split('\n').map((line) => line || ' ');
+      if (wrapWidth > 0) {
+        const room = Math.max(1, wrapWidth - 2 * (pad + labelX));
+        lines = lines.flatMap((line) => wrapLine(line, room, runWidth));
+      }
       const lineHeight = size * 1.25;
-      const widths = lines.map((line) => measure(line, font) + gap * Math.max(0, graphemes(line).length - 1));
+      const widths = lines.map(runWidth);
       const textWidth = Math.max(...widths);
       const width = textWidth + 2 * (pad + labelX);
       const height = lines.length * lineHeight + 2 * (pad + labelY);
@@ -744,7 +836,7 @@
         const left = pad + labelX + (item.align === 'left' ? 0 : item.align === 'right' ? textWidth - widths[row] : (textWidth - widths[row]) / 2);
         return { ch: line, left, x: left + widths[row] / 2, y: pad + labelY + row * lineHeight + lineHeight / 2, angle: 0, width: widths[row] };
       });
-      return { width, height, glyphs, label: item.label ? { x: pad, y: pad, width: width - 2 * pad, height: height - 2 * pad } : null };
+      return { width, height, glyphs, size, lines: lines.length, label: item.label ? { x: pad, y: pad, width: width - 2 * pad, height: height - 2 * pad } : null };
     }
 
     // Curved: one line, each letter cluster (a Hindi syllable stays whole) set along the arc.
@@ -770,7 +862,7 @@
         : { ch, x: cx + radius * Math.sin(phi), y: cy + radius * Math.cos(phi), angle: -phi });
       along += w + gap;
     }
-    return { width, height, glyphs, label: null };
+    return { width, height, glyphs, size, lines: 1, label: null };
   }
 
   // ---------------------------------------------------------------------------
@@ -1549,6 +1641,11 @@
         clean.label = HEX_COLOUR.test(item.label) ? item.label : '';
         clean.align = ['left', 'center', 'right'].includes(item.align) ? item.align : 'center';
         for (const flag of ['bold', 'italic', 'shadow', 'glow']) clean[flag] = item[flag] === true;
+        // Fitting to a width (PR 4 of docs/ux/invitations-posters.md): a usable width, or none.
+        if (isNumber(item.maxWidth) && item.maxWidth >= ITEM_LIMITS.minWidth) clean.maxWidth = Math.min(ITEM_LIMITS.maxWidth, item.maxWidth);
+        else delete clean.maxWidth;
+        if (Number.isInteger(item.maxLines)) clean.maxLines = Math.min(TEXT_FIT.maxLines[1], Math.max(TEXT_FIT.maxLines[0], item.maxLines));
+        else delete clean.maxLines;
         delete clean.crop;
         delete clean.radius;
       }
@@ -1723,6 +1820,9 @@
     MODEL_VERSION,
     PAGE_WIDTH,
     SIZES,
+    SIZE_GROUPS,
+    sizesByGroup,
+    sizeOf,
     DEFAULT_SIZE,
     PHOTO_LIMITS,
     ITEM_LIMITS,
@@ -1744,6 +1844,7 @@
     MAX_CROP_ZOOM,
     FONTS,
     TEXT_LIMITS,
+    TEXT_FIT,
     textItem,
     fontOf,
     graphemes,
