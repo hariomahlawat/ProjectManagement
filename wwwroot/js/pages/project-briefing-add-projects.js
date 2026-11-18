@@ -291,8 +291,11 @@ export function initAddProjects(deps) {
   const renderFilterRows = () => {
     filterResults.replaceChildren();
     // The ticked view lists every ticked project, also those the current filters hide. With
-    // nothing left ticked (all unticked, or all added) it returns to the list.
+    // nothing left ticked (all unticked, or all added) it returns to the list, and the filters
+    // it held back are offered again (Codex review).
+    const wasReviewing = showTicked;
     if (ticked.size === 0) showTicked = false;
+    if (wasReviewing && !showTicked) renderFilterChips();
     const rows = showTicked ? [...ticked.values()] : filterRows;
     const notInDeck = rows.filter((row) => !row.isSelected);
     const inDeck = rows.length - notInDeck.length;

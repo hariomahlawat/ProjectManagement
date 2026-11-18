@@ -240,3 +240,15 @@ test('server values are written as text, never as markup', async () => {
   assert.equal(page.document.querySelector('img'), null);
   assert.match(page.$('[data-pbd-filter-results]').textContent, /<img src=x/);
 });
+
+test('adding everything from the review gives the filters back', async () => {
+  const page = await setUp();
+  page.tickRow(2);
+  page.$('[data-pbd-filter-ticked]').click();
+  assert.equal(page.$('[data-pbd-filter-query]').disabled, true);
+  page.$('[data-pbd-filter-add]').click();
+  page.settle({ skippedProjectIds: [] });
+  assert.equal(page.$('[data-pbd-filter-ticked]').textContent, 'Nothing ticked');
+  assert.equal(page.$('[data-pbd-filter-query]').disabled, false);
+  assert.equal(page.$('[data-pbd-filter-open="arpp"]').disabled, false);
+});
