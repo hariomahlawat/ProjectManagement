@@ -29,7 +29,8 @@
       snapshot: () => ({
         title: doc.collageTitle(),
         autoTitle: !ui.nameInput.value.trim(),
-        model: state.collage,
+        // Parts made by a newer PRISM go back in unchanged (docs/ux/invitations-posters.md, PR 2).
+        model: core.draftModel(state.collage),
         size: state.collage.size,
         photos: parts.keptPhotos(),
         thumbnail: ui.views.editor.hidden ? '' : draftThumbnail(),
@@ -264,8 +265,12 @@
       if (unreadable) messages.showAlert(`${unreadable === 1 ? 'One photo' : `${unreadable} photos`} of this draft could not be opened just now and ${unreadable === 1 ? 'shows' : 'show'} grey. ${unreadable === 1 ? 'It keeps its' : 'They keep their'} place in the draft. Close other tabs and open the draft again; Save leaves ${unreadable === 1 ? 'it' : 'them'} out until then.`);
       // Undo steps live only while the collage is open; the user is told once, as it opens
       // (docs/ux/collage-review-4-fixes.md, PR 6).
-      messages.announce(`Draft ${record.title} opened. Undo starts again from here.`);
-      window.PrismToast?.show({ tone: 'info', text: 'Draft opened. Undo starts again from here: earlier steps are not kept with the draft.' });
+      // Parts a newer PRISM made are kept in the draft but not shown here (PR 2 of
+      // docs/ux/invitations-posters.md); the user is told once, with the Undo note.
+      const kept = core.keptCount(state.collage);
+      const keptNote = kept ? ` ${kept === 1 ? 'One part was' : `${kept} parts were`} made by a newer PRISM: ${kept === 1 ? 'it is' : 'they are'} kept in the draft but not shown here.` : '';
+      messages.announce(`Draft ${record.title} opened. Undo starts again from here.${keptNote}`);
+      window.PrismToast?.show({ tone: 'info', text: `Draft opened. Undo starts again from here: earlier steps are not kept with the draft.${keptNote}` });
     }
 
 

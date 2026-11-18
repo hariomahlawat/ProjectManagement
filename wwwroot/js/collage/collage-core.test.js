@@ -588,10 +588,14 @@ test('a Hindi syllable stays one letter cluster on a curve', () => {
 
 test('a draft keeps text, within its limits', () => {
   const text = collage.textItem('t', 'शुभकामनाएँ', { x: 10, y: 10 }, { font: 'hindiHand', size: 999, curve: -400, color: '#c62f3a', label: 'red', outlineColor: 'x', align: 'middle', bold: 'yes' });
-  const read = collage.readDraftModel({ version: 1, size: 'a4l', items: [text, { ...text, id: 'u', font: 'comic', text: 'x'.repeat(400) }] }, []);
-  const [a, b] = read.items;
+  const read = collage.readDraftModel({ version: 1, size: 'a4l', items: [text, { ...text, id: 'u', font: 'comic', text: 'x'.repeat(400) }, { ...text, id: 'v', font: 'Comic Sans"' }] }, []);
+  const [a, b, c] = read.items;
   assert.deepEqual([a.text, a.font, a.size, a.curve, a.color, a.label, a.outlineColor, a.align, a.bold], ['शुभकामनाएँ', 'hindiHand', 300, -100, '#c62f3a', '', '#ffffff', 'center', false]);
-  assert.deepEqual([b.font, b.text.length], ['clean', 300]);
+  // A font this PRISM does not ship keeps its name for a newer PRISM (it draws as the clean
+  // font here); a name no PRISM writes falls back to clean (docs/ux/invitations-posters.md, PR 2).
+  assert.deepEqual([b.font, b.text.length], ['comic', 300]);
+  assert.equal(collage.fontOf(b), collage.fontOf({ ...b, font: 'clean' }));
+  assert.equal(c.font, 'clean');
   assert.equal('crop' in a, false);
 });
 
@@ -1068,4 +1072,108 @@ test('words over a photo are told apart from words on the empty page', () => {
   const away = { ...over, x: 850, y: 600 };
   assert.equal(collage.overPhoto([photo, over], over), true);
   assert.equal(collage.overPhoto([photo, away], away), false);
+});
+
+// docs/ux/invitations-posters.md, PR 2: a draft from a newer PRISM keeps what this one does not
+// understand, so saving it here never deletes a card's shapes, back page or new logo.
+test('a draft keeps the parts a newer PRISM made, and writes them back in their places', () => {
+  const photo = collage.photoItem('a', 'p1', 1.5, { x: 100, y: 100, width: 200 });
+  const shape = { id: 'b', kind: 'shape', shape: 'rect', x: 10, y: 10, width: 980, aspect: 0.7, stroke: '#a8842f', points: [[0, 0], [1, 1]] };
+  const logo = { id: 'c', kind: 'sticker', sticker: 'logo:sdd', x: 400, y: 40, width: 120, aspect: 0.59 };
+  const words = { ...collage.textItem('d', 'Raising Day Dinner', { x: 500, y: 300 }), font: 'cinzel', field: 'occasion', maxWidth: 800 };
+  const back = { background: { type: 'color', value: '#fbf7ee' }, items: [{ id: 'e', kind: 'photo', photo: 'p2', x: 0, y: 0, width: 1000, aspect: 1.4 }] };
+  const raw = { version: 1, size: 'a4p', background: { type: 'color', value: '#ffffff' }, layout: null, items: [photo, shape, logo, words], back, design: 'classic' };
+
+  const read = collage.readDraftModel(raw, ['p1', 'p2']);
+  // Only what this PRISM draws is on the page; the rest is held aside, untouched.
+  assert.deepEqual(read.items.map((i) => i.id), ['a', 'd']);
+  assert.equal(collage.keptCount(read), 4);
+  assert.deepEqual(read.kept.items, [{ at: 1, item: shape }, { at: 2, item: logo }]);
+  assert.deepEqual(read.kept.fields, { back, design: 'classic' });
+  // A newer font and new fields on a known item stay by name; the font draws as the clean one.
+  assert.equal(read.items[1].font, 'cinzel');
+  assert.equal(read.items[1].field, 'occasion');
+  assert.equal(read.items[1].maxWidth, 800);
+  assert.equal(collage.fontOf(read.items[1]), collage.fontOf({ ...read.items[1], font: 'clean' }));
+  // A photo named only inside a kept part is still in use, so the draft keeps it.
+  assert.deepEqual([...collage.photosInUse(read)].sort(), ['p1', 'p2']);
+
+  // An edit here (a page size change copies the collage) keeps them, and the draft gets them back
+  // in their places, exactly as they were.
+  const edited = collage.changeSize(read, 'a4l');
+  const written = collage.draftModel(edited);
+  assert.equal(written.kept, undefined);
+  assert.deepEqual(written.items.map((i) => i.id), ['a', 'b', 'c', 'd']);
+  assert.deepEqual(written.items[1], shape);
+  assert.deepEqual(written.items[2], logo);
+  assert.deepEqual(written.back, back);
+  assert.equal(written.design, 'classic');
+  assert.equal(written.size, 'a4l');
+  // Read again, written again: nothing is lost or doubled however often an older page saves.
+  const again = collage.draftModel(collage.readDraftModel(JSON.parse(JSON.stringify(written)), ['p1', 'p2']));
+  assert.deepEqual(again, written);
+
+  // A collage with nothing kept is written as it is.
+  const plain = collage.readDraftModel({ version: 1, size: 'a4l', items: [photo] }, ['p1']);
+  assert.equal(plain.kept, undefined);
+  assert.equal(collage.keptCount(plain), 0);
+  assert.equal(collage.draftModel(plain), plain);
+});
+
+test('kept parts are only ones a PRISM could have written, within limits, and a newer version is still refused', () => {
+  const base = { x: 1, y: 1, width: 10, aspect: 1 };
+  const read = collage.readDraftModel({
+    version: 1,
+    size: 'a4l',
+    items: [
+      { ...base, id: 'a', kind: '<img src=x>' },
+      { ...base, id: 'b', kind: 'Shape' },
+      { ...base, id: 'bad id', kind: 'shape' },
+      { ...base, id: 'c', kind: 'shape' },
+      { ...base, id: 'c', kind: 'shape' },
+      { ...base, id: 'd', kind: 'sticker', sticker: 'javascript:alert(1)' },
+      { ...base, id: 'e', kind: 'sticker' }
+    ],
+    '<b>': 1,
+    note: undefined
+  }, []);
+  assert.deepEqual(read.kept.items.map((k) => k.item.id), ['c']);
+  assert.deepEqual(read.kept.fields, {});
+  assert.deepEqual(read.items, []);
+
+  const many = Array.from({ length: 600 }, (_, i) => ({ ...base, id: `s${i}`, kind: 'shape' }));
+  assert.equal(collage.readDraftModel({ version: 1, items: many }, []).kept.items.length, 500);
+  const huge = collage.readDraftModel({ version: 1, items: [], back: 'x'.repeat(2_100_000) }, []);
+  assert.equal(huge.kept, undefined);
+
+  assert.equal(collage.readDraftModel({ version: 2, items: [{ ...base, id: 'c', kind: 'shape' }] }, []), null);
+});
+
+test('a kept part keeps its place in the stacking order when items around it are deleted here', () => {
+  const a = collage.photoItem('a', 'p1', 1.5, { x: 100, y: 100, width: 200 });
+  const shape = { id: 'b', kind: 'shape', shape: 'rect', x: 10, y: 10, width: 980, aspect: 0.7 };
+  const c = collage.textItem('c', 'On top of the shape', { x: 500, y: 300 });
+  const d = collage.textItem('d', 'Also on top', { x: 500, y: 400 });
+  const read = collage.readDraftModel({ version: 1, size: 'a4p', items: [a, shape, c, d] }, ['p1']);
+  const ids = (collage) => collage.items.map((item) => item.id);
+  const without = (model, id) => ({ ...model, items: model.items.filter((item) => item.id !== id) });
+
+  // The item under it deleted: still under the words that were above it.
+  assert.deepEqual(ids(collage.draftModel(without(read, 'a'))), ['b', 'c', 'd']);
+  // The item just above it deleted: under the next one that was above it.
+  assert.deepEqual(ids(collage.draftModel(without(read, 'c'))), ['a', 'b', 'd']);
+  // Everything above it deleted: on top.
+  assert.deepEqual(ids(collage.draftModel(without(without(read, 'c'), 'd'))), ['a', 'b']);
+  // A new item added here goes on top, above the kept part.
+  const added = { ...read, items: [...read.items, collage.textItem('n', 'New', { x: 1, y: 1 })] };
+  assert.deepEqual(ids(collage.draftModel(added)), ['a', 'b', 'c', 'd', 'n']);
+  // Two kept parts in a row stay in their order.
+  const two = collage.readDraftModel({ version: 1, size: 'a4p', items: [a, shape, { ...shape, id: 'e' }, c] }, ['p1']);
+  assert.deepEqual(ids(collage.draftModel(without(two, 'a'))), ['b', 'e', 'c']);
+  // Items reordered here (text d sent to the back): the kept shapes stay in their own order.
+  const mixed = collage.readDraftModel({ version: 1, size: 'a4p', items: [shape, { ...c, id: 'tb' }, { ...shape, id: 'sc' }, { ...d, id: 'td' }] }, []);
+  const moved = { ...mixed, items: [mixed.items[1], mixed.items[0]] };
+  const written = ids(collage.draftModel(moved));
+  assert.ok(written.indexOf('b') < written.indexOf('sc'), written.join());
+  assert.deepEqual([...written].sort(), ['b', 'sc', 'tb', 'td']);
 });
