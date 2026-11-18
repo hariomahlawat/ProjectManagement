@@ -575,7 +575,6 @@
       fitRoundel();
       history.commit();
       surface.syncAll();
-      renderPanel();
       logoTarget = 'logo2';
       renderPanel();
       messages.announce('A second logo is on the card. The choices below now change it; First logo goes back to the first.');
