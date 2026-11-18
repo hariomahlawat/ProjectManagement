@@ -323,11 +323,13 @@
     /** Waits for every font the collage's text uses, so Save measures and draws the real fonts. */
     async function fontsReady() {
       if (!document.fonts) return;
-      const fonts = new Set(state.collage.items.filter((item) => item.kind === 'text').map((item) => core.fontOf(item, 40)));
+      // Both sides of a card: Save draws the side not showing too.
+      const items = [...state.collage.items, ...(state.collage.back?.items || [])];
+      const fonts = new Set(items.filter((item) => item.kind === 'text').map((item) => core.fontOf(item, 40)));
       // A polaroid's caption is written in Caveat (Kalam for Hindi).
-      if (state.collage.items.some((item) => item.frame === 'polaroid' && item.caption)) fonts.add(`40px ${draw.CAPTION_FONT}`);
+      if (items.some((item) => item.frame === 'polaroid' && item.caption)) fonts.add(`40px ${draw.CAPTION_FONT}`);
       // Other captions are on a strip, in Mulish (Noto Sans Devanagari for Hindi).
-      if (state.collage.items.some((item) => core.hasCaptionStrip(item))) fonts.add(draw.STRIP_FONT.replace('{size}', '40'));
+      if (items.some((item) => core.hasCaptionStrip(item))) fonts.add(draw.STRIP_FONT.replace('{size}', '40'));
       await Promise.all([...fonts].map((font) => document.fonts.load(font, 'Aअ').catch(() => null)));
     }
 

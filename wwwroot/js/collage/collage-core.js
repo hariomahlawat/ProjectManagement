@@ -810,11 +810,13 @@
    * when they still do not fit its letters get smaller, down to `smallest` of its size. The
    * words the user typed never change; only how they are laid out. Curved text is not fitted.
    */
-  const TEXT_FIT = Object.freeze({ maxLines: [1, 6], defaultLines: 3, smallest: 0.4 });
+  const TEXT_FIT = Object.freeze({ maxLines: [1, 12], defaultLines: 3, smallest: 0.4 });
 
   function layoutText(item, measure) {
     if (!(item.maxWidth > 0) || item.curve) return layoutTextAt(item, item.size, measure, 0);
-    const lines = Number.isInteger(item.maxLines) ? item.maxLines : TEXT_FIT.defaultLines;
+    // Lines the user broke always count: a programme of eight lines may have eight.
+    const given = String(item.text || '').split(String.fromCharCode(10)).length;
+    const lines = Math.max(given, Number.isInteger(item.maxLines) ? item.maxLines : TEXT_FIT.defaultLines);
     const smallest = Math.max(TEXT_LIMITS.size[0], item.size * TEXT_FIT.smallest);
     let size = item.size;
     let layout = null;
@@ -1303,11 +1305,10 @@
     if (!isSize(sizeKey) || sizeKey === collage.size) return collage;
     const from = pageHeight(collage.size);
     const to = pageHeight(sizeKey);
-    return {
-      ...collage,
-      size: sizeKey,
-      items: collage.items.map((item) => (item.locked ? item : { ...item, y: item.y * to / from }))
-    };
+    const move = (items) => items.map((item) => (item.locked ? item : { ...item, y: item.y * to / from }));
+    // A card's other side shares the size, so it moves with it (PR 8).
+    const back = collage.back ? { back: { ...collage.back, items: move(collage.back.items) } } : {};
+    return { ...collage, ...back, size: sizeKey, items: move(collage.items) };
   }
 
   // ---------------------------------------------------------------------------
@@ -1589,7 +1590,7 @@
   const ASPECT_LIMITS = Object.freeze([0.02, 50]);
   // The kinds this PRISM draws, and the collage fields it uses.
   const DRAWN_KINDS = Object.freeze(['photo', 'slot', 'text', 'sticker', 'shape']);
-  const MODEL_FIELDS = Object.freeze(['version', 'size', 'background', 'layout', 'items', 'kept', 'card']);
+  const MODEL_FIELDS = Object.freeze(['version', 'size', 'background', 'layout', 'items', 'kept', 'card', 'back', 'side']);
   // A kind, sticker or font name a newer PRISM may write: short, lower case, no markup.
   const PART_NAME = /^[a-z][a-z0-9:_-]{0,40}$/;
   // How much a draft may hold that is not understood: well past any real card.
@@ -1724,6 +1725,18 @@
     const model = { version: MODEL_VERSION, size: isSize(raw.size) ? raw.size : DEFAULT_SIZE, background, layout, items };
     const card = readCard(raw.card);
     if (card) model.card = card;
+    // A card's other side (docs/ux/invitations-posters.md, PR 8): its own background and items,
+    // read with the same care. `side` says the back is the one showing now.
+    if (raw.back && typeof raw.back === 'object' && Array.isArray(raw.back.items)) {
+      // The back's own fields this PRISM does not use are kept with it, as the collage's are.
+      const newer = Object.fromEntries(Object.entries(raw.back).filter(([key]) => !MODEL_FIELDS.includes(key)));
+      const back = readDraftModel({ ...newer, version: raw.version, size: raw.size, background: raw.back.background, layout: raw.back.layout, items: raw.back.items }, photoIds);
+      if (back) {
+        model.back = { background: back.background, items: back.items, layout: back.layout };
+        if (back.kept) model.back.kept = back.kept;
+        if (raw.side === 'back') model.side = 'back';
+      }
+    }
     // Fields of the collage this PRISM does not use (a newer PRISM's back page, for example).
     const fields = {};
     for (const [key, value] of Object.entries(raw)) {
@@ -1755,10 +1768,40 @@
     return design ? { design, details, placed } : null;
   }
 
+  /**
+   * The card turned over (PR 8): the other side becomes the one shown and edited, so every tool
+   * works on it, and Undo covers turning over. A collage with no back is returned as it is.
+   */
+  function flipSide(collage) {
+    if (!collage?.back) return collage;
+    const { back, side, kept, ...rest } = collage;
+    // Each side keeps its own background, items and photo layout.
+    const shown = { background: collage.background, items: collage.items, layout: collage.layout || null };
+    if (kept) shown.kept = kept;
+    const flipped = { ...rest, background: back.background, items: back.items, layout: back.layout || null, back: shown };
+    if (back.kept) flipped.kept = back.kept;
+    if (side !== 'back') flipped.side = 'back';
+    return flipped;
+  }
+
+  /** The card's pages in order, front first, each a plain collage of the card's size, for Save. */
+  function pagesOf(collage) {
+    const page = (part) => ({ version: MODEL_VERSION, size: collage.size, background: part.background, layout: null, items: part.items });
+    if (!collage?.back) return [collage];
+    const shown = page(collage);
+    const other = page(collage.back);
+    return collage.side === 'back' ? [other, shown] : [shown, other];
+  }
+
   /** How many parts of a collage were made by a newer PRISM and are kept but not shown. */
   function keptCount(collage) {
-    const kept = collage?.kept;
-    return kept ? (kept.items || []).length + Object.keys(kept.fields || {}).length : 0;
+    const count = (kept) => (kept ? (kept.items || []).length + Object.keys(kept.fields || {}).length : 0);
+    return count(collage?.kept) + count(collage?.back?.kept);
+  }
+
+  /** A side's items with the parts it kept for a newer PRISM put back in their places. */
+  function putBack(side) {
+    return draftModel({ version: MODEL_VERSION, size: DEFAULT_SIZE, background: side.background, layout: null, items: side.items, kept: side.kept }).items;
   }
 
   /**
@@ -1770,8 +1813,13 @@
    * A collage with nothing kept is returned as it is.
    */
   function draftModel(collage) {
-    if (!collage || !collage.kept) return collage;
-    const { kept, ...model } = collage;
+    if (!collage) return collage;
+    // The other side keeps its own newer parts too (PR 8), put back the same way.
+    const withBack = collage.back?.kept
+      ? { ...collage, back: { ...(collage.back.kept.fields || {}), background: collage.back.background, layout: collage.back.layout || null, items: putBack(collage.back) } }
+      : collage;
+    if (!withBack.kept) return withBack;
+    const { kept, ...model } = withBack;
     const items = [...model.items];
     const order = kept.order || [];
     // Kept parts never change order among themselves: each goes no lower than just above the
@@ -1866,8 +1914,10 @@
    */
   function photosInUse(collage) {
     const used = new Set();
-    for (const item of collage?.items || []) if (item.kind === 'photo' && item.photo) used.add(item.photo);
-    if (collage?.background?.type === 'photo' && collage.background.photo) used.add(collage.background.photo);
+    for (const item of [...(collage?.items || []), ...(collage?.back?.items || [])]) if (item.kind === 'photo' && item.photo) used.add(item.photo);
+    for (const background of [collage?.background, collage?.back?.background]) {
+      if (background?.type === 'photo' && background.photo) used.add(background.photo);
+    }
     const walk = (value, depth) => {
       if (!value || typeof value !== 'object' || depth > 12) return;
       for (const [key, inner] of Object.entries(value)) {
@@ -1876,6 +1926,7 @@
       }
     };
     walk(collage?.kept, 0);
+    walk(collage?.back?.kept, 0);
     return used;
   }
 
@@ -1993,6 +2044,8 @@
     sortDrafts,
     photosInUse,
     keptCount,
+    flipSide,
+    pagesOf,
     draftModel,
     sliderText,
     CAPTION_STRIP,

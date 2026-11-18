@@ -134,8 +134,10 @@
   // Work worth keeping: a photo, some text or a sticker (an empty frame alone is not).
   // A photo used only as the blurred background still makes a picture worth saving.
   // Parts a newer PRISM made, kept but not shown, are work too (docs/ux/invitations-posters.md, PR 2).
-  const hasContent = () => collage.items.some((item) => ['photo', 'text', 'sticker', 'shape'].includes(item.kind))
-    || (collage.background?.type === 'photo' && photos.has(collage.background.photo))
+  // A card counts both sides, whichever is showing (PR 8).
+  const sideHasContent = (side) => side.items.some((item) => ['photo', 'text', 'sticker', 'shape'].includes(item.kind))
+    || (side.background?.type === 'photo' && photos.has(side.background.photo));
+  const hasContent = () => sideHasContent(collage) || Boolean(collage.back && sideHasContent(collage.back))
     || core.keptCount(collage) > 0;
   const firstSlot = () => collage.items.find((item) => item.kind === 'slot' && !item.locked) || null;
   const isFrame = (item) => item && (item.kind === 'photo' || item.kind === 'slot');
@@ -653,15 +655,18 @@
   // ---------------------------------------------------------------------------
 
   /** The collage's name: what the user typed, or its own title from its words or start time. */
+  // The words a card's own title is made from: its front's first, whichever side is showing,
+  // so turning to the back never renames the card "Programme".
+  const titleItems = () => (collage.side === 'back' && collage.back ? [...collage.back.items, ...collage.items] : [...collage.items, ...(collage.back?.items || [])]);
   function collageTitle() {
-    return nameInput.value.trim() || core.autoTitle(collage.items, session.draft?.started);
+    return nameInput.value.trim() || core.autoTitle(titleItems(), session.draft?.started);
   }
 
   /** Shows the collage's own title where no name was typed: in the name box and the tab. */
   function refreshTitle() {
-    nameInput.placeholder = core.autoTitle(collage.items, session.draft?.started);
+    nameInput.placeholder = core.autoTitle(titleItems(), session.draft?.started);
     // Until the user names it, the collage is called by its first words; the field says so.
-    const fromWords = !nameInput.value.trim() && core.autoTitleFromText(collage.items);
+    const fromWords = !nameInput.value.trim() && core.autoTitleFromText(titleItems());
     nameInput.title = fromWords ? 'Named after your first words until you type a name here' : '';
     // Said once for each collage, the first time its words name it.
     const before = namedFromWords;

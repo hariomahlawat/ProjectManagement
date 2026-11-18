@@ -27,7 +27,11 @@
     // The Bilingual design's Hindi wording (PR 6).
     ['occasionHi', 'Occasion in Hindi'],
     ['hostHi', 'Host in Hindi', true],
-    ['inviteHi', 'Invitation line in Hindi']
+    ['inviteHi', 'Invitation line in Hindi'],
+    // The back of the card (PR 8).
+    ['programmeTitle', 'Back: title'],
+    ['programme', 'Back: programme, one line each', true],
+    ['backNote', 'Back: note at the bottom']
   ]);
   const COLOUR_NAMES = Object.freeze(['Top', 'Middle', 'Bottom']);
   const OCCASIONS = Object.freeze(['Raising Day Dinner', 'Regimental Dinner', 'Change of Command', 'Farewell', 'Barakhana', 'At Home', 'Ladies’ Night', 'Passing Out Parade']);
@@ -43,7 +47,9 @@
     const startGrid = ui.$('[data-start-designs]');
     const startSize = ui.$('[data-card-size]');
     const options = () => ({ measure: surface.measureText, newId: doc.newItemId });
-    const textFor = (collage, field) => collage.items.find((item) => item.kind === 'text' && item.field === field) || null;
+    // A field's words may be on the side not showing (the back's programme while the front shows).
+    const fieldsHere = (collage, field) => (designs.BACK_FIELDS.includes(field) === (collage.side === 'back') ? collage.items : collage.back?.items || []);
+    const textFor = (collage, field) => fieldsHere(collage, field).find((item) => item.kind === 'text' && item.field === field) || null;
 
     // -------------------------------------------------------------------------
     // The start screen: a size for the card, and its designs drawn at that size
@@ -230,13 +236,15 @@
       const details = designs.detailsOf(state.collage);
       // Only the fields this design shows words for (the Hindi ones only for Bilingual).
       const design = state.collage?.card?.design;
-      const shown = new Set(designs.fieldsOf(design, state.collage.size));
+      const shown = new Set([...designs.fieldsOf(design, state.collage.size), ...(state.collage.back ? designs.BACK_FIELDS : [])]);
       const colours = designs.usesColours(design) ? colourFields(details.colours) : '';
-      form.innerHTML = logoSection() + colours + FORM.filter(([field]) => shown.has(field)).map(([field, label, long]) => {
+      // The logo is the front's: changed with the front showing.
+      const logo = state.collage.side === 'back' ? '<p class="clg-hint">Turn to the front to change the logo.</p>' : logoSection();
+      form.innerHTML = sidesSection() + logo + colours + FORM.filter(([field]) => shown.has(field)).map(([field, label, long]) => {
         const id = `clgCard-${field}`;
         const value = escapeHtml(details[field] || '');
         const input = long
-          ? `<textarea class="form-control form-control-sm" id="${id}" rows="2" maxlength="${core.TEXT_LIMITS.maxLength}" data-card-field="${field}">${value}</textarea>`
+          ? `<textarea class="form-control form-control-sm" id="${id}" rows="${field === 'programme' ? 5 : 2}" maxlength="${core.TEXT_LIMITS.maxLength}" data-card-field="${field}">${value}</textarea>`
           : `<input class="form-control form-control-sm" id="${id}" type="text" maxlength="${core.TEXT_LIMITS.maxLength}" value="${value}" data-card-field="${field}" autocomplete="off">`;
         const picks = field === 'occasion' ? OCCASIONS : field === 'dress' ? DRESSES : null;
         const chips = picks ? `<div class="clg-chips clg-card-picks">${picks.map((pick) => `<button type="button" class="clg-chip" data-card-pick="${field}" data-value="${escapeHtml(pick)}">${escapeHtml(pick.replace(/^Dress: /, ''))}</button>`).join('')}</div>` : '';
@@ -312,10 +320,33 @@
           draft.items.splice(own < 0 ? draft.items.length : own, 0, fresh);
         }
       }, 'none');
+      followLogoOnBack();
       history.commit();
       surface.syncAll();
       renderPanel();
       messages.announce(said);
+    }
+
+    /**
+     * The back's small logo shows the front's logo (PR 8): the same picture in the back's place,
+     * or none when the front has none. Done inside the change it follows, so one Undo covers both.
+     */
+    function followLogoOnBack() {
+      doc.edit((draft) => {
+        if (!draft.back) return;
+        const front = draft.items.find((item) => item.role === 'logo' && item.kind !== 'slot');
+        const at = draft.back.items.findIndex((item) => item.role === 'backlogo');
+        if (!front) {
+          if (at >= 0) draft.back.items.splice(at, 1);
+          return;
+        }
+        // The back's place for it: where it is now, or where the design puts it.
+        const place = at >= 0 ? draft.back.items[at] : designs.backPage(draft, draft.card?.design, designs.detailsOf(draft), options()).items.find((item) => item.role === 'backlogo');
+        if (!place) return;
+        const small = { ...front, id: at >= 0 ? place.id : doc.newItemId(), x: place.x, y: place.y, width: place.width, angle: 0, role: 'backlogo' };
+        if (at >= 0) draft.back.items.splice(at, 1, small);
+        else draft.back.items.push(small);
+      }, 'none');
     }
 
     function useLogoSticker(id) {
@@ -373,6 +404,12 @@
       if (!stillOpen()) { window.PrismCollagePhotos.releasePhoto(photo); return; }
       doc.photos.set(photo.id, photo);
       parts.renderTray();
+      // The logo is the front's: a card turned over while the picture was read keeps it in the
+      // tray, to be chosen again from the front.
+      if (state.collage.side === 'back') {
+        messages.showAlert('The card was turned over while your logo was read. It is in the photo tray: turn to the front and choose Your own logo again.');
+        return;
+      }
       // The second logo it was chosen for may have been removed meanwhile: then it is the logo.
       const into = role === 'logo2' && state.collage.items.some((item) => item.role === 'logo2') ? 'logo2' : 'logo';
       setLogo((place) => core.photoItem(doc.newItemId(), photo.id, photo.aspect, place), into === 'logo2' ? 'Your own logo is the second logo.' : 'Your own logo is on the card.', into);
@@ -429,12 +466,56 @@
         if (promoting) draft.items = draft.items.map((item) => (item.role === 'logo2' ? { ...item, role: 'logo' } : item));
       }, 'none');
       logoTarget = 'logo';
+      followLogoOnBack();
       history.commit();
       surface.syncAll();
       renderPanel();
       messages.offerUndo(role === 'logo2' ? 'Second logo removed.'
         : promoting ? "First logo removed. The second is now the card's logo."
         : 'Logo removed. It stays off when you change the design.');
+    }
+
+    // -------------------------------------------------------------------------
+    // Front and back (PR 8): a card may have a back with the programme. Turning it over shows
+    // the back on the page to edit; Save makes a two-page PDF.
+    // -------------------------------------------------------------------------
+
+    function sidesSection() {
+      if (!state.collage.back) {
+        return `<div class="clg-section clg-card-sides"><p class="clg-section__title">Back of the card</p>
+          <button type="button" class="btn btn-outline-secondary btn-sm w-100" data-card-side="add"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add a back: programme, route and a note</button></div>`;
+      }
+      const back = state.collage.side === 'back';
+      return `<div class="clg-section clg-card-sides"><p class="clg-section__title">Sides</p>
+          <div class="clg-buttons clg-buttons--two" role="group" aria-label="Side shown">
+            <button type="button" class="btn btn-sm ${back ? 'btn-outline-secondary' : 'btn-primary'}" data-card-side="front" aria-pressed="${!back}">Front</button>
+            <button type="button" class="btn btn-sm ${back ? 'btn-primary' : 'btn-outline-secondary'}" data-card-side="back" aria-pressed="${back}">Back</button>
+          </div>
+          <button type="button" class="btn btn-link btn-sm text-danger p-0 mt-1" data-card-side="delete">Delete the back</button></div>`;
+    }
+
+    /** One Undo step that changes the card's sides, then draws the page and the panel again. */
+    function changeSides(change, said, undo = false) {
+      history.flushNudge();
+      selection.select(null);
+      doc.edit((draft) => change(draft), 'none');
+      history.commit();
+      surface.layout();
+      surface.syncAll();
+      renderPanel();
+      if (undo) messages.offerUndo(said);
+      else messages.announce(said);
+    }
+
+    function useSide(action) {
+      const collage = state.collage;
+      if (action === 'add' && !collage.back) {
+        changeSides((draft) => core.flipSide(designs.addBack(draft, options())), 'The card has a back, shown now. Front and Back in Card details turn it over; Save makes a two-page PDF.');
+      } else if ((action === 'front' && collage.side === 'back') || (action === 'back' && collage.back && collage.side !== 'back')) {
+        changeSides((draft) => core.flipSide(draft), action === 'back' ? 'The back of the card is shown.' : 'The front of the card is shown.');
+      } else if (action === 'delete' && collage.back) {
+        changeSides((draft) => designs.deleteBack(draft), 'The back is deleted.', true);
+      }
     }
 
     /** The unit's three colours, for a design with a band in them (Regimental). */
@@ -453,7 +534,8 @@
       colours[index - 1] = value.toLowerCase();
       doc.edit((draft) => {
         draft.card = { ...draft.card, design: draft.card?.design || 'regimental', details: { ...designs.detailsOf(draft), colours: colours.join(' ') } };
-        for (const item of draft.items) {
+        // Both sides follow the unit's colours: the back's title and rules use them too.
+        for (const item of [...draft.items, ...(draft.back?.items || [])]) {
           for (const [prop, which] of Object.entries(item.tint || {})) {
             if (which === index) item[prop] = value.toLowerCase();
           }
@@ -502,12 +584,13 @@
         // A field filled again is one the design has placed.
         const placed = [...new Set([...(draft.card?.placed || []), ...(fresh ? [field] : [])])];
         draft.card = { design: draft.card?.design || 'classic', details, placed };
-        const index = draft.items.findIndex((item) => item.kind === 'text' && item.field === field);
+        const list = fieldsHere(draft, field);
+        const index = list.findIndex((item) => item.kind === 'text' && item.field === field);
         if (index >= 0 && !text.trim()) {
-          removed = draft.items[index].id;
-          draft.items.splice(index, 1);
+          removed = list[index].id;
+          list.splice(index, 1);
         } else if (index >= 0) {
-          const target = draft.items[index];
+          const target = list[index];
           edited = target.id;
           const left = target.x - target.width / 2;
           const right = target.x + target.width / 2;
@@ -517,8 +600,8 @@
           if (target.align === 'right') target.x = right - target.width / 2;
         } else if (fresh) {
           // Among the design's parts, behind anything the user added.
-          const own = draft.items.findIndex((item) => !item.role);
-          draft.items.splice(own < 0 ? draft.items.length : own, 0, fresh);
+          const own = list.findIndex((item) => !item.role);
+          list.splice(own < 0 ? list.length : own, 0, fresh);
         }
       }, 'none');
       if (removed && state.selectedId === removed) selection.select(null);
@@ -560,6 +643,8 @@
         messages.announce(logoTarget === 'logo2' ? 'The choices change the second logo.' : 'The choices change the first logo.');
         return;
       }
+      const side = event.target.closest('[data-card-side]');
+      if (side) { useSide(side.dataset.cardSide); return; }
       const use = event.target.closest('[data-card-logo-use]');
       if (use) { useLogoSticker(use.dataset.cardLogoUse); return; }
       const logo = event.target.closest('[data-card-logo]');

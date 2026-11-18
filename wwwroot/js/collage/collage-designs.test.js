@@ -226,3 +226,85 @@ test('a card keeps its logo when the design changes; a removed logo stays remove
   const place = designs.roleItem(without, 'logo', { measure, newId });
   assert.deepEqual([place.kind, place.sticker], ['sticker', 'logo:sdd']);
 });
+
+// Front and back (docs/ux/invitations-posters.md, PR 8).
+test('a card gets a back in its design, turns over, keeps both sides through a design change, and loses it', () => {
+  const card = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
+  const two = designs.addBack(card, { measure, newId });
+  assert.equal(two.side, undefined, 'the front still shows');
+  assert.deepEqual(two.items, card.items, 'the front is untouched');
+  const backField = (c, field) => [...c.items, ...(c.back?.items || [])].find((item) => item.field === field);
+  assert.equal(backField(two, 'programmeTitle').text, 'Programme');
+  assert.match(backField(two, 'programme').text, /Guests arrive/);
+  assert.ok(two.back.items.some((item) => item.role === 'backphoto' && item.kind === 'slot'));
+  assert.equal(two.back.items.find((item) => item.role === 'backlogo').sticker, 'logo:sdd', 'the back shows the front\'s logo');
+  // Turned over: the back is the side shown and edited; turned again, as it was.
+  const over = core.flipSide(two);
+  assert.equal(over.side, 'back');
+  assert.ok(over.items.some((item) => item.field === 'programme'));
+  assert.deepEqual(core.flipSide(over).items, two.items);
+  // Pages for Save: front first, whichever side shows.
+  assert.equal(core.pagesOf(over)[0].items.some((item) => item.field === 'occasion'), true);
+  assert.equal(core.pagesOf(over)[1].items.some((item) => item.field === 'programme'), true);
+  // Words on both sides count; a design change while the back shows rebuilds both and keeps the back showing.
+  const edited = { ...over, items: over.items.map((item) => (item.field === 'programme' ? { ...item, text: '1900 h · Arrival' } : item)) };
+  assert.equal(designs.detailsOf(edited).programme, '1900 h · Arrival');
+  assert.equal(designs.detailsOf(edited).occasion, 'Raising Day Dinner');
+  const navy = designs.applyDesign(edited, 'navy', designs.detailsOf(edited), { measure, newId });
+  assert.equal(navy.side, 'back');
+  assert.deepEqual(navy.background, { type: 'gradient', key: 'navy' }, 'the navy back');
+  assert.equal(navy.items.find((item) => item.field === 'programme').text, '1900 h · Arrival');
+  assert.deepEqual(navy.back.background, { type: 'gradient', key: 'navy' }, 'the navy front, now behind');
+  assert.equal(navy.back.items.find((item) => item.field === 'occasion').text, 'Raising Day Dinner');
+  // A draft keeps both sides and the side showing.
+  const read = core.readDraftModel(JSON.parse(JSON.stringify(navy)), []);
+  assert.equal(read.side, 'back');
+  assert.equal(read.back.items.length, navy.back.items.length);
+  // Deleted, the card shows its front alone.
+  const single = designs.deleteBack(navy);
+  assert.equal(single.back, undefined);
+  assert.equal(single.side, undefined);
+  assert.ok(single.items.some((item) => item.field === 'occasion'));
+  // A back field filled again comes back on the back.
+  assert.equal(designs.fieldItem(two, 'backNote', { ...designs.detailsOf(two), backNote: 'Gate 2' }, { measure, newId }).text, 'Gate 2');
+  assert.equal(designs.fieldItem(card, 'backNote', { backNote: 'x' }, { measure, newId }), null, 'no back, no back field');
+});
+
+test('every design\'s back stays on the page with no overlapping words at every card size', () => {
+  for (const key of Object.keys(designs.DESIGNS)) {
+    for (const size of cardSizes) {
+      const card = designs.addBack(designs.applyDesign(core.newCollage(size), key, {}, { measure, newId }), { measure, newId });
+      const height = core.pageHeight(size);
+      for (const item of card.back.items) {
+        const b = box(item);
+        assert.ok(b.left >= -0.5 && b.right <= core.PAGE_WIDTH + 0.5 && b.top >= -0.5 && b.bottom <= height + 0.5, `${key} ${size}: back ${item.role} off the page`);
+      }
+      const texts = card.back.items.filter((item) => item.kind === 'text');
+      for (let i = 0; i < texts.length; i += 1) for (let j = i + 1; j < texts.length; j += 1) {
+        assert.ok(!overlap(box(texts[i]), box(texts[j])), `${key} ${size}: back ${texts[i].field} overlaps ${texts[j].field}`);
+      }
+    }
+  }
+});
+
+// The back keeps the parts a newer PRISM made through a design change (PR 8).
+test('a design change keeps the back\'s parts from a newer PRISM, through a save', () => {
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
+  const raw = JSON.parse(JSON.stringify(core.draftModel(card)));
+  raw.back.items.push({ id: 'h', kind: 'hologram', x: 1, y: 1 });
+  const read = core.readDraftModel(raw, []);
+  assert.equal(core.keptCount(read), 1);
+  const changed = designs.applyDesign(read, 'navy', designs.detailsOf(read), { measure, newId });
+  const again = core.readDraftModel(JSON.parse(JSON.stringify(core.draftModel(changed))), []);
+  assert.equal(core.keptCount(again), 1, 'the hologram is still there');
+});
+
+// Deleting the back keeps its words as they are on the card, however they were typed (PR 8).
+test('deleting the back keeps the programme as it was edited, for a new back', () => {
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
+  // Edited in the item itself, not in Card details.
+  const edited = { ...card, back: { ...card.back, items: card.back.items.map((item) => (item.field === 'programme' ? { ...item, text: '1900 h · Arrival' } : item)) } };
+  const single = designs.deleteBack(edited);
+  const again = designs.addBack(single, { measure, newId });
+  assert.equal(again.back.items.find((item) => item.field === 'programme').text, '1900 h · Arrival');
+});

@@ -367,3 +367,157 @@ test('crests that arrive after a card is open appear in Card details as logos', 
   await expect(page.locator(`[data-card-logo-use="unit:${crest.id}"]`)).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('a back with the programme: added and shown, typed from the front, and saved as a two-page PDF', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(async () => (await newestDraft(page))?.model?.side).toBe('back');
+  // The back's programme is typed in Card details, even with the front showing.
+  await page.locator('[data-card-side="front"]').click();
+  await expect(page.locator('[data-card-side="front"]')).toHaveAttribute('aria-pressed', 'true');
+  const programme = page.locator('[data-card-field="programme"]');
+  await programme.fill('1900 h · Arrival\n1930 h · Dinner');
+  await programme.blur();
+  await expect.poll(async () => (await newestDraft(page))?.model?.back?.items?.find((item) => item.field === 'programme')?.text).toBe('1900 h · Arrival\n1930 h · Dinner');
+
+  // Save: both sides are a PDF of two pages, front first.
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-sides]')).toBeVisible();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  let download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  let file = await download;
+  const pages = await page.evaluate(async (base64) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    return (await window.PDFLib.PDFDocument.load(bytes)).getPageCount();
+  }, (await streamBytes(file)).toString('base64'));
+  expect(pages).toBe(2);
+  await expect(page.locator('[data-save-result]')).toContainText('2 pages');
+  // The front alone, as a picture: one file named for its side.
+  await page.locator('input[name="sides"][value="front"]').check();
+  await page.getByRole('button', { name: 'A slide or a screen' }).click();
+  download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  file = await download;
+  expect(file.suggestedFilename()).toMatch(/-front\.png$/);
+  await page.keyboard.press('Escape');
+
+  // Deleted, the card is one-sided again, with Undo.
+  await page.locator('[data-card-side="delete"]').click();
+  await expect(page.locator('[data-card-side="add"]')).toBeVisible();
+  await expect.poll(async () => (await newestDraft(page))?.model?.back).toBe(undefined);
+  expect(errors).toEqual([]);
+});
+
+test('a unit colour changed from the front reaches the back too', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="regimental"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await page.locator('[data-card-side="front"]').click();
+  await page.locator('[data-card-colour="1"]').evaluate((input) => {
+    input.value = '#1f5b3a';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'band1')?.fill).toBe('#1f5b3a');
+  const model = (await newestDraft(page)).model;
+  const back = model.side === 'back' ? model.items : model.back.items;
+  const tinted = back.filter((item) => item.tint && Object.values(item.tint).includes(1));
+  expect(tinted.length).toBeGreaterThan(0);
+  for (const item of tinted) for (const [prop, which] of Object.entries(item.tint)) if (which === 1) expect(item[prop]).toBe('#1f5b3a');
+  expect(errors).toEqual([]);
+});
+
+test('the back\'s small logo follows the front\'s: replaced, removed and put back', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await page.locator('[data-card-side="front"]').click();
+  const backLogo = async () => {
+    const model = (await newestDraft(page))?.model;
+    const back = model?.side === 'back' ? model.items : model?.back?.items;
+    return (back || []).find((item) => item.role === 'backlogo') || null;
+  };
+  await expect.poll(async () => (await backLogo())?.sticker).toBe('logo:sdd');
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 60;
+    canvas.height = 60;
+    canvas.getContext('2d').fillRect(0, 0, 60, 60);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  await page.locator('[data-card-logo-file]').setInputFiles({ name: 'unit.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect.poll(async () => (await backLogo())?.kind).toBe('photo');
+  await page.locator('[data-card-logo="remove"]').click();
+  await expect.poll(async () => await backLogo()).toBe(null);
+  await page.locator('[data-card-logo-use="logo:sdd"]').click();
+  await expect.poll(async () => (await backLogo())?.sticker).toBe('logo:sdd');
+  expect(errors).toEqual([]);
+});
+
+test('turning to the back keeps the card\'s own title, from its front', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  const title = page.locator('[data-name]');
+  const before = await title.getAttribute('placeholder');
+  await page.locator('[data-card-side="add"]').click();
+  await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
+  expect(await title.getAttribute('placeholder')).toBe(before);
+  expect(before).not.toMatch(/Programme/);
+  expect(errors).toEqual([]);
+});
+
+test('a card can be saved with an empty back showing, since its front has the invitation', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
+  // Empty the back: each of its items chosen in Layers and deleted.
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  for (let i = 0; i < 20 && await page.locator('[data-layer-select]').count(); i += 1) {
+    await page.locator('[data-layer-select]').first().click();
+    await page.keyboard.press('Delete');
+  }
+  await expect(page.locator('[data-layer-select]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-dialog]')).toBeVisible();
+  await expect(page.locator('[data-prism-toast]').filter({ hasText: 'nothing to save yet' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});
+
+test('a logo still being read when the card is turned over stays in the tray, not on the back', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await page.locator('[data-card-side="front"]').click();
+  // A large picture, so it is still being read when the card is turned.
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 3000;
+    canvas.height = 3000;
+    const context = canvas.getContext('2d');
+    for (let i = 0; i < 400; i += 1) { context.fillStyle = `hsl(${i}, 60%, 50%)`; context.fillRect((i * 37) % 3000, (i * 91) % 3000, 300, 300); }
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  const chosen = page.locator('[data-card-logo-file]').setInputFiles({ name: 'big-logo.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await page.locator('[data-card-side="back"]').click();
+  await chosen;
+  await expect(page.locator('[data-prism-toast]').filter({ hasText: 'turned over while your logo was read' })).toBeVisible({ timeout: 20000 });
+  // A word typed, so the draft is saved and can be read.
+  await page.locator('[data-card-field="venue"]').fill('Sudarshan Hall');
+  await page.locator('[data-card-field="venue"]').blur();
+  await expect.poll(async () => Boolean(await newestDraft(page))).toBe(true);
+  const model = (await newestDraft(page)).model;
+  const front = model.side === 'back' ? model.back.items : model.items;
+  const back = model.side === 'back' ? model.items : model.back.items;
+  expect(front.find((item) => item.role === 'logo').sticker).toBe('logo:sdd');
+  expect(back.some((item) => item.role === 'logo')).toBe(false);
+  expect(errors).toEqual([]);
+});

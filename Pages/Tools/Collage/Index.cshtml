@@ -326,6 +326,16 @@
                     </div>
                     <p class="clg-save-summary" data-save-summary></p>
                 </div>
+                @* A card with a back (docs/ux/invitations-posters.md, PR 8). *@
+                <fieldset class="clg-options clg-save-sides" data-save-sides hidden>
+                    <legend>Sides of the card</legend>
+                    <label class="clg-option"><input type="radio" name="sides" value="both" checked>
+                        <span><b>Both sides</b><small>A PDF of two pages, front then back, or two pictures.</small></span></label>
+                    <label class="clg-option"><input type="radio" name="sides" value="front">
+                        <span><b>Front only</b></span></label>
+                    <label class="clg-option"><input type="radio" name="sides" value="back">
+                        <span><b>Back only</b></span></label>
+                </fieldset>
                 <details class="clg-more" data-save-more>
                 <summary>More options <span class="clg-more__hint">type and quality</span></summary>
                 <fieldset class="clg-options">

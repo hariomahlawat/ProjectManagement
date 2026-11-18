@@ -239,6 +239,11 @@
       change.setCollage(core.changeSize(state.collage, ui.sizeSelect.value));
       // A page laid out in a grid is laid out again on the new page, every frame in its own place.
       if (state.collage.layout) change.setCollage(core.reflowLayout(state.collage, state.collage.layout.gap));
+      // The side not showing has its own layout, laid out again on the new page too (PR 8).
+      if (state.collage.back?.layout) {
+        const other = core.flipSide(state.collage);
+        change.setCollage(core.flipSide(core.reflowLayout(other, other.layout.gap)));
+      }
       selection.stopAdjust(false);
       surface.layout();
       history.commit();

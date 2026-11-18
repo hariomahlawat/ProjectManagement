@@ -30,8 +30,14 @@
     inviteHi: 'आपको सादर आमंत्रित करते हैं',
     occasionHi: 'स्थापना दिवस रात्रिभोज',
     // The Regimental design's band: the unit's three colours, top to bottom (PR 6).
-    colours: '#7a1f2b #c9a54a #1d2c55'
+    colours: '#7a1f2b #c9a54a #1d2c55',
+    // The back of the card (PR 8).
+    programmeTitle: 'Programme',
+    programme: '1930 h · Guests arrive' + String.fromCharCode(10) + '2000 h · Address by the Commandant' + String.fromCharCode(10) + '2030 h · Cultural programme' + String.fromCharCode(10) + '2100 h · Dinner',
+    backNote: 'Car passes at the main gate · Parking beside the Officers’ Mess'
   });
+  /** The fields on the back of the card. */
+  const BACK_FIELDS = Object.freeze(['programmeTitle', 'programme', 'backNote']);
   /** Fields that are not words on the card: they set something else about it. */
   const SETTINGS = Object.freeze(['colours']);
   /** The fields, in the order the Card details form shows them. */
@@ -317,7 +323,7 @@
   function roleItem(collage, role, opts) {
     const key = collage?.card?.design;
     if (!DESIGNS[key]) return null;
-    const { card, ...rest } = collage;
+    const { card, back, side, ...rest } = collage;
     const made = applyDesign({ ...rest, items: [] }, key, detailsOf(collage), opts);
     return made.items.find((item) => item.role === role) || null;
   }
@@ -346,9 +352,10 @@
     const details = { ...DEFAULT_DETAILS, ...(collage?.card?.details || {}) };
     // A field the design placed on the card but which has no words now was emptied or deleted
     // on the page: it stays empty, so the next design does not bring it back. A field the design
-    // never placed (the page was turned since, say) keeps its words for when it is.
+    // never placed (the page was turned since, say) keeps its words for when it is. Words on
+    // either side count.
     for (const field of collage?.card?.placed || []) if (FIELDS.includes(field)) details[field] = '';
-    for (const item of collage?.items || []) {
+    for (const item of [...(collage?.items || []), ...(collage?.back?.items || [])]) {
       if (item.kind === 'text' && FIELDS.includes(item.field)) details[item.field] = item.text;
     }
     return details;
@@ -369,14 +376,12 @@
    * A field left empty has no item. `measure(text, font)` sizes the words as the page does;
    * `newId()` gives each new item its id. The page size never changes.
    */
-  function applyDesign(collage, designKey, details, { measure, newId }) {
-    const design = DESIGNS[designKey];
-    if (!design) return collage;
-    const width = core.PAGE_WIDTH;
-    const height = core.pageHeight(collage.size);
-    const unit = unitOf(collage.size);
-    const wording = { ...DEFAULT_DETAILS, ...(details || {}) };
-    const parts = isPortrait(collage.size) ? design.portrait : design.landscape;
+  /**
+   * One side's items: the design's parts for it, made from the wording, then the user's own
+   * items (and a second logo) from `items`, the side as it was. A photo in the side's frame
+   * (`frameRole`) goes into the new frame, or stays as the user's own when there is none.
+   */
+  function makePage(items, parts, { width, height, unit, wording, measure, newId, isCard, frameRole }) {
     // The unit's colours for the Regimental band: 'band1' to 'band3' in a look stand for them.
     const colours = colourList(wording.colours);
     const tinted = (look) => {
@@ -395,7 +400,7 @@
     };
     // A photo the user put in the last design's frame goes into this design's frame, or stays
     // on the page as their own when this design has none.
-    const framed = (collage.items || []).filter((item) => item.role === 'photo' && item.kind === 'photo');
+    const framed = (items || []).filter((item) => item.role === frameRole && item.kind === 'photo');
     const made = [];
     for (const part of parts) {
       const look = part.look ? tinted(part.look) : {};
@@ -419,13 +424,13 @@
         made.push(item);
       } else if (part.kind === 'slot') {
         const place = { x: part.x * width, y: part.y * height, width: part.w * width, aspect: (part.w * width) / (part.h * height) };
-        const slot = { ...core.slotItem(newId(), place), role: 'photo' };
+        const slot = { ...core.slotItem(newId(), place), role: frameRole };
         const photo = framed.shift();
         made.push(photo ? { ...core.fillSlot(slot, photo.photo), crop: { ...(photo.crop || core.FULL_CROP) }, look: photo.look || 'none' } : slot);
-      } else if (part.kind === 'sticker' && part.role === 'logo' && collage.card) {
+      } else if (part.kind === 'sticker' && part.role === 'logo' && isCard) {
         // An existing card keeps its logo (the SDD logo, a crest or the user's own), placed and
         // sized by this design; a card whose logo was removed stays without one (PR 7).
-        const logo = (collage.items || []).find((item) => item.role === 'logo');
+        const logo = (items || []).find((item) => item.role === 'logo');
         if (logo) {
           const w = part.w * 1000 * unit;
           made.push({ ...logo, id: newId(), x: part.x * width, y: part.y * height, width: w, angle: 0 });
@@ -455,19 +460,123 @@
     // Photos from the last design's frame with no frame here become the user's own.
     const leftOver = framed.map(({ role, ...item }) => item);
     // The user's own items, and a second logo they added, stay where they are.
-    const own = (collage.items || []).filter((item) => !item.role || item.role === 'logo2');
-    return {
-      ...collage,
+    const own = (items || []).filter((item) => !item.role || item.role === 'logo2');
+    return [...made, ...own, ...leftOver];
+  }
+
+  /** The look of a design's back: its background and the colours of the title, rule and words. */
+  const BACK_LOOKS = Object.freeze({
+    classic: { background: { type: 'color', value: '#fbf7ee' }, title: MAROON, accent: GOLD, ink: INK },
+    navy: { background: { type: 'gradient', key: 'navy' }, title: PALE_GOLD, accent: PALE_GOLD, ink: IVORY },
+    regimental: { background: { type: 'color', value: '#ffffff' }, title: 'band1', accent: 'band2', ink: INK },
+    ceremonial: { background: { type: 'color', value: '#ffffff' }, title: MAROON, accent: MAROON, ink: INK },
+    bilingual: { background: { type: 'color', value: '#fffdf7' }, title: MAROON, accent: GOLD, ink: INK },
+    modern: { background: { type: 'color', value: '#ffffff' }, title: NAVY, accent: NAVY, ink: INK }
+  });
+
+  /** The back's parts for a design: the programme, a frame for a route sketch or venue photo, a note. */
+  function backParts(designKey, portrait) {
+    const look = BACK_LOOKS[designKey] || BACK_LOOKS.classic;
+    const backPhoto = (x, y, w, h) => ({ role: 'backphoto', kind: 'slot', x, y, w, h });
+    return portrait
+      ? [
+        border('backborder', 0.04, look.accent, 1.2),
+        words('programmeTitle', 0.5, 0.11, 0.7, 40, { font: 'elegant', color: look.title, bold: true }, { lines: 1 }),
+        rule('backrule', 0.5, 0.165, 0.2, look.accent, 2),
+        words('programme', 0.5, 0.33, 0.8, 31, { font: 'clean', color: look.ink, bold: false }, { lines: 10 }),
+        backPhoto(0.5, 0.63, 0.76, 0.22),
+        words('backNote', 0.5, 0.82, 0.8, 20, { font: 'clean', color: look.ink, bold: false, italic: true }, { lines: 2 }),
+        { ...logo(0.5, 0.91, 0.045), role: 'backlogo' }
+      ]
+      : [
+        border('backborder', 0.04, look.accent, 1.2),
+        words('programmeTitle', 0.5, 0.14, 0.6, 36, { font: 'elegant', color: look.title, bold: true }, { lines: 1 }),
+        rule('backrule', 0.5, 0.23, 0.16, look.accent, 2),
+        words('programme', 0.29, 0.54, 0.46, 26, { font: 'clean', color: look.ink, bold: false }, { lines: 10 }),
+        backPhoto(0.73, 0.54, 0.4, 0.5),
+        words('backNote', 0.5, 0.88, 0.84, 18, { font: 'clean', color: look.ink, bold: false, italic: true }, { lines: 1 })
+      ];
+  }
+
+  /** The measures one side of a card of this size is built with. */
+  function pageContext(collage, wording, { measure, newId }, extra) {
+    return { width: core.PAGE_WIDTH, height: core.pageHeight(collage.size), unit: unitOf(collage.size), wording, measure, newId, ...extra };
+  }
+
+  /**
+   * The card's back for the design (PR 8): the programme and the rest, made from the details,
+   * with the user's own items from the back as it was.
+   */
+  function backPage(collage, designKey, details, opts, items = []) {
+    const look = BACK_LOOKS[designKey] || BACK_LOOKS.classic;
+    const wording = { ...DEFAULT_DETAILS, ...(details || {}) };
+    const made = makePage(items, backParts(designKey, isPortrait(collage.size)), pageContext(collage, wording, opts, { isCard: false, frameRole: 'backphoto' }));
+    // The back's small logo is the front's logo (the SDD logo, a crest or the user's own), or
+    // none when the front has none. `collage` here shows its front.
+    const front = (collage.items || []).find((item) => item.role === 'logo');
+    const at = made.findIndex((item) => item.role === 'backlogo');
+    if (at >= 0) {
+      if (front) made.splice(at, 1, { ...front, id: made[at].id, x: made[at].x, y: made[at].y, width: made[at].width, angle: 0, role: 'backlogo' });
+      else made.splice(at, 1);
+    }
+    return { background: { ...look.background }, items: made };
+  }
+
+  /**
+   * The collage with `designKey` applied: its background, and a new set of design parts, made
+   * from the details, in place of the parts of any design applied before, on the front and, when
+   * the card has one, on the back. Items the user added (photos, stickers, their own words:
+   * anything without a `role`) stay where they are, in front. A field left empty has no item.
+   * `measure(text, font)` sizes the words as the page does; `newId()` gives each new item its
+   * id. The page size never changes, and the side showing stays the side showing.
+   */
+  function applyDesign(collage, designKey, details, opts) {
+    const design = DESIGNS[designKey];
+    if (!design) return collage;
+    const showingBack = collage.side === 'back' && collage.back;
+    const card = showingBack ? core.flipSide(collage) : collage;
+    const wording = { ...DEFAULT_DETAILS, ...(details || {}) };
+    const parts = isPortrait(card.size) ? design.portrait : design.landscape;
+    const applied = {
+      ...card,
       background: { ...design.background },
       layout: null,
-      items: [...made, ...own, ...leftOver],
-      card: {
-        design: designKey,
-        details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])),
-        // The fields this design put on the card, so a missing one is known to be deleted.
-        placed: [...new Set(made.filter((item) => item.field).map((item) => item.field))]
-      }
+      items: makePage(card.items, parts, pageContext(card, wording, opts, { isCard: Boolean(card.card), frameRole: 'photo' })),
+      card: { design: designKey, details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) }
     };
+    if (card.back) {
+      applied.back = backPage(card, designKey, wording, opts, card.back.items);
+      // Parts a newer PRISM keeps on the back go with it, as the front's do.
+      if (card.back.kept) applied.back.kept = card.back.kept;
+    }
+    // The fields this design put on the card, both sides, so a missing one is known to be deleted.
+    applied.card.placed = placedOn(applied);
+    return showingBack ? core.flipSide(applied) : applied;
+  }
+
+  /** The fields that have an item on either side of a card. */
+  function placedOn(collage) {
+    return [...new Set([...(collage.items || []), ...(collage.back?.items || [])].filter((item) => item.field).map((item) => item.field))];
+  }
+
+  /** The card with a back added in its design (PR 8); the front is untouched. */
+  function addBack(collage, opts) {
+    const key = collage?.card?.design;
+    if (!DESIGNS[key] || collage.back) return collage;
+    const added = { ...collage, back: backPage(collage, key, detailsOf(collage), opts) };
+    added.card = { ...collage.card, placed: [...new Set([...(collage.card.placed || []), ...placedOn({ items: added.back.items })])] };
+    return added;
+  }
+
+  /** The card without its back, showing its front. */
+  function deleteBack(collage) {
+    if (!collage?.back) return collage;
+    const front = collage.side === 'back' ? core.flipSide(collage) : collage;
+    const { back, side, ...rest } = front;
+    // The back's fields are no longer on the card: their words, as they are now on the card
+    // (typed in Card details or in an item's Words box), are kept for a new back.
+    if (rest.card) rest.card = { ...rest.card, details: detailsOf(front), placed: (rest.card.placed || []).filter((field) => !BACK_FIELDS.includes(field)) };
+    return rest;
   }
 
   /**
@@ -478,9 +587,14 @@
   function fieldItem(collage, field, details, opts) {
     const key = collage?.card?.design;
     if (!DESIGNS[key]) return null;
-    const made = applyDesign({ ...collage, items: [] }, key, details, opts);
+    if (BACK_FIELDS.includes(field)) {
+      if (!collage.back) return null;
+      return backPage(collage, key, details, opts).items.find((item) => item.field === field) || null;
+    }
+    const { back, side, ...front } = collage;
+    const made = applyDesign({ ...front, items: [] }, key, details, opts);
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack });
 });

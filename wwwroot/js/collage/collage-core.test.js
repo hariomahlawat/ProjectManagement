@@ -1081,15 +1081,15 @@ test('a draft keeps the parts a newer PRISM made, and writes them back in their 
   const shape = { id: 'b', kind: 'seal', seal: 'rect', x: 10, y: 10, width: 980, aspect: 0.7, stroke: '#a8842f', points: [[0, 0], [1, 1]] };
   const logo = { id: 'c', kind: 'sticker', sticker: 'seal:navy', x: 400, y: 40, width: 120, aspect: 0.59 };
   const words = { ...collage.textItem('d', 'Raising Day Dinner', { x: 500, y: 300 }), font: 'cinzel', field: 'occasion', maxWidth: 800 };
-  const back = { background: { type: 'color', value: '#fbf7ee' }, items: [{ id: 'e', kind: 'photo', photo: 'p2', x: 0, y: 0, width: 1000, aspect: 1.4 }] };
-  const raw = { version: 1, size: 'a4p', background: { type: 'color', value: '#ffffff' }, layout: null, items: [photo, shape, logo, words], back, design: 'classic' };
+  const reverse = { background: { type: 'color', value: '#fbf7ee' }, items: [{ id: 'e', kind: 'photo', photo: 'p2', x: 0, y: 0, width: 1000, aspect: 1.4 }] };
+  const raw = { version: 1, size: 'a4p', background: { type: 'color', value: '#ffffff' }, layout: null, items: [photo, shape, logo, words], reverse, design: 'classic' };
 
   const read = collage.readDraftModel(raw, ['p1', 'p2']);
   // Only what this PRISM draws is on the page; the rest is held aside, untouched.
   assert.deepEqual(read.items.map((i) => i.id), ['a', 'd']);
   assert.equal(collage.keptCount(read), 4);
   assert.deepEqual(read.kept.items, [{ at: 1, item: shape }, { at: 2, item: logo }]);
-  assert.deepEqual(read.kept.fields, { back, design: 'classic' });
+  assert.deepEqual(read.kept.fields, { reverse, design: 'classic' });
   // A newer font and new fields on a known item stay by name; the font draws as the clean one.
   assert.equal(read.items[1].font, 'cinzel');
   assert.equal(read.items[1].field, 'occasion');
@@ -1106,7 +1106,7 @@ test('a draft keeps the parts a newer PRISM made, and writes them back in their 
   assert.deepEqual(written.items.map((i) => i.id), ['a', 'b', 'c', 'd']);
   assert.deepEqual(written.items[1], shape);
   assert.deepEqual(written.items[2], logo);
-  assert.deepEqual(written.back, back);
+  assert.deepEqual(written.reverse, reverse);
   assert.equal(written.design, 'classic');
   assert.equal(written.size, 'a4l');
   // Read again, written again: nothing is lost or doubled however often an older page saves.
@@ -1264,7 +1264,7 @@ test('words with a width wrap onto new lines, then get smaller, and never change
 
   // A draft keeps a usable width and line count, and drops a bad one.
   const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [{ ...base, maxLines: 9 }, { ...base, id: 'u', maxWidth: 3, maxLines: 'x' }] }, []);
-  assert.deepEqual([read.items[0].maxWidth, read.items[0].maxLines], [420, 6]);
+  assert.deepEqual([read.items[0].maxWidth, read.items[0].maxLines], [420, 9]);
   assert.equal('maxWidth' in read.items[1], false);
   assert.equal('maxLines' in read.items[1], false);
 });
@@ -1295,4 +1295,57 @@ test('a custom size is typed in mm, 50 to 300 a side, and prints at its true pap
   assert.equal(collage.changeSize(collage.newCollage('a4l'), 'mm:120x180').size, 'mm:120x180');
   assert.equal(collage.readDraftModel({ version: 1, size: 'mm:120x180', items: [] }, []).size, 'mm:120x180');
   assert.equal(collage.readDraftModel({ version: 1, size: 'mm:10x10', items: [] }, []).size, 'a4l');
+});
+
+// The back (PR 8): a size change moves both sides, and the back's parts kept for a newer PRISM
+// survive a read, a save and a read again.
+test('a card with a back: a size change moves both sides; the back keeps its newer parts through a save', () => {
+  const card = { ...collage.newCollage('a5p'), items: [{ id: 'f', kind: 'text', text: 'Front', x: 500, y: 1300, width: 200, aspect: 4, size: 40 }],
+    back: { background: { type: 'color', value: '#ffffff' }, items: [{ id: 'b', kind: 'text', text: 'Back', x: 500, y: 1300, width: 200, aspect: 4, size: 40 }] } };
+  const turned = collage.changeSize(card, 'a5l');
+  const height = collage.pageHeight('a5l');
+  assert.ok(turned.items[0].y < height && turned.back.items[0].y < height, 'both sides on the page');
+  assert.ok(Math.abs(turned.back.items[0].y - turned.items[0].y) < 1e-6);
+
+  const raw = { version: 1, size: 'a5p', background: { type: 'color', value: '#ffffff' }, items: [],
+    back: { background: { type: 'color', value: '#ffffff' }, items: [
+      { id: 'n', kind: 'text', text: 'Note', x: 500, y: 500, width: 200, aspect: 4, size: 40 },
+      { id: 'h', kind: 'hologram', x: 1, y: 1 }
+    ] } };
+  const read = collage.readDraftModel(JSON.parse(JSON.stringify(raw)), []);
+  assert.equal(collage.keptCount(read), 1);
+  const again = collage.readDraftModel(JSON.parse(JSON.stringify(collage.draftModel(read))), []);
+  assert.equal(collage.keptCount(again), 1, 'the back\'s newer part survives a save');
+  assert.deepEqual(collage.draftModel(again).back.items.map((item) => item.id), ['n', 'h']);
+});
+
+// Each side keeps its own photo layout when the card turns over, and in the draft (PR 8).
+test('a side keeps its photo layout through turning over and a draft', () => {
+  const front = { ...collage.newCollage('a5p'), layout: { key: 't2', gap: 12, radius: 0 }, back: { background: { type: 'color', value: '#ffffff' }, items: [], layout: null } };
+  const over = collage.flipSide(front);
+  assert.equal(over.layout, null, 'the back has no layout');
+  assert.deepEqual(over.back.layout, { key: 't2', gap: 12, radius: 0 });
+  assert.deepEqual(collage.flipSide(over).layout, { key: 't2', gap: 12, radius: 0 }, 'back to the front, its layout is there');
+  const read = collage.readDraftModel(JSON.parse(JSON.stringify(collage.draftModel(over))), []);
+  assert.deepEqual(read.back.layout?.key, 't2');
+});
+
+// The back's own page-level fields a newer PRISM wrote are kept through a save (PR 8).
+test('the back keeps its own newer fields through a read and a save', () => {
+  const raw = { version: 1, size: 'a5p', background: { type: 'color', value: '#ffffff' }, items: [],
+    back: { background: { type: 'color', value: '#ffffff' }, items: [], finishing: { foil: 'gold' } } };
+  const read = collage.readDraftModel(JSON.parse(JSON.stringify(raw)), []);
+  const saved = collage.draftModel(read);
+  assert.deepEqual(saved.back.finishing, { foil: 'gold' });
+  assert.deepEqual(collage.draftModel(collage.readDraftModel(JSON.parse(JSON.stringify(saved)), [])).back.finishing, { foil: 'gold' });
+});
+
+// A programme of ten lines reads back from a draft at the same size (PR 8).
+test('a ten-line programme keeps its size when the draft is reopened', () => {
+  const measure = (text, font) => [...text].length * Number(/(\d+(?:\.\d+)?)px/.exec(font)[1]) * 0.56;
+  const programme = Array.from({ length: 10 }, (_, i) => `${18 + i}00 h  Item ${i + 1}`).join(String.fromCharCode(10));
+  const item = { id: 'p', kind: 'text', text: programme, x: 500, y: 500, width: 800, aspect: 1, size: 31, maxWidth: 800, maxLines: 10, field: 'programme' };
+  const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [item] }, []);
+  assert.equal(read.items[0].maxLines, 10);
+  assert.ok(Math.abs(collage.layoutText(read.items[0], measure).size - collage.layoutText(item, measure).size) < 0.01);
 });
