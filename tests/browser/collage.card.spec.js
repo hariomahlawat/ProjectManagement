@@ -471,3 +471,22 @@ test('turning to the back keeps the card\'s own title, from its front', async ({
   expect(before).not.toMatch(/Programme/);
   expect(errors).toEqual([]);
 });
+
+test('a card can be saved with an empty back showing, since its front has the invitation', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
+  // Empty the back: each of its items chosen in Layers and deleted.
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  for (let i = 0; i < 20 && await page.locator('[data-layer-select]').count(); i += 1) {
+    await page.locator('[data-layer-select]').first().click();
+    await page.keyboard.press('Delete');
+  }
+  await expect(page.locator('[data-layer-select]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-dialog]')).toBeVisible();
+  await expect(page.locator('[data-prism-toast]').filter({ hasText: 'nothing to save yet' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});
