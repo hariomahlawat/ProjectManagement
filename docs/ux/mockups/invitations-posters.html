@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invitations and Posters Mockup</title>
+<style>
+/* Invitation cards and posters in Collage Studio: mockup for owner review (18 Nov 2026).
+   Ready-made designs fill in from a Card details form; wording stays when the design changes;
+   every part stays editable. Cards open with the SDD logo; posters ask for a logo.
+   Fonts and the logo are read from wwwroot, so this works with no Internet. */
+@font-face { font-family: "Playfair Display"; font-weight: 400; src: url("../../../wwwroot/fonts/collage/playfair-display/playfair-display-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Playfair Display"; font-weight: 700; src: url("../../../wwwroot/fonts/collage/playfair-display/playfair-display-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Dancing Script"; font-weight: 400; src: url("../../../wwwroot/fonts/collage/dancing-script/dancing-script-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Dancing Script"; font-weight: 700; src: url("../../../wwwroot/fonts/collage/dancing-script/dancing-script-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Bebas Neue"; font-weight: 400; src: url("../../../wwwroot/fonts/collage/bebas-neue/bebas-neue-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Noto Sans Devanagari"; font-weight: 400; src: url("../../../wwwroot/fonts/collage/noto-sans-devanagari/noto-sans-devanagari-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+2000-206F; }
+@font-face { font-family: "Noto Sans Devanagari"; font-weight: 700; src: url("../../../wwwroot/fonts/collage/noto-sans-devanagari/noto-sans-devanagari-latin-700-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+2000-206F; }
+@font-face { font-family: "Noto Sans Devanagari"; font-weight: 400; src: url("../../../wwwroot/fonts/collage/noto-sans-devanagari/noto-sans-devanagari-devanagari-400-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+200C-200D, U+25CC; }
+@font-face { font-family: "Noto Sans Devanagari"; font-weight: 700; src: url("../../../wwwroot/fonts/collage/noto-sans-devanagari/noto-sans-devanagari-devanagari-700-normal.woff2") format("woff2"); unicode-range: U+0900-097F, U+200C-200D, U+25CC; }
+@font-face { font-family: "Tiro Devanagari Hindi"; font-weight: 400; src: url("../../../wwwroot/fonts/collage/tiro-devanagari-hindi/tiro-devanagari-hindi-devanagari-400-normal.woff2") format("woff2"); }
+
+:root {
+  --bg: #f4f6fa; --surface: #ffffff; --ink: #172033; --muted: #68748a; --line: #e2e7ef;
+  --accent: #2f62e0; --accent-soft: #e8efff; --on-accent: #ffffff; --hover: #edf1f7;
+  --stage: #e9edf3; --note-bg: #fff6e0; --note-ink: #6d4a00;
+  --shadow: 0 8px 28px rgba(24, 39, 70, .14);
+  --font: "Mulish", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1116; --surface: #181b22; --ink: #e9ecf2; --muted: #98a2b3; --line: #2a2f3a;
+  --accent: #7aa2ff; --accent-soft: #1c2742; --on-accent: #0c1220; --hover: #20242d;
+  --stage: #0b0d12; --note-bg: #2d2513; --note-ink: #f3cf7a;
+  --shadow: 0 8px 28px rgba(0, 0, 0, .5); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f1116; --surface: #181b22; --ink: #e9ecf2; --muted: #98a2b3; --line: #2a2f3a;
+  --accent: #7aa2ff; --accent-soft: #1c2742; --on-accent: #0c1220; --hover: #20242d;
+  --stage: #0b0d12; --note-bg: #2d2513; --note-ink: #f3cf7a;
+  --shadow: 0 8px 28px rgba(0, 0, 0, .5); color-scheme: dark }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.45; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* Review bar: switches between the four screens of the mockup */
+.review { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.review strong { letter-spacing: .02em; }
+.seg { display: flex; flex-wrap: wrap; gap: 4px; background: var(--hover); padding: 3px; border-radius: 999px; }
+.seg button { padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.review .theme { margin-left: auto; }
+
+.btn { height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.btn:hover { background: var(--hover); }
+.btn--primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn--primary:hover { background: var(--accent); filter: brightness(1.08); }
+.btn--sm { height: 28px; padding: 0 10px; font-size: 12px; }
+
+.note { background: var(--note-bg); color: var(--note-ink); border-radius: 10px; padding: 9px 12px; font-size: 12.5px; }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 24px 16px 60px; }
+h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -.01em; }
+.lede { color: var(--muted); margin: 0 0 22px; max-width: 72ch; }
+h2 { font-size: 16px; margin: 28px 0 12px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+h2 small { font-weight: 400; color: var(--muted); font-size: 13px; }
+
+/* ---------- Start screen ---------- */
+.designs { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 16px; }
+.dcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; text-align: left; display: flex; flex-direction: column; transition: transform .15s, box-shadow .15s; }
+.dcard:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.dcard__pic { background: var(--stage); display: grid; place-items: center; padding: 14px 0; }
+.dcard__body { padding: 9px 12px 12px; }
+.dcard__title { font-weight: 800; }
+.dcard__sub { color: var(--muted); font-size: 12px; }
+.thumb { position: relative; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+.thumb > .sw, .slot > .sw { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; }
+.oldrow { display: flex; gap: 10px; flex-wrap: wrap; }
+.oldrow span { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; color: var(--muted); font-size: 13px; }
+
+/* ---------- Editor ---------- */
+.editor { display: grid; grid-template-columns: 300px minmax(0, 1fr) 260px; height: calc(100vh - 53px); min-height: 640px; }
+.panel { background: var(--surface); border-right: 1px solid var(--line); overflow: auto; padding: 16px; }
+.panel--right { border-right: 0; border-left: 1px solid var(--line); }
+.panel h3 { font-size: 15px; margin: 0 0 2px; }
+.panel .hint { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+.f { display: block; margin: 0 0 10px; }
+.f > span { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 3px; }
+.f input, .f select, .f textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; background: var(--bg); }
+.f textarea { resize: vertical; min-height: 54px; }
+.f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0 0; }
+.chip { font-size: 11.5px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
+.chip:hover { border-color: var(--accent); color: var(--ink); }
+.radio { display: flex; gap: 6px; flex-wrap: wrap; }
+.radio label { display: flex; align-items: center; gap: 5px; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px; }
+fieldset { border: 0; padding: 0; margin: 14px 0 10px; }
+legend { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+
+.stage { background: var(--stage); display: flex; flex-direction: column; min-width: 0; }
+.stage__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.stage__bar .grow { flex: 1; }
+.stage__body { flex: 1; overflow: auto; display: grid; place-items: center; padding: 24px; }
+.strip { display: flex; gap: 10px; overflow-x: auto; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--surface); }
+.strip button { flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11.5px; color: var(--muted); padding: 4px; border-radius: 10px; border: 2px solid transparent; }
+.strip button[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); font-weight: 700; }
+
+.sel-title { display: flex; align-items: center; gap: 8px; font-weight: 800; margin-bottom: 8px; }
+.sel-title i { font-style: normal; font-size: 11px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
+.swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+.swatches button { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line); }
+.swatches button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--surface) inset; }
+.tools { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0; }
+
+/* ---------- The card itself (always printed colours, never themed) ---------- */
+.sheet { --s: 1; position: relative; overflow: hidden; color: #1d1d1d; }
+.sheet .it { position: absolute; }
+.sheet.live .it { cursor: pointer; }
+.sheet.live .it:hover { outline: 1px dashed rgba(47, 98, 224, .7); outline-offset: 3px; }
+.sheet.live .it.on { outline: 2px solid #2f62e0; outline-offset: 3px; }
+.card-a5 { width: 420px; height: 596px; }
+.poster-a3 { width: 420px; height: 594px; }
+.logo { display: block; object-fit: contain; }
+.c { text-align: center; left: 0; right: 0; }
+.script { font-family: "Dancing Script", cursive; }
+.serif { font-family: "Playfair Display", Georgia, serif; }
+.sans { font-family: "Noto Sans Devanagari", "Segoe UI", sans-serif; }
+.hindi { font-family: "Tiro Devanagari Hindi", "Noto Sans Devanagari", serif; }
+.guest { border-bottom: 1px solid currentColor; opacity: .75; height: 22px; }
+.guest.named { border: 0; opacity: 1; }
+
+.addlogo { border: 2px dashed #8a93a6; border-radius: 10px; display: grid; place-items: center; color: #6a7387; font: 700 12px var(--font); background: rgba(255,255,255,.5); }
+
+/* Dialog */
+.scrim { position: fixed; inset: 0; background: rgba(10, 14, 24, .45); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.dialog { background: var(--surface); border-radius: 16px; box-shadow: var(--shadow); width: min(520px, 100%); padding: 20px; }
+.dialog h3 { margin: 0 0 4px; font-size: 18px; }
+.dialog p { margin: 0 0 14px; color: var(--muted); }
+.opts { display: grid; gap: 8px; margin-bottom: 14px; }
+.opt { display: flex; align-items: center; gap: 12px; text-align: left; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.opt:hover { border-color: var(--accent); background: var(--accent-soft); }
+.opt b { display: block; }
+.opt span { color: var(--muted); font-size: 12.5px; }
+.opt .ic { width: 44px; height: 44px; border-radius: 10px; background: var(--hover); display: grid; place-items: center; flex: none; font-size: 20px; overflow: hidden; }
+.opt .ic img { width: 30px; height: 44px; object-fit: contain; }
+
+/* Print and guest list */
+.print { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+.box h3 { margin: 0 0 4px; font-size: 15px; }
+.a4 { background: #fff; margin: 12px auto 0; box-shadow: 0 2px 12px rgba(0,0,0,.2); position: relative; }
+.a4 .slot { position: absolute; overflow: hidden; }
+.cut { position: absolute; background: #333; }
+.names { width: 100%; min-height: 150px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--bg); font-size: 13px; }
+.guestcards { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+
+@media (max-width: 1100px) {
+  .editor { grid-template-columns: 280px minmax(0, 1fr); height: auto; }
+  .panel--right { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
+}
+@media (max-width: 760px) {
+  .editor { grid-template-columns: 1fr; }
+  .panel { border-right: 0; border-bottom: 1px solid var(--line); }
+  .stage__body { padding: 12px; }
+  .print { grid-template-columns: 1fr; }
+  .review .theme { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+
+<div class="review" role="toolbar" aria-label="Mockup screens">
+  <strong>Mockup</strong>
+  <div class="seg" id="views">
+    <button aria-pressed="true" data-view="start">1 · Start</button>
+    <button aria-pressed="false" data-view="card">2 · Invitation card</button>
+    <button aria-pressed="false" data-view="poster">3 · Poster</button>
+    <button aria-pressed="false" data-view="print">4 · Print and guest list</button>
+  </div>
+  <button class="btn btn--sm theme" id="theme">Dark</button>
+</div>
+
+<!-- ============ 1 START ============ -->
+<section id="v-start" class="wrap">
+  <h1>Collage Studio</h1>
+  <p class="lede">Make a collage, an invitation card or a poster. Everything stays in this browser.</p>
+
+  <h2>Invitation cards <small>A5 card · opens with the SDD logo · every word and part can be changed</small></h2>
+  <div class="designs" id="cardDesigns"></div>
+
+  <h2>Posters <small>A3 or A4 · you choose the logo</small></h2>
+  <div class="designs" id="posterDesigns"></div>
+
+  <h2>Collages <small>as today</small></h2>
+  <div class="oldrow"><span>Layouts: 2 side by side … 12 grid, Mosaic of 7</span><span>Blank page: A4, A3, Slide, Square, Phone status, Banner</span><span>Drafts</span></div>
+  <p class="note" style="margin-top:22px">Cards and posters are drafts like any collage: kept in this browser, listed under Drafts, saved as PNG, JPG or PDF.</p>
+</section>
+
+<!-- ============ 2 CARD EDITOR ============ -->
+<section id="v-card" hidden>
+  <div class="editor">
+    <aside class="panel" aria-label="Card details">
+      <h3>Card details</h3>
+      <p class="hint">Type here or click any words on the card. Changing the design keeps everything you typed.</p>
+
+      <label class="f"><span>Occasion</span>
+        <input data-f="occasion" value="Raising Day Dinner">
+        <div class="chips" id="occChips"></div>
+      </label>
+      <label class="f"><span>Host</span><textarea data-f="host">The Commandant and Officers
+Simulator Development Division</textarea></label>
+      <label class="f"><span>Invitation line</span><input data-f="invite" value="request the pleasure of the company of"></label>
+
+      <fieldset>
+        <legend>Guest's name</legend>
+        <div class="radio">
+          <label><input type="radio" name="g" value="blank" checked> Blank line to write in</label>
+          <label><input type="radio" name="g" value="list"> From a guest list</label>
+        </div>
+      </fieldset>
+
+      <div class="f2">
+        <label class="f"><span>Date</span><input data-f="date" value="Friday, 12 December 2026"></label>
+        <label class="f"><span>Time</span><input data-f="time" value="1930 h"></label>
+      </div>
+      <label class="f"><span>Venue</span><input data-f="venue" value="Officers' Mess, SDD Campus"></label>
+      <label class="f"><span>Dress</span><input data-f="dress" value="Lounge Suit / Mess Dress">
+        <div class="chips"><button class="chip" data-dress="Lounge Suit">Lounge Suit</button><button class="chip" data-dress="Mess Dress">Mess Dress</button><button class="chip" data-dress="Smart Casuals">Smart Casuals</button><button class="chip" data-dress="Ceremonial">Ceremonial</button></div>
+      </label>
+      <label class="f"><span>RSVP</span><input data-f="rsvp" value="Maj A. Verma · Ext 2241"></label>
+      <label class="f"><span>Note at the bottom</span><input data-f="note" value="Kindly bring this card"></label>
+
+      <fieldset>
+        <legend>Hindi wording (Bilingual design)</legend>
+        <label class="f"><span>Occasion in Hindi</span><input data-f="occHi" value="स्थापना दिवस रात्रिभोज"></label>
+        <label class="f"><span>Invitation line in Hindi</span><input data-f="inviteHi" value="आपको सादर आमंत्रित करते हैं"></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Back of the card</legend>
+        <label class="f"><span>Programme, one line each</span><textarea data-f="programme" rows="4">1930 h · Guests arrive
+2000 h · Address by the Commandant
+2030 h · Cultural programme
+2100 h · Dinner</textarea></label>
+      </fieldset>
+    </aside>
+
+    <div class="stage">
+      <div class="stage__bar">
+        <div class="seg" id="side"><button aria-pressed="true" data-side="front">Front</button><button aria-pressed="false" data-side="back">Back</button></div>
+        <span class="grow"></span>
+        <button class="btn btn--sm">Undo</button>
+        <button class="btn btn--sm">Preview</button>
+        <button class="btn btn--sm btn--primary" data-go="print">Save as…</button>
+      </div>
+      <div class="stage__body"><div id="cardHost"></div></div>
+      <div class="strip" id="cardStrip" aria-label="Designs"></div>
+    </div>
+
+    <aside class="panel panel--right" aria-label="Selected part" id="selPanel"></aside>
+  </div>
+</section>
+
+<!-- ============ 3 POSTER ============ -->
+<section id="v-poster" hidden>
+  <div class="editor">
+    <aside class="panel" aria-label="Poster details">
+      <h3>Poster details</h3>
+      <p class="hint">The same idea as cards: type here or on the poster.</p>
+      <label class="f"><span>Heading</span><input data-p="title" value="Annual Sports Meet 2026"></label>
+      <label class="f"><span>Line under the heading</span><input data-p="sub" value="Inter-section championship"></label>
+      <div class="f2">
+        <label class="f"><span>Date</span><input data-p="date" value="20 – 22 January 2027"></label>
+        <label class="f"><span>Time</span><input data-p="time" value="0700 h onwards"></label>
+      </div>
+      <label class="f"><span>Venue</span><input data-p="venue" value="Unit Sports Ground"></label>
+      <label class="f"><span>Details, one line each</span><textarea data-p="lines" rows="4">Athletics · Volleyball · Tug of war
+Families welcome
+Prize distribution on 22 January, 1600 h</textarea></label>
+      <label class="f"><span>Contact</span><input data-p="contact" value="Sports Officer · Ext 2210"></label>
+      <fieldset>
+        <legend>Logo</legend>
+        <button class="btn btn--sm" id="pLogoBtn">Choose a logo…</button>
+      </fieldset>
+    </aside>
+    <div class="stage">
+      <div class="stage__bar">
+        <span class="note" style="padding:4px 10px">A3 portrait · 297 × 420 mm</span>
+        <span class="grow"></span>
+        <button class="btn btn--sm">Undo</button>
+        <button class="btn btn--sm">Preview</button>
+        <button class="btn btn--sm btn--primary">Save as…</button>
+      </div>
+      <div class="stage__body"><div id="posterHost"></div></div>
+      <div class="strip" id="posterStrip" aria-label="Designs"></div>
+    </div>
+    <aside class="panel panel--right">
+      <h3>Every part can be changed</h3>
+      <p class="hint">Click the heading, a line, the logo box or the band. Move, resize, turn, change font and colour, hide, lock or delete, the same as in any collage.</p>
+      <div class="note">There is no default logo on a poster. The logo box shows <b>Add logo</b> until you pick one or choose <b>No logo</b>; with no logo the heading moves up to fill the space.</div>
+    </aside>
+  </div>
+</section>
+
+<!-- ============ 4 PRINT AND GUEST LIST ============ -->
+<section id="v-print" class="wrap" hidden>
+  <h1>Save the card</h1>
+  <p class="lede">Save asks first what it is for, like any collage. Two extra choices for cards: several cards on one A4 sheet, and one card per guest.</p>
+  <div class="print">
+    <div class="box">
+      <h3>Print on the office printer</h3>
+      <p class="hint" style="color:var(--muted);margin:0 0 8px">PDF at print quality, with thin cut marks. Print on 250 gsm card.</p>
+      <div class="radio" id="perSheet">
+        <label><input type="radio" name="ps" value="1"> 1 per A5 sheet</label>
+        <label><input type="radio" name="ps" value="2" checked> 2 per A4</label>
+        <label><input type="radio" name="ps" value="4"> 4 A6 per A4</label>
+      </div>
+      <div class="radio" style="margin-top:8px">
+        <label><input type="checkbox" checked> Back printed on the reverse (flips on the long edge)</label>
+      </div>
+      <div id="sheetHost"></div>
+    </div>
+    <div class="box">
+      <h3>One card for each guest</h3>
+      <p class="hint" style="color:var(--muted);margin:0 0 8px">Paste names, one a line, or pick an Excel file. Makes one PDF with every card, in this order.</p>
+      <textarea class="names" id="names">Lt Gen R. K. Mehta, AVSM
+Maj Gen S. Iyer and Mrs Iyer
+Brig P. Singh, SM and Mrs Singh
+Col D. Nair
+Shri V. Rao, Scientist 'G'
+Col (Retd) M. S. Gill and Mrs Gill</textarea>
+      <p id="count" style="font-weight:700;margin:8px 0 0"></p>
+      <div class="guestcards" id="guestHost"></div>
+      <p class="note" style="margin-top:12px">Names are read only in this browser and are not kept with PRISM.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Poster logo question -->
+<div class="scrim" id="logoAsk" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="la-t">
+    <h3 id="la-t">Which logo goes on this poster?</h3>
+    <p>You can change it later. The poster keeps a box for it until you choose.</p>
+    <div class="opts">
+      <button class="opt" data-logo="own"><span class="ic">⬆</span><span><b>Use my own logo</b><span>PNG, JPG, WEBP or SVG from this computer. Kept in this browser only.</span></span></button>
+      <button class="opt" data-logo="sdd"><span class="ic"><img src="../../../wwwroot/img/logos/sdd-hd.webp" alt=""></span><span><b>Crests and logos</b><span>SDD and the crests an administrator uploaded.</span></span></button>
+      <button class="opt" data-logo="none"><span class="ic">∅</span><span><b>No logo</b><span>The heading moves up to use the space.</span></span></button>
+    </div>
+    <div style="display:flex;justify-content:flex-end"><button class="btn" data-logo="later">Decide later</button></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var LOGO = "../../../wwwroot/img/logos/sdd-hd.webp";
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var nl = function (s) { return esc(s).replace(/\n/g, "<br>"); };
+
+  var d = {};
+  document.querySelectorAll("[data-f]").forEach(function (el) { d[el.dataset.f] = el.value; });
+  var p = {};
+  document.querySelectorAll("[data-p]").forEach(function (el) { p[el.dataset.p] = el.value; });
+  var state = { design: "classic", side: "front", sel: "logo", guest: "", band: ["#7a1f2b", "#c9a54a", "#1d2c55"], posterDesign: "sports", posterLogo: "ask" };
+
+  /* ---- Invitation designs: one set of words, six looks ---- */
+  function guestLine(color, w) {
+    return state.guest
+      ? '<div class="it c script" data-k="guest" style="top:VAR;font-size:24px;color:' + color + '">' + esc(state.guest) + "</div>"
+      : '<div class="it guest" data-k="guest" style="top:VAR;left:' + (210 - w / 2) + "px;width:" + w + 'px"></div>';
+  }
+  function detailRows(color, label) {
+    return '<div class="it c" data-k="details" style="top:VAR;font-size:12.5px;line-height:1.75;color:' + color + '">' +
+      "<b>" + esc(d.date) + "</b> · " + esc(d.time) + "<br>" + esc(d.venue) + "<br>" +
+      '<span style="color:' + label + '">Dress</span> ' + esc(d.dress) + "</div>";
+  }
+  function place(html, tops) { var i = 0; return html.replace(/VAR/g, function () { return tops[i++] + "px"; }); }
+
+  var CARD = {
+    classic: { name: "Classic ivory", sub: "Gold double border", front: function () {
+      var gold = "#a8842f";
+      return '<div class="sheet card-a5" style="background:#fbf7ee">' +
+        '<div class="it" data-k="border" style="inset:14px;border:2px solid ' + gold + '"></div>' +
+        '<div class="it" data-k="border" style="inset:20px;border:1px solid ' + gold + '"></div>' +
+        '<img class="it logo" data-k="logo" src="' + LOGO + '" alt="SDD logo" style="left:182px;top:36px;width:56px;height:95px">' +
+        place('<div class="it c serif" data-k="host" style="top:VAR;font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;line-height:1.5;padding:0 40px">' + nl(d.host) + "</div>" +
+        '<div class="it c script" data-k="invite" style="top:VAR;font-size:19px;color:' + gold + '">' + esc(d.invite) + "</div>" +
+        guestLine("#1d1d1d", 260) +
+        '<div class="it c serif" data-k="at" style="top:VAR;font-size:13px;font-style:italic">at the</div>' +
+        '<div class="it c serif" data-k="occasion" style="top:VAR;font-size:27px;font-weight:700;color:#5c1a22;padding:0 30px;line-height:1.15">' + esc(d.occasion) + "</div>" +
+        '<div class="it" data-k="rule" style="top:VAR;left:170px;width:80px;height:1px;background:' + gold + '"></div>' +
+        detailRows("#1d1d1d", gold) +
+        '<div class="it" data-k="rsvp" style="top:VAR;left:40px;font-size:11px;line-height:1.4"><b>R.S.V.P.</b><br>' + esc(d.rsvp) + "</div>" +
+        '<div class="it serif" data-k="note" style="top:VAR;right:40px;font-size:11px;font-style:italic;text-align:right;width:140px">' + esc(d.note) + "</div>",
+        [146, 205, 262, 290, 312, 386, 402, 512, 518]) + "</div>";
+    } },
+    regimental: { name: "Regimental", sub: "Band in your unit's colours", front: function () {
+      var b = state.band;
+      return '<div class="sheet card-a5" style="background:#ffffff">' +
+        '<div class="it" data-k="band" style="left:0;right:0;top:0;height:132px;background:linear-gradient(' + b[0] + " 0 33.3%," + b[1] + " 33.3% 66.6%," + b[2] + ' 66.6%)"></div>' +
+        '<div class="it" data-k="logoBg" style="left:166px;top:62px;width:88px;height:120px;border-radius:44px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.25)"></div>' +
+        '<img class="it logo" data-k="logo" src="' + LOGO + '" alt="SDD logo" style="left:181px;top:70px;width:58px;height:104px">' +
+        place('<div class="it c sans" data-k="host" style="top:VAR;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;line-height:1.5;color:' + b[0] + ';padding:0 36px">' + nl(d.host) + "</div>" +
+        '<div class="it c serif" data-k="invite" style="top:VAR;font-size:14px;font-style:italic">' + esc(d.invite) + "</div>" +
+        guestLine("#1d1d1d", 260) +
+        '<div class="it c serif" data-k="occasion" style="top:VAR;font-size:26px;font-weight:700;color:' + b[2] + ';padding:0 30px;line-height:1.15">' + esc(d.occasion) + "</div>" +
+        detailRows("#1d1d1d", b[0]) +
+        '<div class="it" data-k="rule" style="top:VAR;left:36px;right:36px;height:2px;background:' + b[1] + '"></div>' +
+        '<div class="it" data-k="rsvp" style="top:VAR;left:36px;font-size:11px;line-height:1.4"><b>R.S.V.P.</b> ' + esc(d.rsvp) + "</div>" +
+        '<div class="it" data-k="note" style="top:VAR;right:36px;font-size:11px;font-style:italic">' + esc(d.note) + "</div>",
+        [196, 252, 300, 330, 410, 520, 532, 532]) + "</div>";
+    } },
+    navy: { name: "Navy and gold", sub: "For dinners and Ladies' Nights", front: function () {
+      var gold = "#d4b25e";
+      return '<div class="sheet card-a5" style="background:radial-gradient(circle at 50% 30%,#1f3260,#101c38 70%);color:#f1e7cc">' +
+        '<div class="it" data-k="border" style="inset:16px;border:1px solid ' + gold + ';border-radius:4px"></div>' +
+        '<div class="it" data-k="corner" style="left:10px;top:10px;width:22px;height:22px;border-left:3px solid ' + gold + ";border-top:3px solid " + gold + '"></div>' +
+        '<div class="it" data-k="corner" style="right:10px;bottom:10px;width:22px;height:22px;border-right:3px solid ' + gold + ";border-bottom:3px solid " + gold + '"></div>' +
+        '<img class="it logo" data-k="logo" src="' + LOGO + '" alt="SDD logo" style="left:180px;top:38px;width:60px;height:102px">' +
+        place('<div class="it c serif" data-k="host" style="top:VAR;font-size:13.5px;letter-spacing:.1em;text-transform:uppercase;line-height:1.5;color:' + gold + ';padding:0 40px">' + nl(d.host) + "</div>" +
+        '<div class="it c script" data-k="invite" style="top:VAR;font-size:19px">' + esc(d.invite) + "</div>" +
+        guestLine("#f1e7cc", 250) +
+        '<div class="it c serif" data-k="occasion" style="top:VAR;font-size:30px;font-weight:700;color:' + gold + ';padding:0 30px;line-height:1.1">' + esc(d.occasion) + "</div>" +
+        detailRows("#f1e7cc", gold) +
+        '<div class="it c" data-k="rsvp" style="top:VAR;font-size:11px;letter-spacing:.04em"><b style="color:' + gold + '">R.S.V.P.</b> ' + esc(d.rsvp) + " &nbsp;·&nbsp; <i>" + esc(d.note) + "</i></div>",
+        [158, 214, 268, 298, 400, 528]) + "</div>";
+    } },
+    photo: { name: "Ceremonial photo", sub: "Your photo on top", front: function () {
+      return '<div class="sheet card-a5" style="background:#ffffff">' +
+        '<div class="it" data-k="photo" style="left:0;right:0;top:0;height:250px;background:linear-gradient(180deg,#9cb7d4 0%,#c9d8e6 55%,#7d8a64 56%,#5e6b48 100%)">' +
+          '<svg viewBox="0 0 420 250" width="420" height="250" aria-hidden="true">' + parade() + "</svg>" +
+          '<span style="position:absolute;right:10px;top:8px;font:700 10px Segoe UI;color:#fff;background:rgba(0,0,0,.35);padding:2px 7px;border-radius:999px">Your photo</span></div>' +
+        '<div class="it" data-k="fade" style="left:0;right:0;top:190px;height:60px;background:linear-gradient(rgba(255,255,255,0),#fff)"></div>' +
+        '<div class="it" data-k="logoBg" style="left:20px;top:200px;width:70px;height:100px;border-radius:8px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.2)"></div>' +
+        '<img class="it logo" data-k="logo" src="' + LOGO + '" alt="SDD logo" style="left:30px;top:206px;width:50px;height:88px">' +
+        place('<div class="it serif" data-k="occasion" style="top:VAR;left:104px;right:24px;font-size:25px;font-weight:700;color:#5c1a22;line-height:1.1">' + esc(d.occasion) + "</div>" +
+        '<div class="it sans" data-k="host" style="top:VAR;left:30px;right:30px;font-size:12px;font-weight:700;line-height:1.45">' + nl(d.host) + "</div>" +
+        '<div class="it serif" data-k="invite" style="top:VAR;left:30px;font-size:13px;font-style:italic">' + esc(d.invite) + "</div>" +
+        (state.guest ? '<div class="it script" data-k="guest" style="top:VAR;left:30px;font-size:22px">' + esc(state.guest) + "</div>"
+                     : '<div class="it guest" data-k="guest" style="top:VAR;left:30px;width:300px"></div>') +
+        '<div class="it" data-k="details" style="top:VAR;left:30px;right:30px;font-size:12.5px;line-height:1.7;border-left:3px solid #5c1a22;padding-left:10px"><b>' + esc(d.date) + "</b> · " + esc(d.time) + "<br>" + esc(d.venue) + "<br>Dress: " + esc(d.dress) + "</div>" +
+        '<div class="it" data-k="rsvp" style="top:VAR;left:30px;font-size:11px"><b>R.S.V.P.</b> ' + esc(d.rsvp) + "</div>" +
+        '<div class="it" data-k="note" style="top:VAR;right:30px;font-size:11px;font-style:italic">' + esc(d.note) + "</div>",
+        [256, 318, 362, 386, 432, 540, 540]) + "</div>";
+    } },
+    bilingual: { name: "Bilingual", sub: "Hindi and English", front: function () {
+      var mar = "#6d1f2a", gold = "#a8842f";
+      return '<div class="sheet card-a5" style="background:#fffdf7">' +
+        '<div class="it" data-k="border" style="inset:12px;border:1px solid ' + gold + '"></div>' +
+        '<img class="it logo" data-k="logo" src="' + LOGO + '" alt="SDD logo" style="left:186px;top:28px;width:48px;height:82px">' +
+        '<div class="it" data-k="divider" style="left:209px;top:130px;width:1px;height:300px;background:' + gold + '"></div>' +
+        '<div class="it hindi" data-k="hindi" style="left:28px;top:130px;width:166px;text-align:center;font-size:14px;line-height:1.6">कमांडेंट एवं अधिकारीगण<br>' + esc(d.inviteHi) +
+          '<div style="margin:14px 0 8px;font-size:22px;color:' + mar + ';line-height:1.25">' + esc(d.occHi) + "</div>" +
+          '<div style="font-size:12.5px">' + esc(d.date) + "<br>" + esc(d.time) + "</div></div>" +
+        '<div class="it serif" data-k="host" style="left:226px;top:130px;width:166px;text-align:center;font-size:12.5px;line-height:1.5">' + nl(d.host) + '<br><i>' + esc(d.invite) + "</i>" +
+          '<div style="margin:12px 0 8px;font-size:21px;font-weight:700;color:' + mar + ';line-height:1.15">' + esc(d.occasion) + "</div>" +
+          '<div style="font-size:12.5px">' + esc(d.date) + "<br>" + esc(d.time) + "</div></div>" +
+        place(guestLine("#1d1d1d", 280) +
+        '<div class="it c" data-k="details" style="top:VAR;font-size:12.5px;line-height:1.7">' + esc(d.venue) + "<br>Dress / वेशभूषा: " + esc(d.dress) + "</div>" +
+        '<div class="it c" data-k="rsvp" style="top:VAR;font-size:11px"><b>R.S.V.P.</b> ' + esc(d.rsvp) + " · <i>" + esc(d.note) + "</i></div>",
+        [452, 478, 540]) + "</div>";
+    } },
+    minimal: { name: "Modern", sub: "Clean, left aligned", front: function () {
+      var a = "#1d4f91";
+      return '<div class="sheet card-a5" style="background:#ffffff">' +
+        '<div class="it" data-k="bar" style="left:0;top:0;bottom:0;width:10px;background:' + a + '"></div>' +
+        '<img class="it logo" data-k="logo" src="' + LOGO + '" alt="SDD logo" style="left:340px;top:30px;width:50px;height:85px">' +
+        '<div class="it sans" data-k="host" style="left:44px;top:40px;width:270px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;line-height:1.5;color:#55607a">' + nl(d.host) + "</div>" +
+        '<div class="it sans" data-k="invite" style="left:44px;top:150px;font-size:13px;color:#55607a">' + esc(d.invite) + "</div>" +
+        (state.guest ? '<div class="it sans" data-k="guest" style="left:44px;top:174px;font-size:18px;font-weight:700">' + esc(state.guest) + "</div>"
+                     : '<div class="it guest" data-k="guest" style="left:44px;top:182px;width:320px"></div>') +
+        '<div class="it sans" data-k="occasion" style="left:44px;top:228px;right:30px;font-size:34px;font-weight:700;line-height:1.08;color:' + a + '">' + esc(d.occasion) + "</div>" +
+        '<div class="it sans" data-k="details" style="left:44px;top:350px;right:30px;font-size:13px;line-height:1.5;display:grid;grid-template-columns:60px 1fr;row-gap:6px">' +
+          '<span style="color:#8a93a6">When</span><span><b>' + esc(d.date) + "</b><br>" + esc(d.time) + '</span><span style="color:#8a93a6">Where</span><span>' + esc(d.venue) + '</span><span style="color:#8a93a6">Dress</span><span>' + esc(d.dress) + "</span></div>" +
+        '<div class="it sans" data-k="rsvp" style="left:44px;top:520px;font-size:11px;color:#55607a"><b style="color:' + a + '">RSVP</b> ' + esc(d.rsvp) + "<br>" + esc(d.note) + "</div></div>";
+    } }
+  };
+  var CARD_ORDER = ["classic", "regimental", "navy", "photo", "bilingual", "minimal"];
+
+  function parade() {
+    var s = '<rect x="0" y="140" width="420" height="110" fill="#6f7d55"/>';
+    for (var r = 0; r < 3; r++) for (var i = 0; i < 12; i++) {
+      var x = 40 + i * 30 + r * 8, y = 150 + r * 26, h = 30 + r * 6;
+      s += '<rect x="' + x + '" y="' + (y - h) + '" width="' + (8 + r) + '" height="' + h + '" rx="3" fill="#2e3826" opacity="' + (0.65 + r * 0.12) + '"/><circle cx="' + (x + 4 + r / 2) + '" cy="' + (y - h - 5) + '" r="' + (4 + r * .6) + '" fill="#2e3826" opacity="' + (0.65 + r * 0.12) + '"/>';
+    }
+    return s;
+  }
+
+  function back(design) {
+    var dark = design === "navy";
+    var ink = dark ? "#f1e7cc" : "#1d1d1d", acc = dark ? "#d4b25e" : "#5c1a22";
+    var bg = dark ? "radial-gradient(circle at 50% 30%,#1f3260,#101c38 70%)" : (design === "bilingual" || design === "classic" ? "#fbf7ee" : "#fff");
+    var rows = d.programme.split("\n").filter(Boolean).map(function (l) {
+      var parts = l.split("·"); return '<div style="display:flex;gap:14px;padding:7px 0;border-bottom:1px solid rgba(128,128,128,.25)"><b style="width:64px;color:' + acc + '">' + esc((parts[0] || "").trim()) + "</b><span>" + esc((parts[1] || "").trim()) + "</span></div>";
+    }).join("");
+    return '<div class="sheet card-a5" style="background:' + bg + ";color:" + ink + '">' +
+      '<div class="it c serif" data-k="progTitle" style="top:46px;font-size:22px;font-weight:700;color:' + acc + '">Programme</div>' +
+      '<div class="it" data-k="programme" style="top:96px;left:56px;right:56px;font-size:13px">' + rows + "</div>" +
+      '<div class="it" data-k="map" style="left:56px;right:56px;top:300px;height:150px;border:1px dashed rgba(128,128,128,.6);border-radius:8px;display:grid;place-items:center;font:12px Segoe UI;color:rgba(128,128,128,.9)">Route sketch or venue photo (optional)</div>' +
+      '<div class="it c" data-k="rsvpBack" style="top:478px;font-size:12px;line-height:1.6"><b style="color:' + acc + '">R.S.V.P.</b><br>' + esc(d.rsvp) + "</div>" +
+      '<img class="it logo" data-k="logoSmall" src="' + LOGO + '" alt="" style="left:198px;bottom:22px;width:24px;height:40px;opacity:.8"></div>';
+  }
+
+  function cardHtml(design, side) { return side === "back" ? back(design) : CARD[design].front(); }
+
+  function thumb(html, w, h, scale) {
+    return '<div class="thumb" style="width:' + Math.round(w * scale) + "px;height:" + Math.round(h * scale) + 'px"><div class="sw" style="transform:scale(' + scale + ')">' + html + "</div></div>";
+  }
+
+  /* ---- Posters ---- */
+  function posterLogo(left, top, w, h) {
+    if (state.posterLogo === "sdd") return '<img class="it logo" data-k="logo" src="' + LOGO + '" alt="SDD logo" style="left:' + left + "px;top:" + top + "px;width:" + w + "px;height:" + h + 'px">';
+    if (state.posterLogo === "own") return '<div class="it addlogo" data-k="logo" style="left:' + left + "px;top:" + top + "px;width:" + w + "px;height:" + h + 'px;border-style:solid;background:#fff;color:#1d4f91">Your logo</div>';
+    if (state.posterLogo === "none") return "";
+    return '<div class="it addlogo" data-k="logo" style="left:' + left + "px;top:" + top + "px;width:" + w + "px;height:" + h + 'px">+ Add logo</div>';
+  }
+  function hasLogo() { return state.posterLogo !== "none"; }
+  var POSTER = {
+    sports: { name: "Event", sub: "Big heading, bold band", html: function () {
+      var up = hasLogo() ? 0 : -70;
+      return '<div class="sheet poster-a3" style="background:#0f2c5c;color:#fff">' +
+        '<div class="it" data-k="band" style="left:-40px;right:-40px;top:' + (384 + up) + 'px;height:58px;background:#e8b020;transform:rotate(-4deg)"></div>' +
+        posterLogo(24, 24, 60, 100) +
+        '<div class="it sans" data-k="sub" style="left:' + (hasLogo() ? 100 : 30) + "px;top:" + (hasLogo() ? 44 : 34) + 'px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#e8b020;font-weight:700">' + esc(p.sub) + "</div>" +
+        '<div class="it" data-k="title" style="left:28px;right:28px;top:' + (146 + up) + 'px;font:80px/0.88 \'Bebas Neue\',Impact,sans-serif;letter-spacing:.01em">' + esc(p.title) + "</div>" +
+        '<div class="it" data-k="when" style="left:30px;right:30px;top:' + (392 + up) + 'px;font:36px/1 \'Bebas Neue\',Impact,sans-serif;color:#0f2c5c;transform:rotate(-4deg)">' + esc(p.date) + "</div>" +
+        '<div class="it sans" data-k="lines" style="left:30px;right:30px;top:' + (466 + up) + 'px;font-size:13px;line-height:1.6">' + esc(p.time) + " · " + esc(p.venue) + "<br>" + nl(p.lines) + "</div>" +
+        '<div class="it sans" data-k="contact" style="left:30px;bottom:22px;font-size:11px;opacity:.8">' + esc(p.contact) + "</div></div>";
+    } },
+    notice: { name: "Notice", sub: "Plain and official", html: function () {
+      return '<div class="sheet poster-a3" style="background:#fff">' +
+        '<div class="it" data-k="top" style="left:0;right:0;top:0;height:8px;background:#5c1a22"></div>' +
+        posterLogo(180, 30, 60, 100) +
+        '<div class="it c serif" data-k="title" style="top:' + (hasLogo() ? 148 : 60) + 'px;font-size:34px;font-weight:700;color:#5c1a22;padding:0 30px;line-height:1.1">' + esc(p.title) + "</div>" +
+        '<div class="it c serif" data-k="sub" style="top:' + (hasLogo() ? 236 : 148) + 'px;font-size:15px;font-style:italic">' + esc(p.sub) + "</div>" +
+        '<div class="it" data-k="rule" style="left:150px;right:150px;top:' + (hasLogo() ? 270 : 182) + 'px;height:1px;background:#a8842f"></div>' +
+        '<div class="it sans" data-k="lines" style="left:50px;right:50px;top:' + (hasLogo() ? 290 : 202) + 'px;font-size:13px;line-height:1.8"><b>Date</b> ' + esc(p.date) + "<br><b>Time</b> " + esc(p.time) + "<br><b>Venue</b> " + esc(p.venue) + '<div style="margin-top:10px">' + nl(p.lines) + "</div></div>" +
+        '<div class="it c sans" data-k="contact" style="bottom:26px;font-size:11px;color:#55607a">' + esc(p.contact) + "</div></div>";
+    } },
+    farewell: { name: "With a photo", sub: "Farewell or felicitation", html: function () {
+      return '<div class="sheet poster-a3" style="background:#f6efe3">' +
+        '<div class="it" data-k="photo" style="left:60px;top:' + (hasLogo() ? 130 : 70) + 'px;width:300px;height:230px;background:linear-gradient(160deg,#c3cfdc,#8796a8);border:10px solid #fff;box-shadow:0 6px 18px rgba(0,0,0,.2);transform:rotate(-2deg);display:grid;place-items:center;font:700 12px Segoe UI;color:#fff">Photo</div>' +
+        posterLogo(180, 18, 60, 100) +
+        '<div class="it c script" data-k="title" style="top:' + (hasLogo() ? 384 : 330) + 'px;font-size:40px;color:#5c1a22;padding:0 20px;line-height:1.05">' + esc(p.title) + "</div>" +
+        '<div class="it c serif" data-k="sub" style="top:' + (hasLogo() ? 440 : 386) + 'px;font-size:14px;font-style:italic">' + esc(p.sub) + "</div>" +
+        '<div class="it c sans" data-k="lines" style="top:' + (hasLogo() ? 476 : 422) + 'px;font-size:12.5px;line-height:1.6;padding:0 40px">' + esc(p.date) + " · " + esc(p.time) + "<br>" + esc(p.venue) + "</div>" +
+        '<div class="it c sans" data-k="contact" style="bottom:20px;font-size:11px;color:#6b5a44">' + esc(p.contact) + "</div></div>";
+    } },
+    talk: { name: "Talk or seminar", sub: "Speaker and topic", html: function () {
+      return '<div class="sheet poster-a3" style="background:linear-gradient(160deg,#ffffff 0 55%,#e9eef6 55%)">' +
+        posterLogo(330, 24, 60, 100) +
+        '<div class="it sans" data-k="kicker" style="left:30px;top:40px;font-size:11px;font-weight:700;letter-spacing:.16em;color:#1d4f91">SDD TALK SERIES</div>' +
+        '<div class="it sans" data-k="title" style="left:30px;right:' + (hasLogo() ? 110 : 30) + 'px;top:70px;font-size:36px;font-weight:700;line-height:1.08">' + esc(p.title) + "</div>" +
+        '<div class="it sans" data-k="sub" style="left:30px;right:30px;top:200px;font-size:14px;color:#55607a">' + esc(p.sub) + "</div>" +
+        '<div class="it" data-k="speaker" style="left:30px;top:250px;width:110px;height:110px;border-radius:50%;background:linear-gradient(160deg,#c3cfdc,#8796a8);display:grid;place-items:center;font:700 11px Segoe UI;color:#fff">Speaker</div>' +
+        '<div class="it sans" data-k="lines" style="left:160px;right:30px;top:262px;font-size:12.5px;line-height:1.7">' + nl(p.lines) + "</div>" +
+        '<div class="it sans" data-k="when" style="left:30px;right:30px;top:420px;font-size:13px;line-height:1.7;border-top:2px solid #1d4f91;padding-top:10px"><b>' + esc(p.date) + "</b> · " + esc(p.time) + "<br>" + esc(p.venue) + "</div>" +
+        '<div class="it sans" data-k="contact" style="left:30px;bottom:22px;font-size:11px;color:#55607a">' + esc(p.contact) + "</div></div>";
+    } }
+  };
+  var POSTER_ORDER = ["sports", "notice", "farewell", "talk"];
+
+  /* ---- Selected part panel: shows that every part is editable ---- */
+  var PART_NAMES = { logo: "Logo", host: "Host", invite: "Invitation line", guest: "Guest's name", occasion: "Occasion", details: "Date, venue and dress", rsvp: "R.S.V.P.", note: "Note", band: "Colour band", border: "Border", photo: "Photo" };
+  function selPanel() {
+    var k = state.sel, name = PART_NAMES[k] || "Part", h = "";
+    h += '<div class="sel-title">' + esc(name) + "<i>selected</i></div>";
+    if (k === "logo") {
+      h += '<img src="' + LOGO + '" alt="" style="height:70px;display:block;margin:4px 0 10px">' +
+        '<div class="tools"><button class="btn btn--sm">Change logo…</button><button class="btn btn--sm">Add second logo</button><button class="btn btn--sm">Size</button><button class="btn btn--sm">Remove</button></div>' +
+        '<p class="hint">Change logo: your own file (kept in this browser), or Crests and logos. Cards open with the SDD logo.</p>';
+    } else if (k === "band") {
+      h += '<p class="hint">Your unit\'s colours, top to bottom.</p>';
+      ["#7a1f2b", "#c9a54a", "#1d2c55", "#1f5b3a", "#000000", "#b3202a", "#0b6fa4", "#ffffff"].forEach(function () {});
+      for (var i = 0; i < 3; i++) {
+        h += '<div class="swatches" style="margin-bottom:6px" data-band="' + i + '">';
+        ["#7a1f2b", "#c9a54a", "#1d2c55", "#1f5b3a", "#111111", "#b3202a", "#0b6fa4", "#f2f2f2"].forEach(function (c) {
+          h += '<button style="background:' + c + '" aria-label="' + c + '" aria-pressed="' + (state.band[i] === c) + '" data-c="' + c + '"></button>';
+        });
+        h += "</div>";
+      }
+    } else {
+      h += '<div class="f"><span>Font</span><select><option>Playfair Display</option><option>Dancing Script</option><option>Noto Sans</option><option>Tiro Devanagari Hindi</option><option>Bebas Neue</option></select></div>' +
+        '<div class="f2"><label class="f"><span>Size</span><input value="Auto"></label><label class="f"><span>Colour</span><input value="As design"></label></div>' +
+        '<div class="tools"><button class="btn btn--sm">Bold</button><button class="btn btn--sm">Align</button><button class="btn btn--sm">Duplicate</button><button class="btn btn--sm">Delete</button></div>';
+    }
+    h += '<hr style="border:0;border-top:1px solid var(--line);margin:16px 0">' +
+      '<p class="hint" style="margin:0">Every part of the card can be moved, resized, turned, hidden, locked or deleted, and you can add text, photos, stickers and shapes from the left rail, as in any collage. Click another part of the card to select it.</p>';
+    document.getElementById("selPanel").innerHTML = h;
+  }
+
+  /* ---- Render ---- */
+  function renderCard() {
+    document.getElementById("cardHost").innerHTML = cardHtml(state.design, state.side).replace('class="sheet', 'class="sheet live');
+    var on = document.querySelector('#cardHost [data-k="' + state.sel + '"]');
+    if (on) on.classList.add("on");
+    var strip = "";
+    CARD_ORDER.forEach(function (k) {
+      strip += '<button aria-pressed="' + (k === state.design) + '" data-design="' + k + '">' + thumb(cardHtml(k, "front"), 420, 596, 0.16) + esc(CARD[k].name) + "</button>";
+    });
+    document.getElementById("cardStrip").innerHTML = strip;
+    selPanel();
+  }
+  function renderPoster() {
+    document.getElementById("posterHost").innerHTML = POSTER[state.posterDesign].html().replace('class="sheet', 'class="sheet live');
+    var strip = "";
+    POSTER_ORDER.forEach(function (k) {
+      strip += '<button aria-pressed="' + (k === state.posterDesign) + '" data-pdesign="' + k + '">' + thumb(POSTER[k].html(), 420, 594, 0.16) + esc(POSTER[k].name) + "</button>";
+    });
+    document.getElementById("posterStrip").innerHTML = strip;
+  }
+  function renderStart() {
+    var h = "";
+    CARD_ORDER.forEach(function (k) {
+      h += '<button class="dcard" data-open-card="' + k + '"><div class="dcard__pic">' + thumb(cardHtml(k, "front"), 420, 596, 0.3) + '</div><div class="dcard__body"><div class="dcard__title">' + esc(CARD[k].name) + '</div><div class="dcard__sub">' + esc(CARD[k].sub) + "</div></div></button>";
+    });
+    document.getElementById("cardDesigns").innerHTML = h;
+    var saved = state.posterLogo; state.posterLogo = "ask"; h = "";
+    POSTER_ORDER.forEach(function (k) {
+      h += '<button class="dcard" data-open-poster="' + k + '"><div class="dcard__pic">' + thumb(POSTER[k].html(), 420, 594, 0.3) + '</div><div class="dcard__body"><div class="dcard__title">' + esc(POSTER[k].name) + '</div><div class="dcard__sub">' + esc(POSTER[k].sub) + "</div></div></button>";
+    });
+    state.posterLogo = saved;
+    document.getElementById("posterDesigns").innerHTML = h;
+  }
+  function renderPrint() {
+    var per = document.querySelector('input[name="ps"]:checked').value;
+    var W = 330, H = per === "2" ? 233 : 467; // A4 landscape for 2-up, portrait otherwise
+    if (per === "1") { W = 233; H = 330; }
+    var html = '<div class="a4" style="width:' + W + "px;height:" + H + 'px">';
+    var slots = per === "1" ? [[0, 0, 1, 1]] : per === "2" ? [[0, 0, .5, 1], [.5, 0, .5, 1]] : [[0, 0, .5, .5], [.5, 0, .5, .5], [0, .5, .5, .5], [.5, .5, .5, .5]];
+    slots.forEach(function (s) {
+      var x = s[0] * W, y = s[1] * H, w = s[2] * W, hh = s[3] * H, sc = Math.min(w / 420, hh / 596) * 0.94;
+      var ox = x + (w - 420 * sc) / 2, oy = y + (hh - 596 * sc) / 2;
+      html += '<div class="slot" style="left:' + ox + "px;top:" + oy + "px;width:" + 420 * sc + "px;height:" + 596 * sc + 'px">' + '<div class="sw" style="transform:scale(' + sc + ')">' + cardHtml(state.design, "front") + "</div></div>";
+      [[ox, oy], [ox + 420 * sc, oy], [ox, oy + 596 * sc], [ox + 420 * sc, oy + 596 * sc]].forEach(function (c) {
+        html += '<span class="cut" style="left:' + (c[0] - 6) + "px;top:" + c[1] + 'px;width:4px;height:1px"></span><span class="cut" style="left:' + (c[0] + 2) + "px;top:" + c[1] + 'px;width:4px;height:1px"></span>' +
+          '<span class="cut" style="left:' + c[0] + "px;top:" + (c[1] - 6) + 'px;width:1px;height:4px"></span><span class="cut" style="left:' + c[0] + "px;top:" + (c[1] + 2) + 'px;width:1px;height:4px"></span>';
+      });
+    });
+    document.getElementById("sheetHost").innerHTML = html + "</div>";
+
+    var names = document.getElementById("names").value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
+    document.getElementById("count").textContent = "Makes " + names.length + " cards in one PDF";
+    var keep = state.guest, g = "";
+    names.slice(0, 3).forEach(function (n) { state.guest = n; g += thumb(cardHtml(state.design, "front"), 420, 596, 0.3); });
+    state.guest = keep;
+    if (names.length > 3) g += '<div style="align-self:center;color:var(--muted);font-weight:700">+ ' + (names.length - 3) + " more</div>";
+    document.getElementById("guestHost").innerHTML = g;
+  }
+
+  /* ---- Wiring ---- */
+  function show(view) {
+    ["start", "card", "poster", "print"].forEach(function (v) { document.getElementById("v-" + v).hidden = v !== view; });
+    document.querySelectorAll("#views button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.view === view)); });
+    if (view === "card") renderCard();
+    if (view === "poster") renderPoster();
+    if (view === "print") renderPrint();
+    if (view === "start") renderStart();
+    window.scrollTo(0, 0);
+  }
+  document.getElementById("views").addEventListener("click", function (e) { var b = e.target.closest("button"); if (b) show(b.dataset.view); });
+
+  ["Raising Day Dinner", "Regimental Dinner", "Change of Command", "Farewell", "Barakhana", "At Home", "Ladies' Night", "Passing Out Parade"].forEach(function (o) {
+    document.getElementById("occChips").insertAdjacentHTML("beforeend", '<button class="chip" data-occ="' + esc(o) + '">' + esc(o) + "</button>");
+  });
+
+  document.addEventListener("input", function (e) {
+    if (e.target.dataset.f) { d[e.target.dataset.f] = e.target.value; renderCard(); }
+    if (e.target.dataset.p) { p[e.target.dataset.p] = e.target.value; renderPoster(); }
+    if (e.target.id === "names") renderPrint();
+  });
+  document.addEventListener("change", function (e) {
+    if (e.target.name === "g") { state.guest = e.target.value === "list" ? "Brig P. Singh, SM and Mrs Singh" : ""; renderCard(); }
+    if (e.target.name === "ps") renderPrint();
+  });
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-occ],[data-dress],[data-design],[data-pdesign],[data-open-card],[data-open-poster],[data-side],[data-logo],[data-go],#pLogoBtn,[data-c],#cardHost [data-k]");
+    if (!t) return;
+    e.preventDefault();
+    if (t.dataset.occ) { d.occasion = t.dataset.occ; document.querySelector('[data-f="occasion"]').value = d.occasion; renderCard(); }
+    else if (t.dataset.dress) { var inp = document.querySelector('[data-f="dress"]'); d.dress = t.dataset.dress; inp.value = d.dress; renderCard(); }
+    else if (t.dataset.design) { state.design = t.dataset.design; renderCard(); }
+    else if (t.dataset.pdesign) { state.posterDesign = t.dataset.pdesign; renderPoster(); }
+    else if (t.dataset.openCard) { state.design = t.dataset.openCard; state.sel = "logo"; show("card"); }
+    else if (t.dataset.openPoster) { state.posterDesign = t.dataset.openPoster; state.posterLogo = "ask"; show("poster"); document.getElementById("logoAsk").hidden = false; }
+    else if (t.id === "pLogoBtn") { document.getElementById("logoAsk").hidden = false; }
+    else if (t.dataset.logo) { if (t.dataset.logo !== "later") state.posterLogo = t.dataset.logo; document.getElementById("logoAsk").hidden = true; renderPoster(); }
+    else if (t.dataset.side) { state.side = t.dataset.side; document.querySelectorAll("#side button").forEach(function (b) { b.setAttribute("aria-pressed", String(b === t)); }); renderCard(); }
+    else if (t.dataset.go) { show(t.dataset.go); }
+    else if (t.dataset.c) { var row = t.closest("[data-band]"); state.band[+row.dataset.band] = t.dataset.c; renderCard(); }
+    else if (t.dataset.k) { state.sel = t.dataset.k; renderCard(); }
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") document.getElementById("logoAsk").hidden = true; });
+
+  var themeBtn = document.getElementById("theme");
+  themeBtn.addEventListener("click", function () {
+    var dark = document.documentElement.getAttribute("data-theme") !== "dark";
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    themeBtn.textContent = dark ? "Light" : "Dark";
+  });
+
+  renderStart();
+})();
+</script>
+</body>
+</html>

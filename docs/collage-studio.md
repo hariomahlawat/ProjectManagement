@@ -367,7 +367,8 @@ itself stays the colour the user chose, as it will print.
   ago appears once the catalogue has taken it in, as on `/Photos`. Videos are not offered, and
   its Projects filter lists only projects that have photos (`MediaLibraryQuery.ProjectsOfKindOnly`;
   the PRISM Photos page itself still lists every project with media).
-- Themes (ready-made Farewell, Picnic and similar designs) are not built.
+- Themes (ready-made Farewell, Picnic and similar designs) are not built. Ready-made invitation
+  cards and posters are planned in [ux/invitations-posters.md](ux/invitations-posters.md).
 
 ## Administration › Crests and logos
 
