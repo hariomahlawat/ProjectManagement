@@ -251,6 +251,27 @@ public sealed class ProjectBriefingProjectFilterTests
         Assert.Equal(new[] { 101, 105 }, result.ProjectIds.OrderBy(id => id));
     }
 
+    [Fact]
+    public async Task Options_CountTheCompletedProjectsWithNoCompletionDate()
+    {
+        await using var db = await SeedAsync();
+        // 106 was completed with a year; with neither a date nor a year, no range can match it.
+        db.Projects.Single(project => project.Id == 106).CompletedYear = null;
+        await db.SaveChangesAsync();
+
+        var options = await Service(db).GetOptionsAsync();
+
+        Assert.Equal(1, options.CompletedWithoutDateCount);
+    }
+
+    [Theory]
+    // A deck holds 120: the message says how many more fit and how many to leave out.
+    [InlineData(40, 167, "room for 80 more projects (a deck holds up to 120). Leave out 87")]
+    [InlineData(119, 3, "room for 1 more project (a deck holds up to 120). Leave out 2")]
+    [InlineData(120, 1, "already holds 120 projects")]
+    public void TooManyProjects_SaysHowManyMoreFit(int inDeck, int adding, string expected)
+        => Assert.Contains(expected, ProjectBriefingDeckService.TooManyProjectsMessage(inDeck, adding), StringComparison.Ordinal);
+
     [Theory]
     [InlineData(2026, 3, 31, 2025)]
     [InlineData(2026, 4, 1, 2026)]

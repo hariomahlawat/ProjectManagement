@@ -275,6 +275,9 @@ public sealed class ProjectBriefingSelectionOptionsVm
 
     // The first and last financial years (their starting year) in which a project was completed.
     public int MinimumCompletionFinancialYear { get; init; }
+    // Completed projects with neither a completion date nor a year: "Completed between" cannot
+    // match them, and the panel says how many there are.
+    public int CompletedWithoutDateCount { get; init; }
     public int MaximumCompletionFinancialYear { get; init; }
 }
 

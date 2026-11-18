@@ -15,7 +15,7 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("Briefing decks", Read("_CommandWorkspaceRail.cshtml"), StringComparison.Ordinal);
         // Add projects is one filtered list (docs/ux/briefing-add-projects.md): its filters are
         // drawn by the script from the options the page carries.
-        var addProjectsScript = Read("project-briefing-decks.js");
+        var addProjectsScript = Read("project-briefing-add-projects.js");
         foreach (var filter in new[] { "'ARPP'", "'Technical category'", "'Project category'", "'Status'", "'Completed between'", "'Available for proliferation'" })
         {
             Assert.Contains($"label: {filter}", addProjectsScript, StringComparison.Ordinal);
@@ -261,9 +261,9 @@ public sealed class ProjectBriefingContractTests
 
         // A project already in the deck reads "In deck" with Remove, not a tick; Remove asks first, as
         // the project's notes, photo choice and position in the deck go with it (Codex review).
-        Assert.Contains("badge.textContent = 'In deck';", script, StringComparison.Ordinal);
-        Assert.Contains("confirmText: 'Remove project',", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("await updateMembership([projectId], [], addProjectsStatus);", script, StringComparison.Ordinal);
+        Assert.Contains("badge.textContent = 'In deck';", Read("project-briefing-add-projects.js"), StringComparison.Ordinal);
+        Assert.Contains("confirmText: 'Remove project',", Read("project-briefing-add-projects.js"), StringComparison.Ordinal);
+        Assert.DoesNotContain("await updateMembership([projectId], [], statusElement);", Read("project-briefing-add-projects.js"), StringComparison.Ordinal);
         // Each Add sends the ticks of its own click, even when queued behind another save.
         var queuedAdd = script[script.IndexOf("let membersBefore = new Set();", StringComparison.Ordinal)..];
         Assert.True(queuedAdd.IndexOf("const body = new FormData(form);", StringComparison.Ordinal)
@@ -868,13 +868,13 @@ public sealed class ProjectBriefingContractTests
 
         Assert.Contains("data-membership-url", page, StringComparison.Ordinal);
         // A project in the deck has Remove in the Add projects list; ticked ones are added together.
-        Assert.Contains("remove.textContent = 'Remove';", script, StringComparison.Ordinal);
+        Assert.Contains("remove.textContent = 'Remove';", Read("project-briefing-add-projects.js"), StringComparison.Ordinal);
         Assert.Contains("data-pbd-filter-add", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-add-selection-form data-pbd-filter-add-form", page, StringComparison.Ordinal);
         Assert.Contains("updateMembership", script, StringComparison.Ordinal);
         Assert.Contains("sessionStorage", script, StringComparison.Ordinal);
         // An in-page Add projects request is answered with the refreshed deck, not a redirect.
-        Assert.Contains("return new JsonResult(new { saved = true, message, rowVersion = addedRowVersion, deck });", handler, StringComparison.Ordinal);
+        Assert.Contains("return new JsonResult(new { saved = true, message, rowVersion = addedRowVersion, deck, skippedProjectIds });", handler, StringComparison.Ordinal);
         Assert.Contains("UpdateMembershipAsync", service, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefing.MembershipUpdated", service, StringComparison.Ordinal);
     }

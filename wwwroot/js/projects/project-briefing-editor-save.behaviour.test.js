@@ -15,7 +15,9 @@ const rawSource = fs.readFileSync(
   'utf8');
 assert.ok(rawSource.includes(IMPORT_LINE), 'the page script still has the import this test replaces');
 // Any confirm dialog would be the leave-the-page question, which an editor save must never ask.
-const pageSource = rawSource.replace(IMPORT_LINE, 'const prismConfirm = async () => { window.__confirmAsked = true; return true; };');
+const pageSource = rawSource.replace(IMPORT_LINE, 'const prismConfirm = async () => { window.__confirmAsked = true; return true; };')
+  // Add projects is its own module, tested by project-briefing-add-projects.test.js.
+  .replace("import { initAddProjects } from './project-briefing-add-projects.js';", 'const initAddProjects = () => null;');
 
 const MARKUP = `
 <div data-pbd-root>

@@ -27,21 +27,6 @@ test('briefing deck JSON mutations use the configured antiforgery header and sam
   assert.match(source, /'X-Requested-With': 'XMLHttpRequest'/);
 });
 
-test('briefing deck project list safely renders server values with textContent', () => {
-  assert.match(source, /name\.textContent = row\.projectName/);
-  assert.match(source, /meta\.textContent = \[\.\.\.new Set\(\[row\.lifecycle/);
-  assert.doesNotMatch(source, /projectName.*innerHTML/);
-});
-
-test('add projects filters are buttons that say whether they are open or on', () => {
-  const chips = source.slice(source.indexOf('const renderFilterChips'), source.indexOf('const renderFilterPanel'));
-  assert.match(chips, /button\.setAttribute\('aria-expanded', String\(openFilter === filter\.key\)\)/);
-  assert.match(chips, /button\.setAttribute\('aria-pressed', String\(filterState\.proliferation\)\)/);
-  assert.match(chips, /clear\.setAttribute\('aria-label', `Clear \$\{filter\.label\}`\)/);
-  // Escape closes the open filter and returns to its chip.
-  assert.match(source, /filterPanel\?\.addEventListener\('keydown', \(event\) => \{\s*if \(event\.key !== 'Escape'\) return;/);
-});
-
 test('studio outline reorders projects only within their present stage', () => {
   // Drag (grip handle) and Alt+Arrow keys move a project inside its stage group; the full order
   // goes to the builder, which saves it and asks the Studio to rebuild.
@@ -91,8 +76,9 @@ test('add projects opens as a dialog whose selections save in place', () => {
   assert.equal(addSelectionForms.length, 1);
   assert.doesNotMatch(viewSource, /data-pbd-selector-tab/);
   assert.doesNotMatch(viewSource, /My projects/);
-  assert.match(source, /filterAddForm\.requestSubmit\(\);/);
-  assert.match(source, /ticked\.forEach\(\(_name, projectId\) =>/);
+  // The dialog itself is its own module, tested by behaviour (project-briefing-add-projects.test.js).
+  assert.match(source, /import \{ initAddProjects \} from '\.\/project-briefing-add-projects\.js';/);
+  assert.match(source, /const addProjects = initAddProjects\(\{[\s\S]{0,400}getMembers: \(\) => latestProjects/);
   assert.match(source, /event\.target\.closest\('\[data-pbd-add-selection-form\]'\)/);
   assert.match(source, /'X-Requested-With': 'XMLHttpRequest'/);
   assert.doesNotMatch(viewSource, /data-pbd-selector-details/);
@@ -206,7 +192,6 @@ test('the deck name and description are edited in the header and saved with the 
   assert.match(rename, /if \(settingsName\) settingsName\.value = previousName;/);
 });
 
-
 test('Project Update Sheet rows can be selected, reordered, validated and reset professionally', () => {
   assert.match(source, /selectedUpdateSheetRowKeys/);
   assert.match(source, /syncUpdateRowOrder/);
@@ -260,8 +245,6 @@ test('the brief layout shows for brief designs only while key points are off (th
   assert.match(source, /projectBriefLayoutSettings\.hidden = updateSheet \|\| designRule\('briefLayout'\) !== 'true' \|\| keyPointsOn;/);
 });
 
-
-
 test('settings initialization does not call institutional functions before declaration', () => {
   const updateRowBlock = source.match(/const syncUpdateRowOrder = \(\) => \{[\s\S]*?const restoreUpdateRowOrder/)?.[0] || '';
   assert.doesNotMatch(updateRowBlock, /syncInstitutionalLayoutSummary/);
@@ -285,7 +268,6 @@ test('SDD institutional profile uses a dedicated additional-slide editor with is
   assert.match(source, /footerValid/);
 });
 
-
 test('institution slides are blocks in the deck list; "+ Slide" opens the Add slide library', () => {
   // One way to add a slide (review fixes PR 3): the old Slide library dialog is gone.
   assert.doesNotMatch(viewSource, /pbd-additional-slide-library-modal|asp-page-handler="ToggleAdditionalSlide"/);
@@ -306,7 +288,6 @@ test('Role and Charter uses an isolated structured editor with dirty-state and r
   assert.match(additionalSlidesSource, /createEntry\('role'/);
   assert.match(additionalSlidesSource, /createEntry\('charter'/);
 });
-
 
 test('briefing workflows use the reusable PRISM confirmation dialog instead of browser confirmations', () => {
   assert.match(source, /prismConfirm/);
@@ -343,7 +324,7 @@ test('a save keeps the row version it produced, not a re-read deck\'s (review 2 
   assert.match(source, /updateRowVersion\(replyPayload\?\.rowVersion\);/);
   // A conflict while adding projects shows the conflict banner like every other save.
   assert.match(source, /throw new RequestError\(reply\?\.message \|\| `Projects could not be added/);
-  assert.match(source, /if \(error instanceof RequestError && error\.status === 409\) showConflict\(error\.message\);\s*setState\(addProjectsStatus/);
+  assert.match(source, /if \(error instanceof RequestError && error\.status === 409\) showConflict\(error\.message\);\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*else if \(error instanceof RequestError && error\.status === 400 && !savesRunning\) showSaveState\('saved'\);\s*setState\(addProjectsStatus/);
 });
 
 test('one word for the pieces of a deck: slide (review fixes PR 5)', () => {
@@ -519,18 +500,6 @@ test('deleted or archived members can still be removed from the deck', () => {
   assert.match(source, /await updateMembership\(\[\], leftOut\.map\(\(project\) => project\.projectId\)\);/);
 });
 
-test('the add projects list follows every membership change and keeps ticks across filters', () => {
-  const apply = source.slice(source.indexOf('const applyEditorState'), source.indexOf('const updateMembership'));
-  assert.match(apply, /refreshFilterMembership\(projects\);/);
-  const refresh = source.slice(source.indexOf('const refreshFilterMembership'), source.indexOf("filterQuery?.addEventListener('input'"));
-  // A ticked project now in the deck is no longer ticked; the rest of the ticks stay.
-  assert.match(refresh, /members\.forEach\(\(projectId\) => ticked\.delete\(projectId\)\);/);
-  assert.match(refresh, /isSelected: members\.has\(row\.projectId\)/);
-  // Changing a filter reloads the list but never clears the ticks.
-  const load = source.slice(source.indexOf('const loadFilterRows'), source.indexOf('const reloadFilterRows'));
-  assert.doesNotMatch(load, /ticked\.clear\(\)/);
-});
-
 test('each project can be shown as slides, a table row only, or left out', () => {
   // The Studio asks; the builder saves through the deck mutation queue.
   assert.match(studioSource, /const PRESENTATIONS = \['Slides', 'TableRowOnly', 'LeftOut'\];/);
@@ -629,45 +598,9 @@ test('settings changed by script (row order, Select all) count as changed for th
     ['UpdateSheetRowOrder', 'UpdateSheetRows']);
 });
 
-test('add projects: one Add at a time, waiting for the shared handler to settle (cold review, H1)', () => {
-  const add = source.slice(source.indexOf("filterAdd?.addEventListener('click'"), source.indexOf("filterResults?.addEventListener('click'"));
-  assert.match(add, /if \(!\(filterAddForm instanceof HTMLFormElement\) \|\| adding\) return;/);
-  assert.match(add, /adding = true;\s*filterAdd\.disabled = true;/);
-  assert.match(add, /filterAddForm\?\.addEventListener\('pbd:add-selection-settled', \(\) => \{\s*adding = false;/);
-  // The shared handler says when it is done, whether the add worked or not.
-  assert.match(source, /finally \{[\s\S]{0,400}form\.dispatchEvent\(new CustomEvent\('pbd:add-selection-settled', \{ bubbles: true \}\)\);/);
-  assert.match(add, /if \(ticked\.size > MAXIMUM_ADD\)/);
-});
-
-test('add projects: the ticked projects can be reviewed whatever the filters (cold review, M2)', () => {
-  const rows = source.slice(source.indexOf('const renderFilterRows'), source.indexOf('const loadFilterRows'));
-  assert.match(rows, /if \(ticked\.size === 0\) showTicked = false;\s*const rows = showTicked \? \[\.\.\.ticked\.values\(\)\] : filterRows;/);
-  assert.match(source, /filterTickedLabel\?\.addEventListener\('click', \(\) => \{\s*if \(ticked\.size === 0\) return;\s*showTicked = !showTicked;/);
-  assert.match(viewSource, /data-pbd-filter-ticked aria-pressed="false"/);
-});
-
 test('add projects: the status and Undo sit in the footer, the filters stay in view (cold review, M1)', () => {
   const footer = viewSource.slice(viewSource.indexOf('<div class="modal-footer pbd-filter__footer">'));
   assert.match(footer.slice(0, 900), /data-pbd-add-projects-status aria-live="polite"/);
   assert.match(viewSource, /<div class="pbd-filter__head">/);
 });
 
-test('add projects: Escape on a chip closes the open filter, and a failed load leaves no stale rows', () => {
-  assert.match(source, /filterChips\?\.addEventListener\('keydown', \(event\) => \{\s*if \(event\.key !== 'Escape' \|\| !openFilter\) return;/);
-  const load = source.slice(source.indexOf('const loadFilterRows'), source.indexOf('const reloadFilterRows'));
-  assert.match(load, /filterRows = \[\];\s*renderFilterRows\(\);/);
-});
-
-test('add projects: the choices load when the dialog opens, not with the page (cold review, M4)', () => {
-  assert.doesNotMatch(viewSource, /data-pbd-filter-options/);
-  assert.match(viewSource, /data-filter-options-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "FilterOptions"\)"/);
-  assert.match(source, /addProjectsModalElement\?\.addEventListener\('show\.bs\.modal', \(\) => \{\s*loadFilterOptions\(\);/);
-  // A failed load is tried again on the next opening.
-  assert.match(source, /\.catch\(\(\) => \{[\s\S]{0,120}filterOptionsLoad = null;/);
-});
-
-test('add projects: a category and its sub-categories are drawn together (cold review, M3)', () => {
-  const panel = source.slice(source.indexOf('const renderFilterPanel'), source.indexOf('const updateTickedFooter'));
-  assert.match(panel, /if \(option\.depth === 0\) \{\s*group = document\.createElement\('span'\);\s*group\.className = 'pbd-filter__group';/);
-  assert.match(panel, /if \(option\.depth > 0\) group\.classList\.add\('has-children'\);/);
-});
