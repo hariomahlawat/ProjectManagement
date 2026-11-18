@@ -360,10 +360,12 @@
         messages.showAlert(`This collage has ${core.PHOTO_LIMITS.maxPhotos} photos, the most it can hold. Remove one from the photo tray first.`);
         return;
       }
-      parts.fitBudget(count + 1);
+      // The pixel budget counts every working copy kept, those Undo can bring back too.
+      const copies = doc.photos.size + 1;
+      parts.fitBudget(copies);
       let photo;
       try {
-        photo = await parts.readPhoto({ file, name: file.name || 'Logo' }, null, { count: count + 1 });
+        photo = await parts.readPhoto({ file, name: file.name || 'Logo' }, null, { count: copies });
       } catch {
         if (stillOpen()) messages.showAlert('That picture could not be read. Try another file.');
         return;
