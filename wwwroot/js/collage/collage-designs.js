@@ -573,8 +573,9 @@
     if (!collage?.back) return collage;
     const front = collage.side === 'back' ? core.flipSide(collage) : collage;
     const { back, side, ...rest } = front;
-    // The back's fields are no longer on the card: their words are kept for a new back.
-    if (rest.card) rest.card = { ...rest.card, placed: (rest.card.placed || []).filter((field) => !BACK_FIELDS.includes(field)) };
+    // The back's fields are no longer on the card: their words, as they are now on the card
+    // (typed in Card details or in an item's Words box), are kept for a new back.
+    if (rest.card) rest.card = { ...rest.card, details: detailsOf(front), placed: (rest.card.placed || []).filter((field) => !BACK_FIELDS.includes(field)) };
     return rest;
   }
 

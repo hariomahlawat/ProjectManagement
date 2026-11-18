@@ -298,3 +298,13 @@ test('a design change keeps the back\'s parts from a newer PRISM, through a save
   const again = core.readDraftModel(JSON.parse(JSON.stringify(core.draftModel(changed))), []);
   assert.equal(core.keptCount(again), 1, 'the hologram is still there');
 });
+
+// Deleting the back keeps its words as they are on the card, however they were typed (PR 8).
+test('deleting the back keeps the programme as it was edited, for a new back', () => {
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
+  // Edited in the item itself, not in Card details.
+  const edited = { ...card, back: { ...card.back, items: card.back.items.map((item) => (item.field === 'programme' ? { ...item, text: '1900 h · Arrival' } : item)) } };
+  const single = designs.deleteBack(edited);
+  const again = designs.addBack(single, { measure, newId });
+  assert.equal(again.back.items.find((item) => item.field === 'programme').text, '1900 h · Arrival');
+});
