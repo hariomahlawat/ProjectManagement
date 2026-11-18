@@ -20,7 +20,7 @@ public sealed class ProjectBriefingContractTests
         {
             Assert.Contains($"label: {filter}", addProjectsScript, StringComparison.Ordinal);
         }
-        Assert.Contains("data-pbd-filter-options", page, StringComparison.Ordinal);
+        Assert.Contains("data-filter-options-url", page, StringComparison.Ordinal);
         Assert.DoesNotContain("Manage individually", page, StringComparison.Ordinal);
         Assert.DoesNotContain("My projects", page, StringComparison.Ordinal);
         Assert.Contains("R&amp;D cost", page, StringComparison.Ordinal);

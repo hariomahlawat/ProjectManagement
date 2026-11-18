@@ -102,8 +102,8 @@
 
     @* A div, not a second main element: the layout already gives the page its main landmark. *@
     <div class="cw-workspace-content pbd-shell" data-pbd-root
-          data-search-url="@Url.Page("/Workspace/BriefingDecks/Index", "SearchProjects")"
           data-filter-url="@Url.Page("/Workspace/BriefingDecks/Index", "FilterProjects")"
+          data-filter-options-url="@Url.Page("/Workspace/BriefingDecks/Index", "FilterOptions")"
           data-reorder-url="@Url.Page("/Workspace/BriefingDecks/Index", "Reorder")"
           data-membership-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateMembership")"
           data-description-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateDescription")"
@@ -918,7 +918,6 @@
                                         </div>
                                         </div>
                                         <div class="pbd-filter__results" data-pbd-filter-results></div>
-                                        <script type="application/json" data-pbd-filter-options>@Html.Raw(Model.AddProjectsFilterOptionsJson)</script>
                                         <form method="post" asp-page-handler="AddSelection" data-pbd-add-selection-form data-pbd-filter-add-form hidden>
                                             <input type="hidden" name="DeckId" value="@deck.Id" />
                                             <input type="hidden" name="RowVersion" value="@deck.RowVersion" />

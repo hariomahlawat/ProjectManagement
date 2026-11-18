@@ -657,3 +657,17 @@ test('add projects: Escape on a chip closes the open filter, and a failed load l
   const load = source.slice(source.indexOf('const loadFilterRows'), source.indexOf('const reloadFilterRows'));
   assert.match(load, /filterRows = \[\];\s*renderFilterRows\(\);/);
 });
+
+test('add projects: the choices load when the dialog opens, not with the page (cold review, M4)', () => {
+  assert.doesNotMatch(viewSource, /data-pbd-filter-options/);
+  assert.match(viewSource, /data-filter-options-url="@Url\.Page\("\/Workspace\/BriefingDecks\/Index", "FilterOptions"\)"/);
+  assert.match(source, /addProjectsModalElement\?\.addEventListener\('show\.bs\.modal', \(\) => \{\s*loadFilterOptions\(\);/);
+  // A failed load is tried again on the next opening.
+  assert.match(source, /\.catch\(\(\) => \{[\s\S]{0,120}filterOptionsLoad = null;/);
+});
+
+test('add projects: a category and its sub-categories are drawn together (cold review, M3)', () => {
+  const panel = source.slice(source.indexOf('const renderFilterPanel'), source.indexOf('const updateTickedFooter'));
+  assert.match(panel, /if \(option\.depth === 0\) \{\s*group = document\.createElement\('span'\);\s*group\.className = 'pbd-filter__group';/);
+  assert.match(panel, /if \(option\.depth > 0\) group\.classList\.add\('has-children'\);/);
+});
