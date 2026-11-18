@@ -263,7 +263,8 @@ test('when none of the ticked projects can be added, they are unticked and named
   page.$('[data-pbd-filter-add]').click();
   page.status.textContent = 'None of the ticked projects can be added: they have been archived, deleted or cancelled.';
   page.settle({ message: 'refused', skippedProjectIds: [1, 2] }, false);
-  assert.match(page.status.textContent, /2 projects were not added: Alpha, Bravo/);
+  // The server's message says why; only the names follow, not the reason a second time.
+  assert.equal(page.status.textContent, 'None of the ticked projects can be added: they have been archived, deleted or cancelled. (Alpha, Bravo)');
   assert.equal(page.$('[data-pbd-filter-ticked]').textContent, 'Nothing ticked');
   assert.equal(page.$('[data-pbd-filter-tick="1"]'), null, 'no longer offered');
   assert.equal(page.$('[data-pbd-filter-add]').disabled, false);
@@ -292,16 +293,91 @@ test('ticks that fill the room hold the other ticks back, and Tick all ticks onl
   assert.equal(page.$('[data-pbd-filter-tick="3"]').disabled, false, 'room again');
 });
 
-test('the room line is read out only when the ticks go over the room or back', async () => {
+test('going over the room, and back, is announced once each through an always-live region', async () => {
   const members = Array.from({ length: 119 }, (_, index) => 1000 + index);
   const page = await setUp({ members });
-  const roomLine = page.$('[data-pbd-filter-room]');
+  const announcer = page.$('[data-pbd-filter-announce]');
+  assert.equal(announcer.getAttribute('aria-live'), 'polite');
+  assert.equal(page.$('[data-pbd-filter-room]').hasAttribute('aria-live'), false, 'the room line itself is not read on every tick');
   page.tickRow(1);
-  assert.equal(roomLine.getAttribute('aria-live'), 'off');
+  assert.equal(announcer.textContent, '');
   page.tickRow(2); // only possible by script: the box is held back
-  assert.equal(roomLine.getAttribute('aria-live'), 'polite');
+  assert.match(announcer.textContent, /untick 1/);
+  announcer.textContent = '';
   page.tickRow(3);
-  assert.equal(roomLine.getAttribute('aria-live'), 'off');
+  assert.equal(announcer.textContent, '', 'not again while still over');
+  const box = page.$('[data-pbd-filter-tick="3"]');
+  box.checked = false;
+  box.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+  const box2 = page.$('[data-pbd-filter-tick="2"]');
+  box2.checked = false;
+  box2.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+  assert.match(announcer.textContent, /fit in the deck again/);
+});
+
+test('a held-back tick is described by the room line, and each tick is named by its project', async () => {
+  const members = Array.from({ length: 119 }, (_, index) => 1000 + index);
+  const page = await setUp({ members });
+  page.tickRow(1);
+  const held = page.$('[data-pbd-filter-tick="2"]');
+  assert.equal(held.disabled, true);
+  assert.match(held.getAttribute('aria-describedby'), /pbd-filter-room/);
+  assert.equal(page.document.getElementById(held.getAttribute('aria-labelledby')).textContent, 'Bravo');
+});
+
+test('keyboard focus is never dropped: Tick the first N, the last untick in Review, a chip opened while loading', async () => {
+  const members = Array.from({ length: 118 }, (_, index) => 1000 + index);
+  let page = await setUp({ members });
+  page.$('[data-pbd-filter-tick-all]').focus();
+  page.$('[data-pbd-filter-tick-all]').click();
+  assert.equal(page.$('[data-pbd-filter-tick-all]').hidden, true);
+  assert.equal(page.document.activeElement, page.$('[data-pbd-filter-ticked]'));
+
+  page = await setUp();
+  page.tickRow(2);
+  page.$('[data-pbd-filter-ticked]').click();
+  const box = page.$('[data-pbd-filter-tick="2"]');
+  box.checked = false;
+  box.dispatchEvent(new page.window.Event('change', { bubbles: true }));
+  assert.equal(page.document.activeElement, page.$('[data-pbd-filter-query]'));
+
+  page = await setUp({ holdOptions: true });
+  page.$('[data-pbd-filter-open="arpp"]').focus();
+  page.$('[data-pbd-filter-open="arpp"]').click();
+  assert.equal(page.document.activeElement, page.$('[data-pbd-filter-open="arpp"]'), 'the chip keeps focus while loading');
+  page.state.optionsReplies.shift().resolve(reply({ arppYears: [{ value: 2026, label: 'FY 2026-27', count: 3 }] }));
+  await tick();
+  await tick();
+  assert.equal(page.document.activeElement, page.$('[data-pbd-filter-panel] input'), 'then moves into the choices');
+});
+
+test('the choices are fetched again on each opening, and older completion years can be shown', async () => {
+  const years = Array.from({ length: 15 }, (_, index) => ({ value: 2026 - index, label: `FY ${2026 - index}` }));
+  const page = await setUp({ options: { completionFinancialYears: years } });
+  const optionLoads = () => page.state.fetches.filter((href) => href.includes('FilterOptions')).length;
+  const before = optionLoads();
+  page.controller.open();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(optionLoads(), before + 1);
+  page.$('[data-pbd-filter-open="completed"]').click();
+  assert.equal(page.$('[data-pbd-filter-range="completedFrom"]').options.length, 12);
+  assert.match(page.$('[data-pbd-filter-panel]').textContent, /A completion year with no date counts from April of that year/);
+  page.$('[data-pbd-filter-all-years]').click();
+  assert.equal(page.$('[data-pbd-filter-range="completedFrom"]').options.length, 16);
+  assert.equal(page.document.activeElement, page.$('[data-pbd-filter-range="completedFrom"]'));
+});
+
+test('some added, some not: the note comes before Undo', async () => {
+  const page = await setUp();
+  page.tickRow(1);
+  page.tickRow(3);
+  page.$('[data-pbd-filter-add]').click();
+  page.status.textContent = '1 project added.';
+  const undo = page.document.createElement('button');
+  undo.textContent = 'Undo';
+  page.status.append(' ', undo);
+  page.settle({ skippedProjectIds: [3] });
+  assert.match(page.status.textContent, /1 project added\.\s+One project was not added: Charlie \(archived, deleted or cancelled\)\. Undo$/);
 });
 
 test('a list that fails to load can be tried again', async () => {

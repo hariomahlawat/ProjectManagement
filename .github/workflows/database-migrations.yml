@@ -159,6 +159,16 @@ jobs:
           --no-build
           --filter FullyQualifiedName~PdfIngestionClusterLockTests
 
+      - name: Run briefing Add projects filter PostgreSQL test
+        # The Add projects search and filters (ILIKE with escaped wildcards, category trees, ARPP,
+        # proliferation) run on PostgreSQL. Creates, migrates and drops its own
+        # prism_test_briefingfilter_* database.
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~ProjectBriefingFilterPostgresTests
+
       - name: Run admin search escaping PostgreSQL test
         # A typed % or _ in an admin search matches itself, not any text. Creates, migrates and
         # drops its own prism_test_adminsearch_* database.
