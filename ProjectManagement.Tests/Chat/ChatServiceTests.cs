@@ -504,6 +504,77 @@ public sealed class ChatServiceTests
     }
 
     [Fact]
+    public async Task Edit_LosingARaceWithUnsend_IsRefused_AndTheTextStaysErased()
+    {
+        await using var scope = await ChatScope.CreateAsync();
+        var sent = await scope.Service.SendAsync("alice", Request("bob", "Wrong figures"));
+        var id = sent.Message!.Id;
+
+        // Another tab unsends the message after this edit's checks, just before it writes.
+        var unsendFirst = new UnsendBeforeWrite(id);
+        await using var racingDb = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(scope.Connection)
+            .AddInterceptors(unsendFirst)
+            .Options);
+        var racing = new ChatService(racingDb, scope.Clock, scope.Presence, new TestOptions());
+
+        var result = await racing.EditAsync("alice", id, new ChatEditRequest("Right figures"));
+
+        // Refused, not a server error, and nothing of the edit is written. (On SQLite the simulated
+        // unsend shares the edit's connection and is rolled back with it; ChatPostgresIntegrationTests
+        // runs the same race with the unsend committed from another connection.)
+        Assert.True(unsendFirst.Fired);
+        Assert.Equal(ChatChangeStatus.Invalid, result.Status);
+        var stored = await scope.Db.ChatMessages.AsNoTracking().SingleAsync(m => m.Id == id);
+        Assert.NotEqual("Right figures", stored.Body);
+        Assert.Null(stored.EditedUtc);
+    }
+
+    /// <summary>Marks a message unsent (as an unsend from another tab would) right before the first write to ChatMessages.</summary>
+    private sealed class UnsendBeforeWrite : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
+    {
+        private readonly long _messageId;
+
+        public UnsendBeforeWrite(long messageId) => _messageId = messageId;
+
+        public bool Fired { get; private set; }
+
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> NonQueryExecutingAsync(
+            System.Data.Common.DbCommand command,
+            Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            Unsend(command);
+            return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
+        }
+
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command,
+            Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            Unsend(command);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+
+        private void Unsend(System.Data.Common.DbCommand command)
+        {
+            if (Fired || !command.CommandText.Contains("UPDATE \"ChatMessages\"", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            Fired = true;
+            using var unsend = command.Connection!.CreateCommand();
+            unsend.Transaction = command.Transaction;
+            unsend.CommandText = $"UPDATE \"ChatMessages\" SET \"Body\" = '', \"UnsentUtc\" = '2026-10-22 09:00:30+00:00' WHERE \"Id\" = {_messageId}";
+            unsend.ExecuteNonQuery();
+        }
+    }
+
+    [Fact]
     public async Task React_TogglesOnePersonsReaction_AndBothPeopleSeeTheSameList()
     {
         await using var scope = await ChatScope.CreateAsync();

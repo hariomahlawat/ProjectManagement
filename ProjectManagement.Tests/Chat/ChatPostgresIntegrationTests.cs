@@ -84,6 +84,25 @@ public sealed class ChatPostgresIntegrationTests
             Assert.Equal(0, await db.ChatMessageReactions.CountAsync());
             Assert.Equal(0, await db.ChatMessageMentions.CountAsync());
 
+            // An edit that loses a race with an unsend (another tab, committed from its own
+            // connection after the edit's checks) is refused and writes nothing back.
+            var direct = await chat.SendAsync("alice", new ChatSendRequest("bob", Guid.NewGuid(), "Wrong figures"));
+            var racingOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseNpgsql(target)
+                .AddInterceptors(new UnsendFromAnotherConnection(target, direct.Message!.Id))
+                .Options;
+            await using (var racingDb = new ApplicationDbContext(racingOptions))
+            {
+                var racing = new ChatService(racingDb, clock, new ChatPresenceTracker(), options);
+                var lost = await racing.EditAsync("alice", direct.Message.Id, new ChatEditRequest("Right figures"));
+                Assert.Equal(ChatChangeStatus.Invalid, lost.Status);
+            }
+
+            var erased = await db.ChatMessages.AsNoTracking().SingleAsync(m => m.Id == direct.Message.Id);
+            Assert.NotNull(erased.UnsentUtc);
+            Assert.Equal(string.Empty, erased.Body);
+            Assert.Null(erased.EditedUtc);
+
             // Deleting a conversation removes its reactions and mentions with its messages.
             await chat.ReactAsync("alice", reply.Message.Id, ChatReactionKind.Like, true);
             await ExecuteAsync(target, $"DELETE FROM \"ChatConversations\" WHERE \"Id\" = {groupId}");
@@ -111,6 +130,52 @@ public sealed class ChatPostgresIntegrationTests
         await connection.OpenAsync();
         await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>Before the first write to ChatMessages, unsends the message from a separate connection (committed at once).</summary>
+    private sealed class UnsendFromAnotherConnection : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
+    {
+        private readonly string _connectionString;
+        private readonly long _messageId;
+        private bool _fired;
+
+        public UnsendFromAnotherConnection(string connectionString, long messageId)
+        {
+            _connectionString = connectionString;
+            _messageId = messageId;
+        }
+
+        public override async ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> NonQueryExecutingAsync(
+            System.Data.Common.DbCommand command,
+            Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            await UnsendAsync(command);
+            return result;
+        }
+
+        public override async ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command,
+            Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            await UnsendAsync(command);
+            return result;
+        }
+
+        private async Task UnsendAsync(System.Data.Common.DbCommand command)
+        {
+            if (_fired || !command.CommandText.Contains("UPDATE \"ChatMessages\"", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _fired = true;
+            await ExecuteAsync(_connectionString,
+                $"UPDATE \"ChatMessages\" SET \"Body\" = '', \"UnsentUtc\" = now() WHERE \"Id\" = {_messageId}");
+        }
     }
 
     private sealed class MovableClock : IClock

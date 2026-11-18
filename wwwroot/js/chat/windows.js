@@ -80,8 +80,11 @@
     // against the sender's allowance.
     const unsent = win.messages.filter((m) => !m.id);
     const pending = win.pending || [];
-    if (win.input.value.trim() || unsent.length || pending.length) {
-      this.kept.set(peerId, { draft: win.input.value, unsent, pending });
+    // An edit in progress is cancelled by closing: the box holds the edited text, which must not
+    // come back as a new message's draft. What was typed before the edit is kept instead.
+    const draft = win.editing ? ((win.draftBeforeEdit && win.draftBeforeEdit.text) || '') : win.input.value;
+    if (draft.trim() || unsent.length || pending.length) {
+      this.kept.set(peerId, { draft, unsent, pending });
     }
     this.windows.delete(peerId);
     this.order = this.order.filter((id) => id !== peerId);

@@ -617,7 +617,10 @@ public sealed class ChatService
             return ChatEditResult.Fail(ChatChangeStatus.Invalid, "Messages cannot be edited.");
         }
 
+        // Not tracked: the text is written with one conditional update below, never by saving
+        // this copy, which could be stale by then.
         var message = await _db.ChatMessages
+            .AsNoTracking()
             .Where(m => m.Id == messageId && m.SenderUserId == userId && m.EventKind == null
                 && m.Conversation!.Participants.Any(p => p.UserId == userId))
             .Include(m => m.Conversation)
@@ -658,12 +661,30 @@ public sealed class ChatService
         await using var transaction = _db.Database.CurrentTransaction is null
             ? await _db.Database.BeginTransactionAsync(cancellationToken)
             : null;
-        if (!string.Equals(body, message.Body, StringComparison.Ordinal))
+        // One conditional UPDATE: an unsend that committed after the checks above (another tab)
+        // makes it match nothing, and the edit is refused rather than writing text back into an
+        // unsent message. Under PostgreSQL the row lock orders it against a concurrent unsend.
+        var changed = !string.Equals(body, message.Body, StringComparison.Ordinal);
+        DateTimeOffset? editedUtc = changed ? now : message.EditedUtc;
+        var updated = await _db.ChatMessages
+            .Where(m => m.Id == message.Id && m.UnsentUtc == null)
+            .ExecuteUpdateAsync(
+                set => set
+                    .SetProperty(m => m.Body, body)
+                    .SetProperty(m => m.EditedUtc, editedUtc),
+                cancellationToken);
+        if (updated == 0)
         {
-            message.Body = body;
-            message.EditedUtc = now;
-            await _db.SaveChangesAsync(cancellationToken);
+            if (transaction is not null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
+
+            return ChatEditResult.Fail(ChatChangeStatus.Invalid, "An unsent message cannot be edited.");
         }
+
+        message.Body = body;
+        message.EditedUtc = editedUtc;
 
         if (isGroup)
         {

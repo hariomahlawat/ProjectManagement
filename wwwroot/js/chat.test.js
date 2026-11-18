@@ -4174,3 +4174,39 @@ test('do not disturb keeps a status message the person set themselves, and follo
     window.close();
   }
 });
+
+test('closing a window in the middle of an edit cancels the edit and keeps the earlier draft', async () => {
+  const now = Date.now();
+  const posts = [];
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return threeMessages(now);
+    if (init.method === 'POST' && (url.endsWith('/messages') || url.endsWith('/edit'))) {
+      posts.push(url);
+      const body = JSON.parse(init.body);
+      return { status: 200, body: directMessage(5, 'me', body.body, { clientMessageId: body.clientMessageId }) };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.editMs = 15 * 60000;
+    let win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    win.input.value = 'half-typed reply';
+    win.log.querySelector('[data-focus-key="edit:2"]').click();
+    win.input.value = 'Sending it now (corrected)';
+    app.closeWindow('peer');
+
+    win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    assert.equal(win.input.value, 'half-typed reply', 'the draft from before the edit, not the edited text');
+    assert.equal(win.editing, null);
+    app.send(win);
+    await tick(); await tick();
+    assert.deepEqual(posts, ['/api/chat/messages'], 'a new message, never a duplicate of the edited one');
+  } finally {
+    window.close();
+  }
+});
