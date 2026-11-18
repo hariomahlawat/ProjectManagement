@@ -178,6 +178,14 @@
     function setField(field, raw) {
       const text = String(raw).slice(0, core.TEXT_LIMITS.maxLength);
       const collage = state.collage;
+      // A locked item is not deleted by emptying its field: unlocked first, as everywhere else.
+      const current = textFor(collage, field);
+      if (current?.locked && !text.trim()) {
+        messages.sayLocked();
+        const input = form.querySelector(`[data-card-field="${field}"]`);
+        if (input) input.value = current.text;
+        return;
+      }
       const details = { ...designs.detailsOf(collage), [field]: text };
       const fresh = !textFor(collage, field) && text.trim() ? designs.fieldItem(collage, field, details, options()) : null;
       let removed = null;

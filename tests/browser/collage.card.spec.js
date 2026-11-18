@@ -136,3 +136,16 @@ test('words typed in Card details show in the selected item\'s Words box at once
   await expect(page.locator('[data-text]')).toHaveValue('Sudarshan Hall');
   expect(errors).toEqual([]);
 });
+
+test('emptying the field of a locked item does not delete it', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator('[data-layer-lock]').locator('xpath=..').filter({ hasText: 'Kindly bring this card' }).locator('[data-layer-lock]').click();
+  const note = page.locator('[data-card-field="note"]');
+  await note.fill('');
+  await expect(note).toHaveValue('Kindly bring this card');
+  await expect(page.locator('[data-prism-toast]').filter({ hasText: 'It is locked' })).toBeVisible();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'note')?.text).toBe('Kindly bring this card');
+  expect(errors).toEqual([]);
+});
