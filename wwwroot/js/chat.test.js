@@ -4295,3 +4295,60 @@ test('do not disturb that ended while PRISM was closed clears its status on the 
     }
   }
 });
+
+test('moving a conversation to the Messages page mid-edit hands over the earlier draft, not the edit', async () => {
+  const now = Date.now();
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('/with/peer/messages')) return threeMessages(now);
+    return { status: 204, body: null };
+  }, '<section data-chat-page></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.editMs = 15 * 60000;
+    const docked = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    docked.input.value = 'started in the dock';
+    docked.log.querySelector('[data-focus-key="edit:2"]').click();
+    docked.input.value = 'Sending it now (corrected)';
+    app.page.open('peer', 0);
+    const view = app.page.current;
+    assert.equal(view.embedded, true);
+    assert.equal(view.input.value, 'started in the dock');
+    assert.equal(view.editing, null);
+  } finally {
+    window.close();
+  }
+});
+
+test('a live edit that arrives while the reconnect refresh is on its way is not undone by it', async () => {
+  let answer;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/messages/current')) {
+      await new Promise((resolve) => { answer = resolve; });
+      // Read before the live edit below: older than what the page then shows.
+      return [directMessage(1, 'peer', 'Draft one', { reactions: [] }), directMessage(2, 'me', 'unchanged', { reactions: [{ kind: 'like', userIds: ['peer'] }] })];
+    }
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Draft one'), directMessage(2, 'me', 'unchanged')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    const catchUp = app.syncUnsent(true);
+    await tick(); await tick();
+    app.onEdited(directMessage(1, 'peer', 'Draft two', { editedUtc: new Date().toISOString() }));
+    answer();
+    await catchUp;
+    assert.match(win.log.querySelector('[data-message-id="1"] .pm-chat__bubble').textContent, /Draft two/, 'the live edit stays');
+    assert.ok(win.log.querySelector('[data-message-id="2"] .pm-chat__reaction'), 'messages not changed live are still brought up to date');
+  } finally {
+    window.close();
+  }
+});

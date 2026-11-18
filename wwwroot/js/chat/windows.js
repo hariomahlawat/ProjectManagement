@@ -80,15 +80,23 @@
     // against the sender's allowance.
     const unsent = win.messages.filter((m) => !m.id);
     const pending = win.pending || [];
-    // An edit in progress is cancelled by closing: the box holds the edited text, which must not
-    // come back as a new message's draft. What was typed before the edit is kept instead.
-    const draft = win.editing ? ((win.draftBeforeEdit && win.draftBeforeEdit.text) || '') : win.input.value;
+    const draft = this.draftOf(win);
     if (draft.trim() || unsent.length || pending.length) {
       this.kept.set(peerId, { draft, unsent, pending });
     }
     this.windows.delete(peerId);
     this.order = this.order.filter((id) => id !== peerId);
     this.saveState();
+  };
+
+  /**
+   * What a window's message box holds as a draft for a new message. During an edit the box holds
+   * the edited text, which must never come back as a new message (Send would post a duplicate):
+   * the edit is dropped and what was typed before it is the draft. Used when a window closes and
+   * when its conversation moves to the Messages page.
+   */
+  ChatApp.prototype.draftOf = function (win) {
+    return win.editing ? ((win.draftBeforeEdit && win.draftBeforeEdit.text) || '') : win.input.value;
   };
 
   /** The person is in the middle of something in this window: typing, sending, or in it. */

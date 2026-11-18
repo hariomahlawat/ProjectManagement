@@ -308,6 +308,7 @@
     const on = !this.myReaction(message, kind);
     const before = message.reactions || [];
     // Shown at once; the server's answer (or a failure) settles it.
+    this.noteMessageEvent(messageId);
     this.eachCopy(messageId, (m) => ({ ...m, reactions: toggled(m.reactions || [], kind, this.me, on) }));
     try {
       const result = await this.request('POST', `/messages/${messageId}/react`, { kind, on });
@@ -315,6 +316,7 @@
       const info = reactionInfo(kind);
       this.announce(on ? `Reacted: ${info.label}.` : `${info.label} taken back.`);
     } catch (error) {
+      this.noteMessageEvent(messageId);
       this.eachCopy(messageId, (m) => ({ ...m, reactions: before }));
       this.composeNote(this.viewFor(win), error.message);
     }
@@ -331,15 +333,23 @@
     return list.filter((r) => r.userIds.length).sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
   }
 
+  /** A live change to a message (see messageEventAt in chat/app.js). */
+  ChatApp.prototype.noteMessageEvent = function (messageId) {
+    this.messageEventSeq += 1;
+    this.messageEventAt.set(messageId, this.messageEventSeq);
+  };
+
   /** ReactionsChanged, or the answer to this page's own reaction. */
   ChatApp.prototype.onReactions = function (change) {
     if (!change || !change.messageId) return;
+    this.noteMessageEvent(change.messageId);
     this.eachCopy(change.messageId, (m) => ({ ...m, reactions: change.reactions || [] }));
   };
 
   /** MessageEdited / GroupMessageEdited, or the answer to this page's own edit. */
   ChatApp.prototype.onEdited = function (message) {
     if (!message || !message.id || this.unsentIds.has(message.id)) return;
+    this.noteMessageEvent(message.id);
     this.windows.forEach((win) => {
       const held = win.messages.some((m) => m.id === message.id);
       const heldLive = (win.heldLive || []).some((m) => m.id === message.id);

@@ -48,6 +48,10 @@
     // never overrides it (attachment id -> the event's number).
     this.fileEventSeq = 0;
     this.fileEventAt = new Map();
+    // Live edits and reaction changes, numbered by message id, so a state check (refreshLoaded)
+    // whose answer was read before one of them does not put the older state back.
+    this.messageEventSeq = 0;
+    this.messageEventAt = new Map();
     // When live events stopped arriving (or, until the first connection, when this page started
     // loading history), so unsends in between can be caught up on once connected.
     this.offlineSince = new Date();
@@ -568,6 +572,7 @@
     const all = Array.from(ids);
     for (let start = 0; start < all.length; start += 500) {
       let current;
+      const eventsBefore = this.messageEventSeq;
       try {
         current = await this.request('GET', `/messages/current?ids=${all.slice(start, start + 500).join(',')}`);
       } catch (error) {
@@ -576,6 +581,8 @@
       }
       const fresh = new Map();
       for (const message of Array.isArray(current) ? current : []) {
+        // Changed live while this answer was on its way: the live state is newer.
+        if ((this.messageEventAt.get(message.id) || 0) > eventsBefore) continue;
         if (message.isUnsent) this.unsentIds.add(message.id); // applied on the redraw below
         else if (!this.unsentIds.has(message.id)) fresh.set(message.id, message);
       }
