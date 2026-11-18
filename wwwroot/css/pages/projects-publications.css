@@ -1083,6 +1083,8 @@
 .brochure-artwork-option:hover { border-color: #9fbcb1; transform: translateY(-1px); }
 .brochure-artwork-option.is-selected { border-color: #4d8b76; box-shadow: 0 0 0 2px rgba(27,107,89,.1); }
 .brochure-artwork-option:has(input:focus-visible) { outline: 2px solid #2f6f5d; outline-offset: 2px; }
+/* Older browsers without :has(): the same, from the class wwwroot/js/core/has-fallback.js sets. */
+.pm-no-has .brochure-artwork-option.pm-has-focus-visible { outline: 2px solid var(--pm-primary); outline-offset: 2px; }
 .brochure-artwork-option > input { position: absolute; opacity: 0; pointer-events: none; }
 .brochure-artwork-option img {
     display: block;

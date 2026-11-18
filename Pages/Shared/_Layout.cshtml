@@ -74,6 +74,9 @@
     @* Loaded early, without defer: it only adds document-level listeners, and confirmations
        must be active before a user can click a destructive button on a slow page. *@
     <script src="~/js/core/declarative-actions.js" asp-append-version="true"></script>
+    @* Only older browsers without :has() run it: it keeps the state classes the html.pm-no-has
+       twin rules use (see wwwroot/js/core/has-fallback.js). *@
+    <script src="~/js/core/has-fallback.js" asp-append-version="true" defer></script>
 </head>
 <body class="d-flex flex-column min-vh-100 @sceneClass">
     @{

@@ -2280,7 +2280,12 @@ body.notebook-confirm-open { overflow: hidden; }
 .notebook-card:focus-within .notebook-card-actions,
 .notebook-card.is-selected .notebook-card-actions,
 .notebook-card.has-open-menu .notebook-card-actions,
-.notebook-card.has-open-popover .notebook-card-actions,
+.notebook-card.has-open-popover .notebook-card-actions {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+/* Separate rule: a browser without :has() drops a whole list that contains it. */
 .notebook-card:has(.notebook-card-more[open]) .notebook-card-actions,
 .notebook-card:has(.notebook-colour-picker__popover:not([hidden])) .notebook-card-actions {
     opacity: 1;
@@ -4319,7 +4324,10 @@ body.notebook-confirm-open { overflow: hidden; }
 
 /* SECTION: Direct-drag floating-surface safety (authoritative overrides) */
 .notebook-card.has-open-menu,
-.notebook-card.has-open-popover,
+.notebook-card.has-open-popover {
+    z-index: 90;
+}
+/* Separate rule: a browser without :has() drops a whole list that contains it. */
 .notebook-card:has(.notebook-card-more[open]),
 .notebook-card:has(.notebook-colour-picker__popover:not([hidden])) {
     z-index: 90;
@@ -4340,7 +4348,10 @@ body.notebook-confirm-open { overflow: hidden; }
    allowed to leave the card. The application then collision-positions the colour
    palette inside the Notebook content viewport. */
 .notebook-conference-shared-card.has-open-popover,
-.notebook-conference-shared-card.has-open-menu,
+.notebook-conference-shared-card.has-open-menu {
+    overflow: visible;
+}
+/* Separate rule: a browser without :has() drops a whole list that contains it. */
 .notebook-conference-shared-card:has(.notebook-colour-picker__popover:not([hidden])),
 .notebook-conference-shared-card:has(.notebook-card-more[open]) {
     overflow: visible;

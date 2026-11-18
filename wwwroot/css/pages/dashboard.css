@@ -345,7 +345,9 @@ a.db-slim:hover, a.db-slim:focus-visible { color: var(--db-text); transform: tra
     /* The card is full width here: ARPP and CoE sit side by side, the foot runs under both. */
     .db-analytics { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
     .db-analytics__block + .db-analytics__block { border-left: 1px solid var(--db-border); }
-    .db-analytics__block--slow, .db-analytics__block:only-child, .db-analytics__block:first-child:has(+ .db-analytics__block--slow) { grid-column: 1 / -1; }
+    .db-analytics__block--slow, .db-analytics__block:only-child { grid-column: 1 / -1; }
+    /* Separate rule: a browser without :has() drops a whole list that contains it. */
+    .db-analytics__block:first-child:has(+ .db-analytics__block--slow) { grid-column: 1 / -1; }
     .db-analytics .db-analytics__block--slow { border-left: 0; }
     .db-analytics > .db-analytics__block:last-child { border-bottom: 0; }
     .db-output-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

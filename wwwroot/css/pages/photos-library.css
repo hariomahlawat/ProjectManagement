@@ -847,6 +847,8 @@
     .photos-scrubber { display:flex; }
     .photos-month-jump { display:none; }
     .photos-library:has([data-photos-scrubber]) .photos-timeline { padding-right:3.25rem; }
+    /* Older browsers without :has(): the same, from the class wwwroot/js/core/has-fallback.js sets. */
+    .pm-no-has .photos-library.pm-has-scrubber .photos-timeline { padding-right:3.25rem; }
 }
 
 /* On wider screens the top bar itself becomes the action bar while pictures are selected. */

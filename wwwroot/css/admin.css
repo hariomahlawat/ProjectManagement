@@ -1631,8 +1631,9 @@ button.admin-account-action { width: 100%; font: inherit; text-align: start; cur
 .admin-guidance-card ul { padding-left: 1rem; }
 .admin-guidance-card li + li { margin-top: .2rem; }
 @media (max-width: 767.98px) {
-    .admin-form-layout:has(> .admin-guidance-card),
     .admin-form-grid--two { grid-template-columns: 1fr; }
+    /* Separate rule: a browser without :has() drops a whole list that contains it. */
+    .admin-form-layout:has(> .admin-guidance-card) { grid-template-columns: 1fr; }
 }
 .admin-password-layout { display: grid; grid-template-columns: minmax(17rem, 1fr) minmax(16rem, .8fr); gap: 1rem; align-items: start; }
 .admin-password-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .45rem; }

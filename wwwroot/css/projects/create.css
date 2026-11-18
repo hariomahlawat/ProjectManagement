@@ -264,7 +264,11 @@
     grid-column: 1 / -1;
 }
 
-.project-option-card:hover,
+.project-option-card:hover {
+    border-color: #9bb1ff;
+    background: #f2f6ff;
+}
+/* Separate rule: a browser without :has() drops a whole list that contains it. */
 .project-option-card:has(.form-check-input:checked) {
     border-color: #9bb1ff;
     background: #f2f6ff;
@@ -651,7 +655,11 @@
     border: 1px solid #2c3035;
 }
 
-:where([data-bs-theme="dark"]) .project-option-card:hover,
+:where([data-bs-theme="dark"]) .project-option-card:hover {
+    border-color: color-mix(in srgb, #6ea8fe 30%, #16181b);
+    background: color-mix(in srgb, #6ea8fe 8%, #16181b);
+}
+/* Separate rule: a browser without :has() drops a whole list that contains it. */
 :where([data-bs-theme="dark"]) .project-option-card:has(.form-check-input:checked) {
     border-color: color-mix(in srgb, #6ea8fe 30%, #16181b);
     background: color-mix(in srgb, #6ea8fe 8%, #16181b);
@@ -752,7 +760,11 @@
         background: var(--cm-projects-create-5);
     }
 
-    :where([data-bs-theme="dark"]) .project-option-card:hover,
+    :where([data-bs-theme="dark"]) .project-option-card:hover {
+        border-color: var(--cm-projects-create-6);
+        background: var(--cm-projects-create-1);
+    }
+
     :where([data-bs-theme="dark"]) .project-option-card:has(.form-check-input:checked) {
         border-color: var(--cm-projects-create-6);
         background: var(--cm-projects-create-1);

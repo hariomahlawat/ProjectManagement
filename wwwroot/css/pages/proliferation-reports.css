@@ -84,6 +84,11 @@
     outline: 3px solid rgba(var(--bs-primary-rgb), .2);
     outline-offset: 2px;
 }
+/* Older browsers without :has(): the same, from the class wwwroot/js/core/has-fallback.js sets. */
+.pm-no-has .pf-analysis-choice.pm-has-focus-visible {
+    outline: 3px solid rgba(var(--bs-primary-rgb), .2);
+    outline-offset: 2px;
+}
 
 .pf-analysis-choice.is-selected {
     background: var(--pf-analysis-blue-soft);

@@ -1886,6 +1886,8 @@ a.identity-workload-pill:hover {
 
 /* A face in a group, reached by keyboard: its tick box is hidden, so the tile shows the focus. */
 .identity-group-face:has(.identity-group-face__checkbox:focus-visible) { outline:2px solid var(--pm-primary); outline-offset:2px; }
+/* Older browsers without :has(): the same, from the class wwwroot/js/core/has-fallback.js sets. */
+.pm-no-has .identity-group-face.pm-has-focus-visible { outline:2px solid var(--pm-primary); outline-offset:2px; }
 
 /* Phones: faces start near the top, and everything pressed is at least 44px. */
 @media (max-width: 575.98px) {

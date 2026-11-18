@@ -1130,6 +1130,10 @@
 body:has(.command-workspace--briefing-decks) {
     overflow-x: clip;
 }
+/* Older browsers without :has(): the same, from the class wwwroot/js/core/has-fallback.js sets. */
+.pm-no-has body.pm-has-briefing-decks {
+    overflow-x: clip;
+}
 
 .command-workspace--briefing-decks,
 .command-workspace--briefing-decks *,
@@ -3818,6 +3822,10 @@ body.pbd-profile-drawer-open {
 html:has(.pbd-viewer[open]) {
     overflow: hidden;
 }
+/* Older browsers without :has(): the same, from the class wwwroot/js/core/has-fallback.js sets. */
+html.pm-no-has.pm-has-pbd-viewer-open {
+    overflow: hidden;
+}
 
 .pbd-viewer__body:focus {
     outline: none;
@@ -4212,8 +4220,19 @@ html:has(.pbd-viewer[open]) {
     background: var(--pbd-blue-soft);
     box-shadow: 0 0 0 1px var(--pbd-blue);
 }
+/* Older browsers without :has(): the same, from the class wwwroot/js/core/has-fallback.js sets. */
+.pm-no-has .pbd-design.pm-has-checked {
+    border-color: var(--pbd-blue);
+    background: var(--pbd-blue-soft);
+    box-shadow: 0 0 0 1px var(--pbd-blue);
+}
 
 .pbd-design:has(input:focus-visible) {
+    outline: 2px solid var(--pbd-blue);
+    outline-offset: 2px;
+}
+/* Older browsers without :has(): the same, from the class wwwroot/js/core/has-fallback.js sets. */
+.pm-no-has .pbd-design.pm-has-focus-visible {
     outline: 2px solid var(--pbd-blue);
     outline-offset: 2px;
 }
