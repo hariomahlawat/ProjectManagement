@@ -101,6 +101,17 @@ its npm package by hand; the libman entry records the version.
   - **Changing the design** keeps every word, replaces only the design's own parts, keeps
     anything the user added, and offers Undo.
   - **Title:** a card's automatic title is its occasion ("Raising Day Dinner card").
+  - **Logo** (PR 7): Card details has a **Logo** section. It names the current logo and offers:
+    - Crests and logos (the SDD logo and any uploaded crests) to pick from;
+    - **Your own logo…**: a PNG, JPG or WEBP read in this browser like a photo, kept with the
+      draft, never sent to PRISM; a PNG keeps its clear background in the PNG and PDF;
+    - **Add a second logo**: beside the first, or the two side by side when the first is in the
+      middle;
+    - **Remove logo**, with Undo.
+
+    The logo is the item with `role: "logo"`. Changing the design keeps it (placed and sized by
+    the new design), a removed logo stays removed, and a second logo (`role: "logo2"`) stays
+    where the user put it. A new card gets the SDD logo.
   - A plain collage has no Card button.
 - **Card sizes** ([ux/invitations-posters.md](ux/invitations-posters.md), PR 4). The page size
   menu (top bar and Page settings) groups every size: **Pages and screens** (the seven above),

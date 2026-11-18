@@ -310,6 +310,18 @@
     return Math.min(Math.sqrt(width * height / Math.SQRT2), Math.min(width, height) * 1.3) / 1000;
   }
 
+  /**
+   * Where the card's design puts a part (its logo, say), as an item made from the details:
+   * for a logo put back after it was removed. Null when the design has no such part.
+   */
+  function roleItem(collage, role, opts) {
+    const key = collage?.card?.design;
+    if (!DESIGNS[key]) return null;
+    const { card, ...rest } = collage;
+    const made = applyDesign({ ...rest, items: [] }, key, detailsOf(collage), opts);
+    return made.items.find((item) => item.role === role) || null;
+  }
+
   /** The unit's three colours from the details ("#7a1f2b #c9a54a #1d2c55"), each checked. */
   function colourList(text) {
     const given = String(text || '').trim().split(/[\s,]+/);
@@ -410,6 +422,14 @@
         const slot = { ...core.slotItem(newId(), place), role: 'photo' };
         const photo = framed.shift();
         made.push(photo ? { ...core.fillSlot(slot, photo.photo), crop: { ...(photo.crop || core.FULL_CROP) }, look: photo.look || 'none' } : slot);
+      } else if (part.kind === 'sticker' && part.role === 'logo' && collage.card) {
+        // An existing card keeps its logo (the SDD logo, a crest or the user's own), placed and
+        // sized by this design; a card whose logo was removed stays without one (PR 7).
+        const logo = (collage.items || []).find((item) => item.role === 'logo');
+        if (logo) {
+          const w = part.w * 1000 * unit;
+          made.push({ ...logo, id: newId(), x: part.x * width, y: part.y * height, width: w, angle: 0 });
+        }
       } else if (part.kind === 'sticker') {
         const w = part.w * 1000 * unit;
         made.push(core.stickerItem(newId(), part.sticker, { x: part.x * width, y: part.y * height, width: w, aspect: part.aspect }, { role: part.role }));
@@ -434,7 +454,8 @@
     }
     // Photos from the last design's frame with no frame here become the user's own.
     const leftOver = framed.map(({ role, ...item }) => item);
-    const own = (collage.items || []).filter((item) => !item.role);
+    // The user's own items, and a second logo they added, stay where they are.
+    const own = (collage.items || []).filter((item) => !item.role || item.role === 'logo2');
     return {
       ...collage,
       background: { ...design.background },
@@ -461,5 +482,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, fieldsOf, usesColours, colourList });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList });
 });

@@ -206,3 +206,23 @@ test('the Regimental band takes the unit\'s colours, and the parts that follow t
   assert.ok(designs.fieldsOf('bilingual').includes('occasionHi'));
   assert.ok(!designs.fieldsOf('classic').includes('occasionHi'));
 });
+
+test('a card keeps its logo when the design changes; a removed logo stays removed; a second logo stays put', () => {
+  const card = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
+  // The user's own logo in place of the SDD one, and a second logo beside it.
+  const own = card.items.map((item) => (item.role === 'logo' ? { ...core.photoItem(item.id, 'p9', 1.2, item), role: 'logo' } : item));
+  const second = { ...core.stickerItem('l2', 'unit:5', { x: 800, y: 150, width: 100, aspect: 1 }), role: 'logo2' };
+  const withOwn = { ...card, items: [...own, second] };
+  const navy = designs.applyDesign(withOwn, 'navy', designs.detailsOf(withOwn), { measure, newId });
+  const logo = navy.items.find((item) => item.role === 'logo');
+  assert.deepEqual([logo.kind, logo.photo, logo.aspect], ['photo', 'p9', 1.2]);
+  const logo2 = navy.items.find((item) => item.role === 'logo2');
+  assert.deepEqual([logo2.sticker, logo2.x], ['unit:5', 800], 'the second logo stays where the user put it');
+  // Removed: no logo comes back with the next design.
+  const without = { ...card, items: card.items.filter((item) => item.role !== 'logo') };
+  const regimental = designs.applyDesign(without, 'regimental', designs.detailsOf(without), { measure, newId });
+  assert.ok(!regimental.items.some((item) => item.role === 'logo'));
+  // Where the design would put a logo, for putting one back: the SDD logo's place.
+  const place = designs.roleItem(without, 'logo', { measure, newId });
+  assert.deepEqual([place.kind, place.sticker], ['sticker', 'logo:sdd']);
+});

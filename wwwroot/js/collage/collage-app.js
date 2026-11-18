@@ -916,7 +916,7 @@
 
   // Invitation cards: the start screen's designs and the Card details panel (collage-card.js).
   card = window.PrismCollageCard.createCard({
-    state, core, draw, designs: window.PrismCollageDesigns, ui, doc, history, messages, surface, selection, screens
+    state, core, draw, designs: window.PrismCollageDesigns, stickers, ui, doc, history, messages, surface, selection, screens, parts: laterParts
   });
   // The keyboard (shortcuts, nudges, Enter and Esc) and the mouse wheel (collage-keys.js).
   window.PrismCollageKeys.createKeys({

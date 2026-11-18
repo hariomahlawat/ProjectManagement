@@ -35,7 +35,7 @@
   const DEFAULT_CARD_SIZE = 'a5p';
 
   function createCard(deps) {
-    const { state, core, draw, designs, ui, doc, history, messages, surface, selection, screens } = deps;
+    const { state, core, draw, designs, stickers, ui, doc, history, messages, surface, selection, screens, parts } = deps;
     const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const form = ui.$('[data-card-form]');
     const strip = ui.$('[data-card-designs]');
@@ -232,7 +232,7 @@
       const design = state.collage?.card?.design;
       const shown = new Set(designs.fieldsOf(design, state.collage.size));
       const colours = designs.usesColours(design) ? colourFields(details.colours) : '';
-      form.innerHTML = colours + FORM.filter(([field]) => shown.has(field)).map(([field, label, long]) => {
+      form.innerHTML = logoSection() + colours + FORM.filter(([field]) => shown.has(field)).map(([field, label, long]) => {
         const id = `clgCard-${field}`;
         const value = escapeHtml(details[field] || '');
         const input = long
@@ -249,6 +249,132 @@
      * The design buttons, made once and then only marked: a held edit written when a button is
      * pressed redraws the panel, and a button replaced under the pointer would lose its click.
      */
+    // -------------------------------------------------------------------------
+    // The logo (PR 7): PRISM's SDD logo, a crest an administrator uploaded, or the user's own
+    // picture, kept in this browser like a photo. Changing the design keeps it.
+    // -------------------------------------------------------------------------
+
+    const logoOf = (collage) => collage.items.find((item) => item.role === 'logo') || null;
+
+    /** What the card's logo is, in words. */
+    function logoName(item) {
+      if (!item) return 'No logo';
+      if (item.kind === 'photo') return `Your own logo (${doc.photos.get(item.photo)?.name || 'picture'})`;
+      return stickers.find(item.sticker)?.label || 'Logo';
+    }
+
+    function logoSection() {
+      const current = logoOf(state.collage);
+      const second = state.collage.items.some((item) => item.role === 'logo2');
+      const choices = (stickers.groups()[0]?.items || []).map((entry) => {
+        const on = current?.sticker === entry.id;
+        return `<button type="button" class="clg-sticker clg-sticker--named${on ? ' is-on' : ''}" data-card-logo-use="${escapeHtml(entry.id)}" aria-pressed="${on}" title="${escapeHtml(entry.label)}" aria-label="Use ${escapeHtml(entry.label)}"><img src="${escapeHtml(surface.stickerSource({ sticker: entry.id, colour: '' }) || '')}" alt=""><span class="clg-sticker__name">${escapeHtml(entry.label)}</span></button>`;
+      }).join('');
+      return `<div class="clg-section clg-card-logo">
+          <p class="clg-section__title">Logo</p>
+          <p class="clg-hint" data-card-logo-name>${escapeHtml(logoName(current))}</p>
+          <div class="clg-stickers clg-card-logo__choices">${choices}</div>
+          <div class="clg-stack">
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="own"><i class="bi bi-upload" aria-hidden="true"></i> Your own logo…</button>
+            ${current && !second ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="second"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add a second logo</button>' : ''}
+            ${current ? '<button type="button" class="btn btn-outline-danger btn-sm" data-card-logo="remove"><i class="bi bi-x-lg" aria-hidden="true"></i> Remove logo</button>' : ''}
+          </div>
+          <p class="clg-hint">Your own logo stays in this browser, like your photos. A PNG keeps its clear background.</p>
+        </div>`;
+    }
+
+    /** Puts `make(place)` where the card's logo is, or where its design puts one. One Undo step. */
+    function setLogo(make, said) {
+      const current = logoOf(state.collage);
+      const place = current || designs.roleItem(state.collage, 'logo', options());
+      if (!place) return;
+      selection.select(null);
+      doc.edit((draft) => {
+        const fresh = { ...make({ x: place.x, y: place.y, width: place.width }), role: 'logo' };
+        const index = draft.items.findIndex((item) => item.role === 'logo');
+        if (index >= 0) draft.items.splice(index, 1, fresh);
+        else {
+          const own = draft.items.findIndex((item) => !item.role);
+          draft.items.splice(own < 0 ? draft.items.length : own, 0, fresh);
+        }
+      }, 'none');
+      history.commit();
+      surface.syncAll();
+      renderPanel();
+      messages.announce(said);
+    }
+
+    function useLogoSticker(id) {
+      const entry = stickers.find(id);
+      if (!entry) return;
+      setLogo((place) => core.stickerItem(doc.newItemId(), id, { ...place, aspect: entry.aspect || 1 }), `Logo: ${entry.label}.`);
+    }
+
+    // The user's own logo: PNG, JPEG or WEBP, read like a photo and kept with the draft.
+    const logoFile = document.createElement('input');
+    logoFile.type = 'file';
+    logoFile.accept = 'image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp';
+    logoFile.hidden = true;
+    logoFile.dataset.cardLogoFile = '';
+    ui.root.appendChild(logoFile);
+    logoFile.addEventListener('change', async () => {
+      const file = logoFile.files?.[0];
+      logoFile.value = '';
+      if (!file) return;
+      let type = null;
+      try { type = core.sniffImageType(new Uint8Array(await file.slice(0, 16).arrayBuffer())); } catch { type = null; }
+      if (!['png', 'jpeg', 'webp'].includes(type) || file.size > core.PHOTO_LIMITS.maxBytes) {
+        messages.showAlert('That file cannot be used as a logo. Choose a PNG, JPG or WEBP picture of at most 50 MB.');
+        return;
+      }
+      let photo;
+      try {
+        photo = await parts.readPhoto({ file, name: file.name || 'Logo' }, null, { count: doc.photos.size + 1 });
+      } catch {
+        messages.showAlert('That picture could not be read. Try another file.');
+        return;
+      }
+      doc.photos.set(photo.id, photo);
+      parts.renderTray();
+      setLogo((place) => core.photoItem(doc.newItemId(), photo.id, photo.aspect, place), 'Your own logo is on the card.');
+    });
+
+    /** A second logo beside the first: the two side by side when the first is in the middle. */
+    function addSecondLogo() {
+      const current = logoOf(state.collage);
+      if (!current) return;
+      const middle = Math.abs(current.x - core.PAGE_WIDTH / 2) < core.PAGE_WIDTH * 0.05;
+      const step = current.width * 0.75;
+      selection.select(null);
+      doc.edit((draft) => {
+        const first = draft.items.find((item) => item.role === 'logo');
+        const second = { ...first, id: doc.newItemId(), role: 'logo2' };
+        if (middle) {
+          first.x = core.PAGE_WIDTH / 2 - step;
+          second.x = core.PAGE_WIDTH / 2 + step;
+        } else {
+          second.x = core.PAGE_WIDTH - first.x;
+        }
+        draft.items.splice(draft.items.indexOf(first) + 1, 0, second);
+      }, 'none');
+      history.commit();
+      surface.syncAll();
+      renderPanel();
+      messages.announce('A second logo is on the card. Choose it on the page to change it.');
+    }
+
+    function removeLogo() {
+      if (!logoOf(state.collage)) return;
+      selection.select(null);
+      doc.edit((draft) => {
+        draft.items = draft.items.filter((item) => item.role !== 'logo');
+      }, 'none');
+      history.commit();
+      surface.syncAll();
+      renderPanel();
+      messages.offerUndo('Logo removed. It stays off when you change the design.');
+    }
+
     /** The unit's three colours, for a design with a band in them (Regimental). */
     function colourFields(text) {
       const colours = designs.colourList(text);
@@ -365,6 +491,15 @@
       if (event.target.dataset.cardField || event.target.dataset.cardColour) history.flushNudge();
     });
     form?.addEventListener('click', (event) => {
+      const use = event.target.closest('[data-card-logo-use]');
+      if (use) { useLogoSticker(use.dataset.cardLogoUse); return; }
+      const logo = event.target.closest('[data-card-logo]');
+      if (logo) {
+        if (logo.dataset.cardLogo === 'own') logoFile.click();
+        if (logo.dataset.cardLogo === 'second') addSecondLogo();
+        if (logo.dataset.cardLogo === 'remove') removeLogo();
+        return;
+      }
       const pick = event.target.closest('[data-card-pick]');
       if (!pick) return;
       const input = form.querySelector(`[data-card-field="${pick.dataset.cardPick}"]`);

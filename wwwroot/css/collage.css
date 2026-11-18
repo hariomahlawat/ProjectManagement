@@ -190,6 +190,15 @@
     margin: -0.25rem 0 0.7rem;
 }
 
+.clg-card-logo__choices {
+    margin-bottom: 0.5rem;
+}
+
+.clg-card-logo__choices .clg-sticker.is-on {
+    border-color: var(--clg-accent);
+    box-shadow: 0 0 0 2px var(--clg-accent);
+}
+
 .clg-card-colours__row {
     display: flex;
     gap: 0.9rem;
