@@ -388,7 +388,10 @@
       collage = frozen(core.applyLayout(collage, layoutKey, core.LAYOUT_LIMITS.defaultGap, 0, [], newItemId).collage);
     }
     if (designKey && window.PrismCollageDesigns.DESIGNS[designKey]) {
-      collage = frozen(window.PrismCollageDesigns.applyDesign(collage, designKey, window.PrismCollageDesigns.DEFAULT_DETAILS, { measure: measureText, newId: newItemId }));
+      const designs = window.PrismCollageDesigns;
+      // A poster starts with a poster's wording (PR 11).
+      const details = designs.DESIGNS[designKey].poster ? designs.POSTER_DETAILS : designs.DEFAULT_DETAILS;
+      collage = frozen(designs.applyDesign(collage, designKey, details, { measure: measureText, newId: newItemId }));
     }
     changes.start(collage);
     // A new draft: it is first stored once it has a photo.

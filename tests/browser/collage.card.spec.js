@@ -488,6 +488,36 @@ test('turning to the back keeps the card\'s own title, from its front', async ({
   await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
   expect(await title.getAttribute('placeholder')).toBe(before);
   expect(before).not.toMatch(/Programme/);
+});
+
+// Posters (docs/ux/invitations-posters.md, PR 11).
+test('a poster asks which logo; Decide later keeps its place; No logo moves the heading up; a logo picked brings its place back', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await expect(page.locator('[data-start-poster]')).toHaveCount(4);
+  await page.locator('[data-start-poster="notice"]').click();
+  await expect(page.locator('#clgCardTitle')).toHaveText('Poster details');
+  await expect(page.locator('.clg-rail [data-panel="card"] span')).toHaveText('Poster');
+  await expect(page.locator('[data-card-field="title"]')).toHaveValue('Annual Sports Meet 2026');
+  await expect(page.locator('.clg-card-question')).toContainText('Which logo goes on this poster?');
+  await expect(page.locator('[data-card-design]')).toHaveCount(4);
+  const titleY = async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'title')?.y;
+  // Decide later: the question goes, the logo's place stays (and the draft is written).
+  await page.locator('.clg-card-question [data-card-logo="later"]').click();
+  await expect(page.locator('.clg-card-question')).toHaveCount(0);
+  await expect.poll(titleY).toBeGreaterThan(0);
+  const before = await titleY();
+  expect((await newestDraft(page)).model.items.find((item) => item.role === 'logo').kind).toBe('slot');
+
+  // No logo: the heading moves up.
+  await page.locator('[data-card-logo="none"]').click();
+  await expect.poll(titleY).toBeLessThan(before);
+  expect((await newestDraft(page)).model.items.some((item) => item.role === 'logo')).toBe(false);
+
+  // The SDD logo picked: its place comes back and the heading goes back down.
+  await page.locator('[data-card-logo-use="logo:sdd"]').click();
+  await expect.poll(titleY).toBe(before);
+  expect((await newestDraft(page)).model.items.find((item) => item.role === 'logo').sticker).toBe('logo:sdd');
   expect(errors).toEqual([]);
 });
 

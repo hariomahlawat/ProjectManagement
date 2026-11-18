@@ -190,6 +190,15 @@
     margin: -0.25rem 0 0.7rem;
 }
 
+.clg-card-question {
+    margin: 0 0 0.6rem;
+    padding: 0.55rem 0.7rem;
+    border-left: 3px solid var(--clg-accent);
+    border-radius: 6px;
+    background: var(--bs-tertiary-bg);
+    font-size: 0.86rem;
+}
+
 .clg-card-logo__choices {
     margin-bottom: 0.5rem;
 }
