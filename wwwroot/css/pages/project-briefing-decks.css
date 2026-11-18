@@ -3913,6 +3913,21 @@ html.pm-no-has.pm-has-pbd-viewer-open {
     display: none;
 }
 
+/* "Room for N more", and a warning when the ticks are more than the deck can take. */
+.pbd-filter__room {
+    color: var(--pbd-muted);
+    font-size: .74rem;
+}
+
+.pbd-filter__room.is-over {
+    color: var(--pbd-red, var(--bs-danger));
+    font-weight: 700;
+}
+
+.pbd-filter__done {
+    align-self: center;
+}
+
 .pbd-filter__chips {
     display: flex;
     flex-wrap: wrap;

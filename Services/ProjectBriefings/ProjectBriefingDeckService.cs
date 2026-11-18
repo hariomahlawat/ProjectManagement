@@ -1060,7 +1060,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         var additions = validIds.Where(existing.Add).ToArray();
         if (deck.Items.Count + additions.Length > MaximumProjectsPerDeck)
         {
-            throw new InvalidOperationException($"A briefing deck can contain up to {MaximumProjectsPerDeck} projects. Remove projects or use a separate deck.");
+            throw new InvalidOperationException(TooManyProjectsMessage(deck.Items.Count, additions.Length));
         }
         if (additions.Length == 0)
         {
@@ -1138,7 +1138,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         var additions = validAdditions.Where(existing.Add).ToArray();
         if (deck.Items.Count + additions.Length > MaximumProjectsPerDeck)
         {
-            throw new InvalidOperationException($"A briefing deck can contain up to {MaximumProjectsPerDeck} projects. Remove projects or use a separate deck.");
+            throw new InvalidOperationException(TooManyProjectsMessage(deck.Items.Count, additions.Length));
         }
 
         if (removedItems.Length == 0 && additions.Length == 0)
@@ -1456,6 +1456,16 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
     // The most projects one deck can hold.
     public const int MaximumProjectsPerDeck = 120;
+
+    // How many more fit, and how many to leave out (cold review 2): "up to 120" alone left the
+    // person guessing which projects to untick.
+    internal static string TooManyProjectsMessage(int inDeck, int adding)
+    {
+        var room = Math.Max(0, MaximumProjectsPerDeck - inDeck);
+        return room == 0
+            ? $"This deck already holds {MaximumProjectsPerDeck} projects, the most a deck can hold. Remove some, or use a separate deck."
+            : $"This deck has room for {room} more {(room == 1 ? "project" : "projects")} (a deck holds up to {MaximumProjectsPerDeck}). Leave out {adding - room}, or use a separate deck.";
+    }
 
     public async Task<IReadOnlyList<ProjectBriefingDeletedDeckVm>> ListDeletedAsync(
         string requestingUserId,

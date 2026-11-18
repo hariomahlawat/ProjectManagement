@@ -104,6 +104,7 @@
     <div class="cw-workspace-content pbd-shell" data-pbd-root
           data-filter-url="@Url.Page("/Workspace/BriefingDecks/Index", "FilterProjects")"
           data-filter-options-url="@Url.Page("/Workspace/BriefingDecks/Index", "FilterOptions")"
+          data-max-projects="@ProjectBriefingDeckService.MaximumProjectsPerDeck"
           data-reorder-url="@Url.Page("/Workspace/BriefingDecks/Index", "Reorder")"
           data-membership-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateMembership")"
           data-description-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateDescription")"
@@ -931,6 +932,7 @@
                                         <div class="pbd-filter__footer-info">
                                             <p class="pbd-add-projects__status" data-pbd-add-projects-status aria-live="polite"></p>
                                             <button type="button" class="btn btn-link btn-sm pbd-filter__ticked" data-pbd-filter-ticked aria-pressed="false" disabled>Nothing ticked</button>
+                                            <span class="pbd-filter__room" data-pbd-filter-room aria-live="polite"></span>
                                         </div>
                                         <button type="button" class="btn btn-link btn-sm" data-pbd-filter-clear hidden>Clear ticks</button>
                                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-pbd-add-projects-done>Done</button>

@@ -110,6 +110,7 @@ public sealed class IndexModel : PageModel
         ongoingCount = options.OngoingCount,
         completedCount = options.CompletedCount,
         proliferationCount = options.ProliferationAvailableCount,
+        completedWithoutDateCount = options.CompletedWithoutDateCount,
         completionFinancialYears = options.MaximumCompletionFinancialYear < options.MinimumCompletionFinancialYear
             ? Array.Empty<object>()
             : Enumerable.Range(options.MinimumCompletionFinancialYear, options.MaximumCompletionFinancialYear - options.MinimumCompletionFinancialYear + 1)
@@ -653,6 +654,7 @@ public sealed class IndexModel : PageModel
 
         string message;
         string? addedRowVersion = null;
+        IReadOnlyList<int> addedProjectIds = Array.Empty<int>();
         try
         {
             // Only a deck this person may change runs the selection query (review 3 fixes, M4).
@@ -674,6 +676,7 @@ public sealed class IndexModel : PageModel
                 },
                 cancellationToken);
 
+            addedProjectIds = selection.ProjectIds;
             if (selection.ProjectIds.Count == 0)
             {
                 return Fail("No projects match the selected criteria.");
@@ -712,7 +715,12 @@ public sealed class IndexModel : PageModel
         if (isAjax)
         {
             var deck = await _dataService.GetDeckAsync(input.DeckId, userId, cancellationToken);
-            return new JsonResult(new { saved = true, message, rowVersion = addedRowVersion, deck });
+            // Ticked projects that could not be added (archived, deleted or cancelled since the list
+            // was shown), so the dialog can untick and name them (cold review 2, M4).
+            var skippedProjectIds = input.Kind == ProjectBriefingSelectionKind.IndividualProjects
+                ? input.ProjectIds.Where(id => id > 0).Distinct().Except(addedProjectIds).ToArray()
+                : Array.Empty<int>();
+            return new JsonResult(new { saved = true, message, rowVersion = addedRowVersion, deck, skippedProjectIds });
         }
 
         StatusMessage = message;

@@ -15,7 +15,9 @@ const rawSource = fs.readFileSync(
   path.resolve(__dirname, '..', 'pages', 'project-briefing-decks.js'),
   'utf8');
 assert.ok(rawSource.includes(IMPORT_LINE), 'the page script still has the import this test replaces');
-const pageSource = rawSource.replace(IMPORT_LINE, 'const prismConfirm = async () => true;');
+const pageSource = rawSource.replace(IMPORT_LINE, 'const prismConfirm = async () => true;')
+  // Add projects is its own module, tested by project-briefing-add-projects.test.js.
+  .replace("import { initAddProjects } from './project-briefing-add-projects.js';", 'const initAddProjects = () => null;');
 
 const blockRow = (type, name, { movable = true, optional = true, on = true } = {}) => `
   <li class="pbd-block ${on ? 'is-on' : 'is-off'}" data-pbd-block data-type="${type}" data-name="${name}"

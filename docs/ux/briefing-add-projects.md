@@ -78,3 +78,38 @@ UX 7, code 7.5. Fixed in two PRs.
 - Comments corrected.
 - Handler and edge-case tests added.
 
+
+## Second cold review (18 Nov 2026)
+
+UX 7, code 7.5, on new findings. Fixed in one PR.
+
+**The dialog script**
+- It moved to its own module, `project-briefing-add-projects.js`, with behaviour tests in a simulated browser (`project-briefing-add-projects.test.js`), instead of tests that matched the code's text.
+
+**The deck limit (120 projects)**
+- The footer says "Room for N more in this deck". When more are ticked, it reads "untick M" before Add.
+- Add sends nothing when the ticks do not fit.
+- The server's message now names the room left.
+
+**Loading the choices**
+- The choices say they are loading while they load.
+- A failed load says so, with Try again.
+
+**After an Add**
+- A refused Add leaves the deck "Saved" rather than "Not saved".
+- "In deck" always comes from the deck as the page knows it, so a late list reply cannot offer projects just added.
+- Ticked projects that the server could not add (archived, deleted or cancelled) are unticked and named.
+- Undo after an Add ticks those projects again.
+
+**Reviewing the ticks**
+- The filters wait while the ticks are reviewed.
+
+**Filter details**
+- The completed range is put the right way round where it shows.
+- The range lists the last ten financial years and the earliest.
+- The range panel says how many completed projects have no completion date.
+- The proliferation filter shows its count.
+- Each filter panel has a Close button, which helps on a phone.
+
+**Not changed**
+- The list reads ARPP entries only when the ARPP filter is set, and the choices once per opening; at about 200 projects that is cheap.
