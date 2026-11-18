@@ -641,7 +641,7 @@ test('add projects: one Add at a time, waiting for the shared handler to settle 
 
 test('add projects: the ticked projects can be reviewed whatever the filters (cold review, M2)', () => {
   const rows = source.slice(source.indexOf('const renderFilterRows'), source.indexOf('const loadFilterRows'));
-  assert.match(rows, /const rows = showTicked \? \[\.\.\.ticked\.values\(\)\] : filterRows;/);
+  assert.match(rows, /if \(ticked\.size === 0\) showTicked = false;\s*const rows = showTicked \? \[\.\.\.ticked\.values\(\)\] : filterRows;/);
   assert.match(source, /filterTickedLabel\?\.addEventListener\('click', \(\) => \{\s*if \(ticked\.size === 0\) return;\s*showTicked = !showTicked;/);
   assert.match(viewSource, /data-pbd-filter-ticked aria-pressed="false"/);
 });
