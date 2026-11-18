@@ -210,6 +210,10 @@
       flushNudge();
       stopAdjust();
       saveResult.hidden = true;
+      // The dialog names what is saved: a card, a poster, or a collage.
+      const design = designs?.DESIGNS?.[getCollage()?.card?.design];
+      const heading = saveDialog.querySelector('#clgSaveTitle');
+      if (heading) heading.textContent = design ? (design.poster ? 'Save the poster' : 'Save the card') : 'Save the collage';
       choosePurpose(rememberedPurpose());
       saveMore.open = rememberedMore();
       syncSaveDialog();

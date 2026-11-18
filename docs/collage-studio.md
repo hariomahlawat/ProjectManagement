@@ -89,10 +89,16 @@ its npm package by hand; the libman entry records the version.
   - **Card panel:** a card has a **Card** button at the top of the rail, which opens **Card
     details**. It has:
     - the designs, with the current one pressed;
-    - a field for each part of the wording: occasion (with quick picks such as Raising Day Dinner,
-      Barakhana and Change of Command), host, invitation line, guest's name (empty leaves a line
-      to write it on), the words before the occasion, date and time, venue, dress (with quick
-      picks), R.S.V.P. and the note at the bottom.
+    - first, under **Words**, a field for each part of the wording in the order the card reads:
+      host, invitation line, guest's name (empty leaves a line to write it on), the words before
+      the occasion, occasion (with quick picks such as Raising Day Dinner, Barakhana and Change of
+      Command), date and time, venue, dress (with quick picks, at least 36 px tall on a touch
+      screen), R.S.V.P. and the note at the bottom;
+    - then the logo, the back of the card, the unit colours and the guest list. A poster's panel
+      (**Poster details**) has no back or guest list, and its Save dialog says **Save the
+      poster** (a card's says **Save the card**).
+  - **Phones:** the start screen shows cards and posters first, as on a wide screen, each in one
+    row that scrolls sideways. The custom card size box closes with **Cancel** or Escape.
   - **Typing:** typing in a field changes the words on the card at once. They're kept in the
     draft, and recorded for Undo when typing pauses, as on the page. Words typed on the card show
     in the field the next time the panel is drawn. A field emptied takes its words off the card;
@@ -127,9 +133,10 @@ its npm package by hand; the libman entry records the version.
     `core.sheetLayout` and `core.cutMarks` work in mm.
 
     **Guest list** (PR 10): Card details has a **Guest list**. Names can be pasted or typed one
-    a line, or read from a .txt file (whole lines) or a .csv file (the first column; quotes
-    allowed). A first line "Name" is left out; there are at most 300 names of 120 characters
-    each. **Clear names** offers Undo. The names are kept in the card's `guests`, in the draft in
+    a line, or read from a .txt file (whole lines) or a .csv file (the column headed "Name" or
+    "Full name" when the first row has one, such as Rank, Name, Unit; otherwise the first column;
+    quotes allowed). A first line "Name" is left out; there are at most 300 names of 120
+    characters each, and names past 300 are counted and the user is told how many were left out. **Clear names** offers Undo. The names are kept in the card's `guests`, in the draft in
     this browser only, and stay through design changes.
 
     Saved as a PDF, **One card for each guest** puts each guest's name in the guest field (or in
@@ -157,8 +164,12 @@ its npm package by hand; the libman entry records the version.
     - **Your own logo…**: a PNG, JPG or WEBP read in this browser like a photo, kept with the
       draft, never sent to PRISM; a PNG keeps its clear background in the PNG and PDF;
     - **Add a second logo**: beside the first, or the two side by side when the first is in the
-      middle;
-    - **Remove logo**, with Undo.
+      middle. The second logo is named under the choices and has its own **Remove second logo**;
+    - **Remove logo**, with Undo. With two logos it is **Remove first logo**, and the second
+      becomes the card's logo in the logo's place.
+
+    The Regimental design's roundel behind the logo follows it: hidden with no logo, as wide as
+    both logos when there are two.
 
     The logo is the item with `role: "logo"`. Changing the design keeps it (placed and sized by
     the new design), a removed logo stays removed, and a second logo (`role: "logo2"`) stays

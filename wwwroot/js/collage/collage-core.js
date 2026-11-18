@@ -1410,9 +1410,11 @@
   /** The first line of the collage's first words (not a placeholder), shortened; '' if none. */
   function autoTitleFromText(items) {
     // A card is called by its occasion (docs/ux/invitations-posters.md, PR 5).
-    const occasion = (items || []).find((item) => item.kind === 'text' && item.field === 'occasion' && String(item.text || '').trim());
+    // A poster is called by its heading (PR 11).
+    const heading = (items || []).find((item) => item.kind === 'text' && item.field === 'title' && String(item.text || '').trim());
+    const occasion = heading || (items || []).find((item) => item.kind === 'text' && item.field === 'occasion' && String(item.text || '').trim());
     if (occasion) {
-      const named = `${String(occasion.text).split('\n').map((part) => part.trim()).find(Boolean)} card`;
+      const named = `${String(occasion.text).split('\n').map((part) => part.trim()).find(Boolean)} ${heading ? 'poster' : 'card'}`;
       return named.length > 40 ? `${named.slice(0, 39)}…` : named;
     }
     const placeholders = new Set(Object.values(TEXT_PLACEHOLDERS));
@@ -1860,24 +1862,54 @@
    * (`csv`: its first column, quotes allowed); blanks and a first line "Name" left out, each
    * trimmed to GUEST_LIMITS.length, at most GUEST_LIMITS.names.
    */
-  function guestNames(text, { csv = false } = {}) {
+  function guestNames(text, opts) {
+    return readGuests(text, opts).names;
+  }
+
+  /** The cells of one CSV row: quoted cells may hold commas, and a doubled quote is a quote. */
+  function csvCells(line) {
+    const cells = [];
+    let cell = '';
+    let quoted = false;
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i];
+      if (quoted) {
+        if (ch === '"' && line[i + 1] === '"') { cell += '"'; i += 1; }
+        else if (ch === '"') quoted = false;
+        else cell += ch;
+      } else if (ch === '"' && !cell.trim()) { cell = ''; quoted = true; }
+      else if (ch === ',') { cells.push(cell); cell = ''; }
+      else cell += ch;
+    }
+    cells.push(cell);
+    return cells;
+  }
+
+  /**
+   * The guest list read from text, one name a line, with how many names did not fit (past
+   * GUEST_LIMITS.names). A CSV takes the column headed "Name" when its first row names one
+   * (a list of Rank, Name, Unit), otherwise its first column; a first line "Name" is a heading.
+   */
+  function readGuests(text, { csv = false } = {}) {
     const lines = String(text || '').split(/\r?\n/);
     const names = [];
+    let column = 0;
+    let first = true;
+    let over = 0;
     for (const line of lines) {
-      let name = line.trim();
-      if (csv && name.startsWith('"')) {
-        // A quoted first column ("Brig P. Singh, SM",…); a doubled quote is a quote.
-        const match = /^"((?:[^"]|"")*)"/.exec(name);
-        name = match ? match[1].replace(/""/g, '"') : name.slice(1);
-      } else if (csv) {
-        name = name.split(',')[0];
+      if (!line.trim()) continue;
+      const cells = csv ? csvCells(line) : [line];
+      if (first) {
+        first = false;
+        const heading = cells.findIndex((cell) => /^\s*(full\s+)?names?\s*$/i.test(cell));
+        if (heading >= 0) { column = heading; continue; }
       }
-      name = name.replace(/\s+/g, ' ').trim().slice(0, GUEST_LIMITS.length);
-      if (!name || (!names.length && /^names?$/i.test(name))) continue;
+      const name = String(cells[column] ?? '').replace(/\s+/g, ' ').trim().slice(0, GUEST_LIMITS.length);
+      if (!name) continue;
+      if (names.length >= GUEST_LIMITS.names) { over += 1; continue; }
       names.push(name);
-      if (names.length >= GUEST_LIMITS.names) break;
     }
-    return names;
+    return { names, over };
   }
 
   /**
@@ -2153,6 +2185,7 @@
     sheetLayout,
     GUEST_LIMITS,
     guestNames,
+    readGuests,
     cutMarks,
     decodeSize,
     itemsToSave,

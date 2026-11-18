@@ -1402,6 +1402,12 @@ test('guest names come one a line from pasted text, or the first column of a CSV
   const many = Array.from({ length: 400 }, (_, i) => `Guest ${i}`).join('\n');
   assert.equal(collage.guestNames(many).length, collage.GUEST_LIMITS.names);
   assert.equal(collage.guestNames('x'.repeat(500))[0].length, collage.GUEST_LIMITS.length);
+  // Names past the limit are counted, so the list can say how many were left out.
+  assert.deepEqual(collage.readGuests(many).over, 400 - collage.GUEST_LIMITS.names);
+  assert.equal(collage.readGuests('Maj A').over, 0);
+  // A CSV whose first row heads a Name column takes that column, not the rank before it.
+  assert.deepEqual(collage.guestNames('Rank,Name,Unit\nBrig,"P. Singh, SM",5 Sikh\nCol,D. Nair,', { csv: true }), ['P. Singh, SM', 'D. Nair']);
+  assert.deepEqual(collage.guestNames('Full name\nMaj A', { csv: true }), ['Maj A']);
   // A draft keeps the list, cleaned the same way.
   const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: {}, guests: ['Col D. Nair', '', 7, 'Maj B'] } }, []);
   assert.deepEqual(read.card.guests, ['Col D. Nair', 'Maj B']);

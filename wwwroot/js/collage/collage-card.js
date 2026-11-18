@@ -14,11 +14,11 @@
 
   /** The Card details form: each field's label, and whether it takes more than one line. */
   const FORM = Object.freeze([
-    ['occasion', 'Occasion'],
     ['host', 'Host', true],
     ['invite', 'Invitation line'],
     ['guest', 'Guest’s name (leave empty for a line to write it on)'],
     ['at', 'Before the occasion'],
+    ['occasion', 'Occasion'],
     ['when', 'Date and time'],
     ['venue', 'Venue'],
     ['dress', 'Dress'],
@@ -209,11 +209,20 @@
       renderStart();
       messages.announce(`Card size: ${core.sizeOf(answer.key).label}.`);
     }
+    /** Cancel or Escape: the box closes and the menu keeps the size it had; focus goes back to it. */
+    function closeCustomBox() {
+      customBox.hidden = true;
+      customBox.querySelector('[data-card-custom-error]').hidden = true;
+      startSize.value = lastSize;
+      startSize.focus();
+    }
     customBox?.addEventListener('click', (event) => {
       if (event.target.closest('[data-card-custom-use]')) useCustomCardSize();
+      if (event.target.closest('[data-card-custom-cancel]')) closeCustomBox();
     });
     customBox?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && event.target.matches('[data-card-custom-size]')) { event.preventDefault(); useCustomCardSize(); }
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeCustomBox(); }
     });
     posterSize?.addEventListener('change', () => renderStart());
     posterGrid?.addEventListener('click', (event) => {
@@ -264,6 +273,8 @@
       const word = isPoster() ? 'Poster' : 'Card';
       const title = ui.$('#clgCardTitle');
       if (title) title.textContent = `${word} details`;
+      const hint = ui.$('[data-card-hint]');
+      if (hint) hint.textContent = `Type here, or click any words on the ${word.toLowerCase()}. Changing the design keeps every word.`;
       const label = railButton?.querySelector('span');
       if (label) label.textContent = word;
       // Drawn again unless a field in it is being typed in; a focused button keeps its focus.
@@ -297,7 +308,8 @@
       const colours = designs.usesColours(design) ? colourFields(details.colours) : '';
       // The logo is the front's: changed with the front showing.
       const logo = state.collage.side === 'back' ? '<p class="clg-hint">Turn to the front to change the logo.</p>' : logoSection();
-      form.innerHTML = sidesSection() + logo + colours + guestSection() + FORM.filter(([field]) => shown.has(field)).map(([field, label, long]) => {
+      const poster = isPoster();
+      const fields = FORM.filter(([field]) => shown.has(field)).map(([field, label, long]) => {
         const id = `clgCard-${field}`;
         const value = escapeHtml(details[field] || '');
         const input = long
@@ -307,6 +319,8 @@
         const chips = picks ? `<div class="clg-chips clg-card-picks">${picks.map((pick) => `<button type="button" class="clg-chip" data-card-pick="${field}" data-value="${escapeHtml(pick)}">${escapeHtml(pick.replace(/^Dress: /, ''))}</button>`).join('')}</div>` : '';
         return `<label class="clg-field" for="${id}"><span class="clg-field__label">${escapeHtml(label)}</span>${input}</label>${chips}`;
       }).join('');
+      form.innerHTML = `<div class="clg-section clg-card-words"><p class="clg-section__title">Words</p>${fields}</div>`
+        + logo + (poster && !state.collage.back ? '' : sidesSection()) + colours + (poster ? '' : guestSection());
       renderStrip();
     }
 
@@ -326,7 +340,10 @@
 
     /** What the card's logo is, in words. */
     function logoName(item) {
-      if (!item || item.kind === 'slot') return isPoster() && item ? 'No logo chosen yet: the place for it is left out of Save.' : 'No logo';
+      if (!item || item.kind === 'slot') {
+        if (!isPoster()) return 'No logo';
+        return designs.detailsOf(state.collage).logoMode === 'none' ? 'No logo on this poster.' : 'No logo chosen yet. Its place on the page is left out of Save.';
+      }
       if (item.kind === 'photo') return `Your own logo (${doc.photos.get(item.photo)?.name || 'picture'})`;
       return stickers.find(item.sticker)?.label || 'Logo';
     }
@@ -337,7 +354,8 @@
       // A poster asks which logo, until one is chosen, none is, or it is left for later (PR 11).
       const asking = isPoster() && !first && !mode;
       const question = asking ? `<p class="clg-card-question" role="note"><b>Which logo goes on this poster?</b> Pick one below, use your own, or choose <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-card-logo="none">No logo</button> or <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-card-logo="later">Decide later</button>.</p>` : '';
-      const second = state.collage.items.some((item) => item.role === 'logo2');
+      const secondItem = state.collage.items.find((item) => item.role === 'logo2') || null;
+      const second = Boolean(secondItem);
       const role = targetRole();
       const current = role === 'logo2' ? state.collage.items.find((item) => item.role === 'logo2') : first;
       // With two logos, which one the choices below change.
@@ -358,6 +376,7 @@
             ${current ? `<button type="button" class="btn btn-outline-danger btn-sm" data-card-logo="remove"><i class="bi bi-x-lg" aria-hidden="true"></i> ${!second ? 'Remove logo' : role === 'logo2' ? 'Remove second logo' : 'Remove first logo'}</button>` : ''}
             ${isPoster() && !first && mode !== 'none' && !asking ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="none">No logo</button>' : ''}
           </div>
+          ${secondItem ? `<p class="clg-hint clg-card-logo__second" data-card-logo2-name>Second logo: ${escapeHtml(logoName(secondItem))}. Pick First logo or Second logo above to change or remove one; choose it on the page to move or resize it.</p>` : ''}
           <p class="clg-hint">Your own logo stays in this browser, like your photos. A PNG keeps its clear background.</p>
         </div>`;
     }
@@ -388,11 +407,41 @@
       }, 'none');
       // The heading moves back down to make room; nothing else changes.
       if (wasNone) doc.edit((draft) => designs.moveForLogo(before, draft, options()), 'none');
+      fitRoundel();
       followLogoOnBack();
       history.commit();
       surface.syncAll();
       renderPanel();
       messages.announce(said);
+    }
+
+    /**
+     * The design's roundel behind the logo (Regimental) follows the logos: hidden with none, as
+     * wide as both when there are two, back to its design size with one. Inside the same change.
+     */
+    function fitRoundel() {
+      const made = designs.roleItem(state.collage, 'roundel', options());
+      doc.edit((draft) => {
+        const roundel = draft.items.find((item) => item.role === 'roundel' && !item.locked);
+        if (!roundel || !made) return;
+        const logo = draft.items.find((item) => item.role === 'logo' && item.kind !== 'slot');
+        const second = draft.items.find((item) => item.role === 'logo2');
+        if (!logo) { roundel.hidden = true; return; }
+        delete roundel.hidden;
+        if (second) {
+          const left = Math.min(logo.x - logo.width / 2, second.x - second.width / 2);
+          const right = Math.max(logo.x + logo.width / 2, second.x + second.width / 2);
+          const width = Math.max(made.width, right - left + made.width * 0.35);
+          const height = made.width / made.aspect;
+          roundel.x = (left + right) / 2;
+          roundel.width = width;
+          roundel.aspect = width / height;
+        } else {
+          roundel.x = logo.x;
+          roundel.width = made.width;
+          roundel.aspect = made.aspect;
+        }
+      }, 'none');
     }
 
     /**
@@ -509,6 +558,7 @@
         }
         draft.items.splice(draft.items.indexOf(first) + 1, 0, second);
       }, 'none');
+      fitRoundel();
       history.commit();
       surface.syncAll();
       renderPanel();
@@ -533,30 +583,73 @@
 
     /**
      * Removes the logo picked above the choices. The second goes on its own; the first, with a
-     * second on the card, leaves the second as the card's logo, so the card keeps a logo to
-     * change or remove.
+     * second on the card, leaves the second as the card's logo, in the logo's place, so the card
+     * keeps a logo to change or remove. A locked logo stays until it is unlocked.
      */
     function removeLogo() {
       const role = targetRole();
       const target = state.collage.items.find((item) => item.role === role);
       if (!target) return;
       if (target.locked) { messages.sayLocked(); return; }
-      const promoting = role === 'logo' && state.collage.items.some((item) => item.role === 'logo2');
+      if (role === 'logo2') { removeSecondLogo(); return; }
+      if (state.collage.items.some((item) => item.role === 'logo2')) { promoteSecond(); return; }
       // A poster's only logo removed: "No logo", so its design closes the gap (PR 11).
-      if (isPoster() && role === 'logo' && !promoting) { setLogoMode('none'); return; }
+      if (isPoster()) { setLogoMode('none'); return; }
       selection.select(null);
       doc.edit((draft) => {
-        draft.items = draft.items.filter((item) => item.role !== role);
-        if (promoting) draft.items = draft.items.map((item) => (item.role === 'logo2' ? { ...item, role: 'logo' } : item));
+        draft.items = draft.items.filter((item) => item.role !== 'logo');
       }, 'none');
       logoTarget = 'logo';
+      fitRoundel();
       followLogoOnBack();
       history.commit();
       surface.syncAll();
       renderPanel();
-      messages.offerUndo(role === 'logo2' ? 'Second logo removed.'
-        : promoting ? "First logo removed. The second is now the card's logo."
-        : 'Logo removed. It stays off when you change the design.');
+      messages.offerUndo('Logo removed. It stays off when you change the design.');
+    }
+
+    // Whether the design's logo sits in the middle of the page (two logos then share the middle).
+    const inMiddle = (item) => Boolean(item) && Math.abs(item.x - core.PAGE_WIDTH / 2) < core.PAGE_WIDTH * 0.05;
+
+    /** The first of two logos removed: the second becomes the card's logo, in the logo's place. */
+    function promoteSecond() {
+      const place = designs.roleItem(state.collage, 'logo', options());
+      selection.select(null);
+      doc.edit((draft) => {
+        const first = draft.items.find((item) => item.role === 'logo');
+        const second = draft.items.find((item) => item.role === 'logo2');
+        const x = inMiddle(place) ? place.x : first.x;
+        const promoted = second.locked ? { ...second, role: 'logo' } : { ...second, role: 'logo', x, y: first.y };
+        draft.items = draft.items.filter((item) => item !== second);
+        draft.items.splice(draft.items.findIndex((item) => item.role === 'logo'), 1, promoted);
+      }, 'none');
+      logoTarget = 'logo';
+      fitRoundel();
+      followLogoOnBack();
+      history.commit();
+      surface.syncAll();
+      renderPanel();
+      messages.offerUndo("First logo removed. The second is now the card's logo.");
+    }
+
+    function removeSecondLogo() {
+      const second = state.collage.items.find((item) => item.role === 'logo2');
+      if (!second) return;
+      if (second.locked) { messages.sayLocked(); return; }
+      const place = designs.roleItem(state.collage, 'logo', options());
+      selection.select(null);
+      doc.edit((draft) => {
+        draft.items = draft.items.filter((item) => item.role !== 'logo2');
+        const first = draft.items.find((item) => item.role === 'logo');
+        // The first logo goes back to the middle when the two shared it.
+        if (first && !first.locked && inMiddle(place)) first.x = place.x;
+      }, 'none');
+      logoTarget = 'logo';
+      fitRoundel();
+      history.commit();
+      surface.syncAll();
+      renderPanel();
+      messages.offerUndo('Second logo removed.');
     }
 
     // -------------------------------------------------------------------------
@@ -630,7 +723,7 @@
 
     /** Sets the guest list from text (pasted, typed, or a file's); kept with the draft, recorded for Undo. */
     function setGuests(text, { csv = false, held = false } = {}) {
-      const guests = core.guestNames(text, { csv });
+      const { names: guests, over } = core.readGuests(text, { csv });
       doc.edit((draft) => {
         const card = { ...(draft.card || { design: 'classic', details: {} }) };
         if (guests.length) card.guests = guests;
@@ -640,7 +733,10 @@
       if (held) history.holdEdit();
       else history.commit();
       const count = form.querySelector('[data-card-guest-count]');
-      if (count) (count.textContent = guests.length ? `${guests.length} guest${guests.length === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it. The names stay in this browser.` : 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.');
+      const left = over ? ` Only the first ${core.GUEST_LIMITS.names} are kept: ${over} name${over === 1 ? ' was' : 's were'} left out.` : '';
+      if (count) (count.textContent = guests.length ? `${guests.length} guest${guests.length === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it.${left} The names stay in this browser.` : 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.');
+      if (over && !held) messages.showAlert(`Only the first ${core.GUEST_LIMITS.names} names are kept. ${over} name${over === 1 ? ' was' : 's were'} left out: make a second card for them.`);
+      else if (over) messages.announce(`Only the first ${core.GUEST_LIMITS.names} names are kept. ${over} left out.`);
       return guests;
     }
 

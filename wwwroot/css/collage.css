@@ -240,20 +240,33 @@
         min-height: 150px;
     }
 
-    /* On a phone the blank pages stay near the top (docs/ux/collage-review-3-fixes.md, PR 8);
-       the cards come after them, before the credits. */
-    .clg-start[data-view="start"]:not([hidden]) {
-        display: flex;
-        flex-direction: column;
+    /* On a phone, cards and posters come first, as on a wide screen, each in one row that scrolls
+       sideways, so the layouts and blank pages stay close below (cold review, 19 Nov). */
+    .clg-start-cards .clg-design-grid {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scroll-snap-type: x proximity;
+        gap: 0.6rem;
+        padding-bottom: 0.4rem;
+        overscroll-behavior-x: contain;
     }
 
-    .clg-start-cards {
-        order: 1;
-        margin-top: 1rem;
+    .clg-start-cards .clg-design-card {
+        flex: 0 0 40%;
+        width: auto;
+        scroll-snap-align: start;
     }
 
-    .clg-credits-link {
-        order: 2;
+    .clg-start-cards .clg-design-card__pic {
+        min-height: 0;
+    }
+}
+
+/* Quick picks big enough to touch (cold review, 19 Nov). */
+@media (pointer: coarse) {
+    .clg-card-picks .clg-chip {
+        min-height: 36px;
+        padding-inline: 0.7rem;
     }
 }
 

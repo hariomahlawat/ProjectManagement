@@ -444,8 +444,9 @@ test('a folded card has an outside and an inside in every design, each panel wit
     for (const size of ['fold6', 'fold5']) {
       const card = designs.applyDesign(core.newCollage(size), key, {}, { measure, newId });
       assert.ok(card.back, `${key} ${size}: both sides`);
-      const occasion = card.items.find((item) => item.field === 'occasion');
-      assert.ok(occasion.x > core.PAGE_WIDTH / 2, `${key}: the occasion on the front cover, the right panel`);
+      const host = card.items.find((item) => item.field === 'host');
+      assert.ok(host.x > core.PAGE_WIDTH / 2, `${key}: the host on the front cover, the right panel`);
+      assert.ok(card.back.items.some((item) => item.field === 'occasion'), `${key}: the occasion inside, after "at the"`);
       assert.ok(card.back.items.some((item) => item.field === 'when'), `${key}: the details inside`);
       // No words cross the fold.
       for (const item of [...card.items, ...card.back.items].filter((i) => i.kind === 'text')) {
@@ -470,7 +471,8 @@ test('a field\'s side comes from the design: a programme card\'s programme is on
   assert.equal(designs.fieldItem(card, 'programme', { ...designs.detailsOf(card), programme: '1900 h · Arrival' }, { measure, newId }).text, '1900 h · Arrival');
   const folded = designs.applyDesign(core.newCollage('fold6'), 'classic', {}, { measure, newId });
   assert.equal(designs.sideOf(folded, 'guest'), 'back');
-  assert.equal(designs.sideOf(folded, 'occasion'), 'front');
+  assert.equal(designs.sideOf(folded, 'occasion'), 'back');
+  assert.equal(designs.sideOf(folded, 'host'), 'front');
   assert.ok(designs.fieldsOnCard(folded).includes('when'));
   const flat = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
   assert.equal(designs.sideOf(flat, 'programme'), 'back');
@@ -519,4 +521,26 @@ test('a locked back logo keeps its lock and turn when the card is resized', () =
   const backLogo = resized.back.items.find((item) => item.role === 'backlogo');
   assert.equal(backLogo.locked, true);
   assert.equal(backLogo.angle, 12);
+});
+
+// A draft reopened draws every design's words the same size (a ten-line programme stays ten lines).
+test('every design and its back read back from a draft unchanged, a long programme included', () => {
+  const programme = Array.from({ length: 10 }, (_, i) => `${18 + i}00 h  Item ${i + 1} of the evening`).join('\n');
+  for (const key of Object.keys(designs.DESIGNS).filter((each) => !designs.DESIGNS[each].poster)) {
+    const size = designs.DESIGNS[key].pocket ? pocketSizes[0] : 'a5p';
+    const front = designs.applyDesign(core.newCollage(size), key, { programme }, { measure, newId });
+    const card = designs.DESIGNS[key].pocket ? front : designs.addBack(front, { measure, newId });
+    const read = core.readDraftModel(JSON.parse(JSON.stringify(card)), []);
+    assert.ok(read, `${key}: the draft reads back`);
+    for (const [before, after] of [[card.items, read.items], [card.back?.items || [], read.back?.items || []]]) {
+      for (const item of before.filter((each) => each.kind === 'text')) {
+        const again = after.find((each) => each.id === item.id);
+        assert.ok(again, `${key}: ${item.field} kept`);
+        assert.equal(again.maxLines, item.maxLines, `${key}: ${item.field} keeps its lines`);
+        const was = core.layoutText(item, measure);
+        const now = core.layoutText(again, measure);
+        assert.ok(Math.abs(was.size - now.size) < 0.01, `${key}: ${item.field} drawn at ${now.size}, was ${was.size}`);
+      }
+    }
+  }
 });

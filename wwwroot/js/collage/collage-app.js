@@ -391,7 +391,7 @@
     if (designKey && window.PrismCollageDesigns.DESIGNS[designKey]) {
       const designs = window.PrismCollageDesigns;
       // A poster starts with a poster's wording (PR 11).
-      const details = designs.DESIGNS[designKey].poster ? designs.POSTER_DETAILS : designs.DEFAULT_DETAILS;
+      const details = designs.startDetails(designKey);
       collage = frozen(designs.applyDesign(collage, designKey, details, { measure: measureText, newId: newItemId }));
     }
     changes.start(collage);

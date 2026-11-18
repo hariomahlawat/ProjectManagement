@@ -256,15 +256,17 @@
       portrait: [
         border('border', 0.03, GOLD, 1.5),
         logo(0.5, 0.11, 0.09),
-        vline('divider', 0.5, 0.42, 0.42, GOLD, 1.2),
-        words('hostHi', 0.26, 0.27, 0.42, 24, { font: 'hindiFormal', color: INK, bold: false }, { lines: 3 }),
-        words('inviteHi', 0.26, 0.37, 0.42, 22, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
-        words('occasionHi', 0.26, 0.48, 0.42, 38, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
-        words('host', 0.74, 0.27, 0.42, 20, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
-        words('invite', 0.74, 0.37, 0.42, 20, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
-        words('occasion', 0.74, 0.48, 0.42, 34, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
-        rule('guestline', 0.5, 0.7, 0.62, INK, 1.5),
-        words('guest', 0.5, 0.685, 0.62, 32, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+        vline('divider', 0.5, 0.3, 0.17, GOLD, 1.2),
+        words('hostHi', 0.26, 0.26, 0.42, 22, { font: 'hindiFormal', color: INK, bold: false }, { lines: 3 }),
+        words('inviteHi', 0.26, 0.35, 0.42, 20, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
+        words('host', 0.74, 0.26, 0.42, 19, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
+        words('invite', 0.74, 0.35, 0.42, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
+        rule('guestline', 0.5, 0.45, 0.62, INK, 1.5),
+        words('guest', 0.5, 0.435, 0.62, 30, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+        words('at', 0.5, 0.5, 0.3, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
+        vline('divider2', 0.5, 0.6, 0.1, GOLD, 1.2),
+        words('occasionHi', 0.26, 0.6, 0.42, 34, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 3 }),
+        words('occasion', 0.74, 0.6, 0.42, 30, { font: 'elegant', color: MAROON, bold: true }, { lines: 3 }),
         words('when', 0.5, 0.76, 0.84, 24, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
         words('venue', 0.5, 0.8, 0.84, 22, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
         words('dress', 0.5, 0.84, 0.84, 21, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
@@ -274,13 +276,14 @@
       landscape: [
         border('border', 0.03, GOLD, 1.5),
         logo(0.5, 0.14, 0.11),
-        vline('divider', 0.5, 0.47, 0.36, GOLD, 1.2),
-        words('hostHi', 0.27, 0.3, 0.4, 22, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
-        words('inviteHi', 0.27, 0.42, 0.4, 20, { font: 'hindiFormal', color: INK, bold: false }, { lines: 1 }),
-        words('occasionHi', 0.27, 0.54, 0.4, 34, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
-        words('host', 0.73, 0.3, 0.4, 19, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
-        words('invite', 0.73, 0.42, 0.4, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
-        words('occasion', 0.73, 0.54, 0.4, 31, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+        vline('divider', 0.5, 0.34, 0.2, GOLD, 1.2),
+        words('hostHi', 0.27, 0.29, 0.4, 20, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
+        words('inviteHi', 0.27, 0.4, 0.4, 18, { font: 'hindiFormal', color: INK, bold: false }, { lines: 1 }),
+        words('host', 0.73, 0.29, 0.4, 18, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
+        words('invite', 0.73, 0.4, 0.4, 18, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
+        vline('divider2', 0.5, 0.6, 0.12, GOLD, 1.2),
+        words('occasionHi', 0.27, 0.6, 0.4, 28, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
+        words('occasion', 0.73, 0.6, 0.4, 26, { font: 'elegant', color: MAROON, bold: true }, { lines: 3 }),
         words('when', 0.5, 0.72, 0.84, 21, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
         words('venue', 0.5, 0.78, 0.84, 20, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
         words('dress', 0.5, 0.835, 0.84, 19, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
@@ -312,6 +315,7 @@
       label: 'Notice',
       note: 'Plain and official',
       poster: true,
+      sample: { title: 'Annual Medical Examination', subtitle: 'For all ranks of the Division', when: 'Monday, 8 December 2026 · 0900 h to 1300 h', venue: 'Medical Inspection Room, SDD Campus', lines: 'Bring your medical documents' + String.fromCharCode(10) + 'Report fasting for the blood test' + String.fromCharCode(10) + 'Section by section, as listed on the unit notice board', contact: 'Medical Officer · Ext 2205' },
       background: { type: 'color', value: '#ffffff' },
       portrait: [
         block('bar', 0.5, 0.008, 1, 0.016, { fill: MAROON, stroke: '' }),
@@ -330,6 +334,7 @@
       label: 'With a photo',
       note: 'Farewell or felicitation',
       poster: true,
+      sample: { title: 'Farewell', subtitle: 'Col R. K. Verma, on superannuation', when: 'Friday, 19 December 2026 · 1830 h', venue: 'Officers’ Mess, SDD Campus', contact: 'Adjutant · Ext 2241' },
       background: { type: 'color', value: '#f6efe3' },
       portrait: [
         logoPlace(0.5, 0.07, 0.1, 0.6),
@@ -346,6 +351,7 @@
       label: 'Talk or seminar',
       note: 'Speaker and topic',
       poster: true,
+      sample: { title: 'Simulation in Training: Lessons from the Field', subtitle: 'A talk by Col A. Sharma, Simulator Development Division', when: 'Thursday, 4 December 2026 · 1500 h', venue: 'Auditorium, SDD Campus', lines: '22 years of simulator design' + String.fromCharCode(10) + 'Questions after the talk' + String.fromCharCode(10) + 'Tea at 1630 h', contact: 'Training Officer · Ext 2230' },
       background: { type: 'color', value: '#ffffff' },
       portrait: [
         block('lower', 0.5, 0.79, 1, 0.42, { fill: '#e9eef6', stroke: '' }),
@@ -540,6 +546,13 @@
     const given = String(text || '').trim().split(/[\s,]+/);
     const fallback = DEFAULT_DETAILS.colours.split(' ');
     return [0, 1, 2].map((i) => (/^#[0-9a-f]{6}$/i.test(given[i] || '') ? given[i].toLowerCase() : fallback[i]));
+  }
+
+  /** What a new card or poster in this design starts with: the general wording, then the design's own. */
+  function startDetails(designKey) {
+    const design = DESIGNS[designKey];
+    if (!design) return DEFAULT_DETAILS;
+    return { ...(design.poster ? POSTER_DETAILS : DEFAULT_DETAILS), ...(design.sample || {}) };
   }
 
   /** The designs offered for a size: the pocket designs for a pocket card, the others otherwise. */
@@ -801,28 +814,29 @@
     if (side === 'outside') {
       return [
         panelBorder('coverborder', 0.75),
-        logo(0.75, 0.24, 0.13),
-        words('occasion', 0.75, 0.52, 0.38, 46, { font: 'elegant', color: look.title, bold: true }, { lines: 3 }),
-        rule('coverrule', 0.75, 0.66, 0.12, look.accent, 2),
+        logo(0.75, 0.26, 0.13),
+        words('host', 0.75, 0.52, 0.38, 24, { font: 'elegant', color: look.title, bold: true, spacing: 6 }, { lines: 3 }),
+        rule('coverrule', 0.75, 0.64, 0.12, look.accent, 2),
         words('note', 0.25, 0.82, 0.36, 18, { font: 'elegant', color: look.ink, bold: false, italic: true }, { lines: 2 })
       ];
     }
     return [
       panelBorder('innerborder', 0.25),
       panelBorder('innerborder2', 0.75),
-      words('host', 0.25, 0.24, 0.38, 22, { font: 'elegant', color: look.ink, bold: true }, { lines: 3 }),
-      words('invite', 0.25, 0.38, 0.38, 26, { font: 'script', color: look.accent, bold: false }, { lines: 2 }),
+      words('invite', 0.25, 0.36, 0.38, 26, { font: 'script', color: look.accent, bold: false }, { lines: 2 }),
       rule('guestline', 0.25, 0.53, 0.32, look.ink, 1.5),
       words('guest', 0.25, 0.51, 0.32, 28, { font: 'script', color: look.ink, bold: false }, { lines: 1 }),
-      words('when', 0.75, 0.3, 0.38, 22, { font: 'clean', color: look.ink, bold: true }, { lines: 2 }),
-      words('venue', 0.75, 0.42, 0.38, 21, { font: 'clean', color: look.ink, bold: false }, { lines: 2 }),
-      words('dress', 0.75, 0.54, 0.38, 20, { font: 'clean', color: look.accent, bold: true }, { lines: 1 }),
-      words('rsvp', 0.75, 0.72, 0.38, 18, { font: 'clean', color: look.ink, bold: false }, { lines: 2 })
+      words('at', 0.75, 0.2, 0.3, 19, { font: 'elegant', color: look.ink, bold: false, italic: true }, { lines: 1 }),
+      words('occasion', 0.75, 0.32, 0.38, 34, { font: 'elegant', color: look.title, bold: true }, { lines: 2 }),
+      words('when', 0.75, 0.47, 0.38, 21, { font: 'clean', color: look.ink, bold: true }, { lines: 2 }),
+      words('venue', 0.75, 0.57, 0.38, 20, { font: 'clean', color: look.ink, bold: false }, { lines: 2 }),
+      words('dress', 0.75, 0.66, 0.38, 19, { font: 'clean', color: look.accent, bold: true }, { lines: 1 }),
+      words('rsvp', 0.75, 0.77, 0.38, 17, { font: 'clean', color: look.ink, bold: false }, { lines: 2 })
     ];
   }
 
   /** The fields on a folded card's inside, so the panel knows which side holds them. */
-  const INSIDE_FIELDS = Object.freeze(['host', 'invite', 'guest', 'when', 'venue', 'dress', 'rsvp']);
+  const INSIDE_FIELDS = Object.freeze(['invite', 'guest', 'at', 'occasion', 'when', 'venue', 'dress', 'rsvp']);
 
   /** The measures one side of a card of this size is built with. */
   function pageContext(collage, wording, { measure, newId }, extra) {
@@ -997,5 +1011,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, INSIDE_FIELDS, partsFor, sideOf, fieldsOnCard });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, INSIDE_FIELDS, partsFor, sideOf, fieldsOnCard, startDetails });
 });

@@ -498,7 +498,7 @@ test('a poster asks which logo; Decide later keeps its place; No logo moves the 
   await page.locator('[data-start-poster="notice"]').click();
   await expect(page.locator('#clgCardTitle')).toHaveText('Poster details');
   await expect(page.locator('.clg-rail [data-panel="card"] span')).toHaveText('Poster');
-  await expect(page.locator('[data-card-field="title"]')).toHaveValue('Annual Sports Meet 2026');
+  await expect(page.locator('[data-card-field="title"]')).toHaveValue('Annual Medical Examination');
   await expect(page.locator('.clg-card-question')).toContainText('Which logo goes on this poster?');
   await expect(page.locator('[data-card-design]')).toHaveCount(4);
   const titleY = async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'title')?.y;
