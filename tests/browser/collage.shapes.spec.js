@@ -115,3 +115,30 @@ async function streamBytes(download) {
   for await (const chunk of await download.createReadStream()) chunks.push(chunk);
   return Buffer.concat(chunks);
 }
+
+test('words inside a page border can still be clicked; the border is picked by its line', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.getByRole('button', { name: /^A4 portrait/ }).click();
+  await page.locator('.clg-rail [data-panel="text"]').click();
+  await page.locator('[data-add-text="heading"]').click();
+  await page.locator('.clg-rail [data-panel="stickers"]').click();
+  await page.locator('[data-sticker-group="lines"]').click();
+  await page.locator('[data-add-shape="border"]').click();
+  await expect(page.locator('[data-props] .clg-panel-title')).toHaveText('Rectangle');
+
+  // The border is on top, yet a click on the words inside it selects the words.
+  const points = await page.evaluate(() => {
+    const stage = window.Konva.stages[0];
+    const box = stage.container().getBoundingClientRect();
+    const [words, border] = ['text', 'shape'].map((kind) => stage.find('.item').find((n) => n.getAttr('kind') === kind).getClientRect());
+    return {
+      words: { x: box.left + words.x + words.width / 2, y: box.top + words.y + words.height / 2 },
+      line: { x: box.left + border.x + border.width / 2, y: box.top + border.y + 2 }
+    };
+  });
+  await page.mouse.click(points.words.x, points.words.y);
+  await expect(page.locator('[data-props] .clg-panel-title')).toHaveText('Text');
+  await page.mouse.click(points.line.x, points.line.y);
+  await expect(page.locator('[data-props] .clg-panel-title')).toHaveText('Rectangle');
+  expect(errors).toEqual([]);
+});
