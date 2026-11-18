@@ -413,3 +413,22 @@ test('a back with the programme: added and shown, typed from the front, and save
   await expect.poll(async () => (await newestDraft(page))?.model?.back).toBe(undefined);
   expect(errors).toEqual([]);
 });
+
+test('a unit colour changed from the front reaches the back too', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="regimental"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await page.locator('[data-card-side="front"]').click();
+  await page.locator('[data-card-colour="1"]').evaluate((input) => {
+    input.value = '#1f5b3a';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'band1')?.fill).toBe('#1f5b3a');
+  const model = (await newestDraft(page)).model;
+  const back = model.side === 'back' ? model.items : model.back.items;
+  const tinted = back.filter((item) => item.tint && Object.values(item.tint).includes(1));
+  expect(tinted.length).toBeGreaterThan(0);
+  for (const item of tinted) for (const [prop, which] of Object.entries(item.tint)) if (which === 1) expect(item[prop]).toBe('#1f5b3a');
+  expect(errors).toEqual([]);
+});

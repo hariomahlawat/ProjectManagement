@@ -504,7 +504,8 @@
       colours[index - 1] = value.toLowerCase();
       doc.edit((draft) => {
         draft.card = { ...draft.card, design: draft.card?.design || 'regimental', details: { ...designs.detailsOf(draft), colours: colours.join(' ') } };
-        for (const item of draft.items) {
+        // Both sides follow the unit's colours: the back's title and rules use them too.
+        for (const item of [...draft.items, ...(draft.back?.items || [])]) {
           for (const [prop, which] of Object.entries(item.tint || {})) {
             if (which === index) item[prop] = value.toLowerCase();
           }

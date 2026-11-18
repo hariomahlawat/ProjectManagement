@@ -544,7 +544,11 @@
       items: makePage(card.items, parts, pageContext(card, wording, opts, { isCard: Boolean(card.card), frameRole: 'photo' })),
       card: { design: designKey, details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) }
     };
-    if (card.back) applied.back = backPage(card, designKey, wording, opts, card.back.items);
+    if (card.back) {
+      applied.back = backPage(card, designKey, wording, opts, card.back.items);
+      // Parts a newer PRISM keeps on the back go with it, as the front's do.
+      if (card.back.kept) applied.back.kept = card.back.kept;
+    }
     // The fields this design put on the card, both sides, so a missing one is known to be deleted.
     applied.card.placed = placedOn(applied);
     return showingBack ? core.flipSide(applied) : applied;

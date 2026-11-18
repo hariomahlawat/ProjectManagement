@@ -286,3 +286,15 @@ test('every design\'s back stays on the page with no overlapping words at every 
     }
   }
 });
+
+// The back keeps the parts a newer PRISM made through a design change (PR 8).
+test('a design change keeps the back\'s parts from a newer PRISM, through a save', () => {
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
+  const raw = JSON.parse(JSON.stringify(core.draftModel(card)));
+  raw.back.items.push({ id: 'h', kind: 'hologram', x: 1, y: 1 });
+  const read = core.readDraftModel(raw, []);
+  assert.equal(core.keptCount(read), 1);
+  const changed = designs.applyDesign(read, 'navy', designs.detailsOf(read), { measure, newId });
+  const again = core.readDraftModel(JSON.parse(JSON.stringify(core.draftModel(changed))), []);
+  assert.equal(core.keptCount(again), 1, 'the hologram is still there');
+});
