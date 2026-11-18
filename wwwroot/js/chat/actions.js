@@ -361,8 +361,11 @@
   };
 
   /**
-   * Messages from the server (history, catch-up, the state check), asked for when the live
-   * numbering stood at eventsBefore: a part that changed live since keeps its live content.
+   * Messages from the server, asked for when the live numbering stood at eventsBefore (history,
+   * catch-up, the state check, the answer to a send; 0 for a pushed copy): a part that changed
+   * live since keeps its live content. A part taken from the answer is remembered as the newest
+   * known, numbered by when it was asked for, so answers asked for earlier still give way to
+   * it, later ones are not held back, and a pushed copy never brings older content back.
    */
   ChatApp.prototype.settleFetched = function (messages, eventsBefore) {
     if (!this.messageEventAt.size) return messages;
@@ -370,10 +373,18 @@
       const at = m && m.id ? this.messageEventAt.get(m.id) : null;
       if (!at || m.isUnsent) return m;
       let next = m;
+      const remembered = { ...at };
       if (at.text && at.text.seq > eventsBefore) {
         next = { ...next, body: at.text.body, editedUtc: at.text.editedUtc, mentionedUserIds: at.text.mentionedUserIds };
+      } else if (at.text) {
+        remembered.text = { seq: eventsBefore, body: m.body, editedUtc: m.editedUtc, mentionedUserIds: m.mentionedUserIds };
       }
-      if (at.reactions && at.reactions.seq > eventsBefore) next = { ...next, reactions: at.reactions.list };
+      if (at.reactions && at.reactions.seq > eventsBefore) {
+        next = { ...next, reactions: at.reactions.list };
+      } else if (at.reactions) {
+        remembered.reactions = { seq: eventsBefore, list: m.reactions || [] };
+      }
+      this.messageEventAt.set(m.id, remembered);
       return next;
     });
   };

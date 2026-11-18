@@ -4563,3 +4563,34 @@ test('a repeated push of a message (a retried send) does not undo reactions alre
     window.close();
   }
 });
+
+test('an edit missed offline and brought in by the refresh is not reverted by a later repeated push', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/messages/current')) {
+      return [directMessage(1, 'peer', 'Second edit, missed offline', { editedUtc: new Date().toISOString(), reactions: [{ kind: 'like', userIds: ['peer'] }] })];
+    }
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Original')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    // A first edit and a reaction arrive live, then the connection drops and more happens.
+    app.onEdited(directMessage(1, 'peer', 'First edit', { editedUtc: new Date().toISOString(), reactions: [] }));
+    app.markOffline();
+    await app.syncUnsent(true);
+    const bubble = () => win.log.querySelector('[data-message-id="1"] .pm-chat__bubble').textContent;
+    assert.match(bubble(), /Second edit, missed offline/);
+
+    // The same message pushed again (a retried send) with the current server text.
+    app.onMessage(directMessage(1, 'peer', 'Second edit, missed offline', { reactions: [{ kind: 'like', userIds: ['peer'] }] }));
+    assert.match(bubble(), /Second edit, missed offline/, 'not the earlier live edit');
+    assert.equal(win.log.querySelector('[data-message-id="1"] .pm-chat__reaction').textContent, '👍1');
+  } finally {
+    window.close();
+  }
+});
