@@ -20,7 +20,7 @@ test('a card starts from a design, its details are typed in the panel, and a new
   const size = page.locator('[data-card-size]');
   await expect(size).toHaveValue('a5p');
   const designs = page.locator('[data-start-design]');
-  await expect(designs).toHaveCount(2);
+  await expect(designs).toHaveCount(6);
   await expect.poll(() => designs.first().locator('canvas').evaluate((canvas) => {
     const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
     let inked = 0;
@@ -122,6 +122,30 @@ test('a quick pick pressed straight after typing words in Settings still fills i
   await expect(page.locator('[data-card-field="occasion"]')).toHaveValue('Barakhana');
   await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'occasion')?.text).toBe('Barakhana');
   expect((await newestDraft(page)).model.items.find((item) => item.field === 'venue').text).toBe('Sudarshan Hall');
+});
+
+test('Regimental takes the unit\'s colours from Card details; Bilingual shows the Hindi fields, Classic does not', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="regimental"]').click();
+  const top = page.locator('[data-card-colour="1"]');
+  await expect(top).toHaveValue('#7a1f2b');
+  await top.evaluate((input) => {
+    input.value = '#1f5b3a';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'band1')?.fill).toBe('#1f5b3a');
+  const model = (await newestDraft(page)).model;
+  expect(model.items.find((item) => item.field === 'host').color).toBe('#1f5b3a');
+  expect(model.card.details.colours.split(' ')[0]).toBe('#1f5b3a');
+  await expect(page.locator('[data-card-field="occasionHi"]')).toHaveCount(0);
+
+  await page.locator('[data-card-design="bilingual"]').click();
+  await expect(page.locator('[data-card-field="occasionHi"]')).toHaveValue('स्थापना दिवस रात्रिभोज');
+  await expect(page.locator('[data-card-colour="1"]')).toHaveCount(0);
+  await page.locator('[data-card-design="classic"]').click();
+  await expect(page.locator('[data-card-field="occasionHi"]')).toHaveCount(0);
+  await expect(page.locator('[data-card-field="at"]')).toBeVisible();
   expect(errors).toEqual([]);
 });
 

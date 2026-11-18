@@ -24,8 +24,16 @@
     dress: 'Dress: Lounge Suit',
     rsvp: 'R.S.V.P. The Adjutant · Ext 2241',
     note: 'Kindly bring this card',
-    guest: ''
+    guest: '',
+    // The Bilingual design's Hindi wording (PR 6).
+    hostHi: 'कमांडेंट एवं अधिकारीगण\nसिम्युलेटर विकास प्रभाग',
+    inviteHi: 'आपको सादर आमंत्रित करते हैं',
+    occasionHi: 'स्थापना दिवस रात्रिभोज',
+    // The Regimental design's band: the unit's three colours, top to bottom (PR 6).
+    colours: '#7a1f2b #c9a54a #1d2c55'
   });
+  /** Fields that are not words on the card: they set something else about it. */
+  const SETTINGS = Object.freeze(['colours']);
   /** The fields, in the order the Card details form shows them. */
   const FIELDS = Object.freeze(Object.keys(DEFAULT_DETAILS));
 
@@ -44,6 +52,17 @@
   const border = (role, inset, stroke, strokeWidth) => ({ role, kind: 'shape', form: 'rect', inset, look: { stroke, strokeWidth, fill: '' } });
   const rule = (role, x, y, w, stroke, strokeWidth) => ({ role, kind: 'shape', form: 'line', x, y, w, look: { stroke, strokeWidth } });
   const words = (field, x, y, w, size, look, extra = {}) => ({ role: field, kind: 'text', field, x, y, w, size, look, ...extra });
+  // A rectangle by fractions of the page: w of its width and h of its height (a band, a strip).
+  const block = (role, x, y, w, h, look) => ({ role, kind: 'shape', form: 'rect', x, y, w, h, look });
+  // A shape sized by the card's scale (w per 1,000), of this aspect: a roundel behind the logo.
+  const roundel = (role, form, x, y, w, aspect, look) => ({ role, kind: 'shape', form, x, y, scaled: w, aspect, look });
+  // A line standing upright, `len` of the page's height long.
+  const vline = (role, x, y, len, stroke, strokeWidth) => ({ role, kind: 'shape', form: 'line', x, y, len, look: { stroke, strokeWidth } });
+  // An empty frame for the user's own photo, by fractions of the page.
+  const photo = (x, y, w, h) => ({ role: 'photo', kind: 'slot', x, y, w, h });
+  // Colours the Regimental band sets: 'band1' to 'band3' in a look stand for the unit's colours.
+  const NAVY = '#1d2c55';
+  const GREY = '#55607a';
 
   const DESIGNS = Object.freeze({
     classic: Object.freeze({
@@ -121,6 +140,162 @@
         words('rsvp', 0.6, 0.86, 0.6, 17, { font: 'clean', color: IVORY, bold: false }, { lines: 1 }),
         words('note', 0.6, 0.905, 0.6, 17, { font: 'elegant', color: IVORY, bold: false, italic: true }, { lines: 1 })
       ]
+    }),
+    regimental: Object.freeze({
+      key: 'regimental',
+      label: 'Regimental',
+      note: 'A band in your unit’s colours',
+      background: { type: 'color', value: '#ffffff' },
+      portrait: [
+        block('band1', 0.5, 0.0175, 1, 0.035, { fill: 'band1', stroke: '' }),
+        block('band2', 0.5, 0.0525, 1, 0.035, { fill: 'band2', stroke: '' }),
+        block('band3', 0.5, 0.0875, 1, 0.035, { fill: 'band3', stroke: '' }),
+        roundel('roundel', 'ellipse', 0.5, 0.135, 0.17, 0.72, { fill: '#ffffff', stroke: 'band2', strokeWidth: 3 }),
+        logo(0.5, 0.135, 0.1),
+        words('host', 0.5, 0.29, 0.8, 26, { font: 'clean', color: 'band1', bold: true, spacing: 8 }, { lines: 3 }),
+        words('invite', 0.5, 0.375, 0.8, 24, { font: 'elegant', color: INK, bold: false, italic: true }),
+        rule('guestline', 0.5, 0.45, 0.62, INK, 1.5),
+        words('guest', 0.5, 0.435, 0.62, 34, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+        words('at', 0.5, 0.5, 0.4, 22, { font: 'elegant', color: INK, bold: false, italic: true }),
+        words('occasion', 0.5, 0.57, 0.84, 56, { font: 'elegant', color: 'band3', bold: true }, { lines: 2 }),
+        words('when', 0.5, 0.67, 0.82, 25, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
+        words('venue', 0.5, 0.715, 0.82, 24, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
+        words('dress', 0.5, 0.76, 0.82, 22, { font: 'clean', color: 'band1', bold: true }, { lines: 1 }),
+        rule('rule', 0.5, 0.85, 0.84, 'band2', 3),
+        words('rsvp', 0.08, 0.9, 0.44, 18, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('note', 0.92, 0.9, 0.38, 18, { font: 'elegant', color: INK, bold: false, italic: true, align: 'right' }, { anchor: 'right', lines: 2 })
+      ],
+      landscape: [
+        block('band1', 0.5, 0.025, 1, 0.05, { fill: 'band1', stroke: '' }),
+        block('band2', 0.5, 0.075, 1, 0.05, { fill: 'band2', stroke: '' }),
+        block('band3', 0.5, 0.125, 1, 0.05, { fill: 'band3', stroke: '' }),
+        roundel('roundel', 'ellipse', 0.16, 0.52, 0.2, 0.72, { fill: '#ffffff', stroke: 'band2', strokeWidth: 3 }),
+        logo(0.16, 0.52, 0.12),
+        words('host', 0.61, 0.25, 0.6, 24, { font: 'clean', color: 'band1', bold: true, spacing: 8 }, { lines: 2 }),
+        words('invite', 0.61, 0.36, 0.6, 22, { font: 'elegant', color: INK, bold: false, italic: true }),
+        rule('guestline', 0.61, 0.44, 0.46, INK, 1.5),
+        words('guest', 0.61, 0.42, 0.46, 30, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+        words('occasion', 0.61, 0.54, 0.62, 48, { font: 'elegant', color: 'band3', bold: true }, { lines: 2 }),
+        words('when', 0.61, 0.65, 0.62, 22, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
+        words('venue', 0.61, 0.715, 0.62, 21, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
+        words('dress', 0.61, 0.775, 0.62, 20, { font: 'clean', color: 'band1', bold: true }, { lines: 1 }),
+        rule('rule', 0.61, 0.835, 0.62, 'band2', 2.5),
+        words('rsvp', 0.31, 0.9, 0.34, 17, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('note', 0.93, 0.9, 0.3, 17, { font: 'elegant', color: INK, bold: false, italic: true, align: 'right' }, { anchor: 'right', lines: 2 })
+      ]
+    }),
+    ceremonial: Object.freeze({
+      key: 'ceremonial',
+      label: 'Ceremonial photo',
+      note: 'Your photo at the top',
+      background: { type: 'color', value: '#ffffff' },
+      portrait: [
+        photo(0.5, 0.2, 1, 0.4),
+        block('logobox', 0.15, 0.4, 0.17, 0.135, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }),
+        logo(0.15, 0.4, 0.1),
+        words('occasion', 0.27, 0.465, 0.66, 46, { font: 'elegant', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('host', 0.08, 0.565, 0.84, 22, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('invite', 0.08, 0.63, 0.84, 22, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left' }),
+        rule('guestline', 0.4, 0.695, 0.64, INK, 1.5),
+        words('guest', 0.08, 0.68, 0.64, 30, { font: 'script', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        vline('accent', 0.075, 0.8, 0.11, MAROON, 3),
+        words('when', 0.1, 0.76, 0.8, 23, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('venue', 0.1, 0.8, 0.8, 22, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('dress', 0.1, 0.84, 0.8, 21, { font: 'clean', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('rsvp', 0.08, 0.92, 0.44, 18, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('note', 0.92, 0.92, 0.38, 18, { font: 'elegant', color: INK, bold: false, italic: true, align: 'right' }, { anchor: 'right', lines: 2 })
+      ],
+      landscape: [
+        photo(0.25, 0.5, 0.5, 1),
+        block('logobox', 0.58, 0.16, 0.12, 0.2, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }),
+        logo(0.58, 0.16, 0.1),
+        words('occasion', 0.66, 0.16, 0.3, 36, { font: 'elegant', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('host', 0.54, 0.36, 0.42, 20, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('invite', 0.54, 0.46, 0.42, 20, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left' }),
+        rule('guestline', 0.75, 0.55, 0.42, INK, 1.5),
+        words('guest', 0.54, 0.53, 0.42, 26, { font: 'script', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        vline('accent', 0.535, 0.7, 0.18, MAROON, 3),
+        words('when', 0.555, 0.64, 0.4, 20, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('venue', 0.555, 0.7, 0.4, 19, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('dress', 0.555, 0.76, 0.4, 18, { font: 'clean', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('rsvp', 0.54, 0.9, 0.42, 16, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('note', 0.54, 0.945, 0.42, 16, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left', lines: 1 })
+      ]
+    }),
+    bilingual: Object.freeze({
+      key: 'bilingual',
+      label: 'Bilingual',
+      note: 'Hindi and English side by side',
+      background: { type: 'color', value: '#fffdf7' },
+      portrait: [
+        border('border', 0.03, GOLD, 1.5),
+        logo(0.5, 0.11, 0.09),
+        vline('divider', 0.5, 0.42, 0.42, GOLD, 1.2),
+        words('hostHi', 0.26, 0.27, 0.42, 24, { font: 'hindiFormal', color: INK, bold: false }, { lines: 3 }),
+        words('inviteHi', 0.26, 0.37, 0.42, 22, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
+        words('occasionHi', 0.26, 0.48, 0.42, 38, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
+        words('host', 0.74, 0.27, 0.42, 20, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
+        words('invite', 0.74, 0.37, 0.42, 20, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
+        words('occasion', 0.74, 0.48, 0.42, 34, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+        rule('guestline', 0.5, 0.7, 0.62, INK, 1.5),
+        words('guest', 0.5, 0.685, 0.62, 32, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+        words('when', 0.5, 0.76, 0.84, 24, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
+        words('venue', 0.5, 0.8, 0.84, 22, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
+        words('dress', 0.5, 0.84, 0.84, 21, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
+        words('rsvp', 0.08, 0.92, 0.44, 17, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('note', 0.92, 0.92, 0.38, 17, { font: 'elegant', color: INK, bold: false, italic: true, align: 'right' }, { anchor: 'right', lines: 2 })
+      ],
+      landscape: [
+        border('border', 0.03, GOLD, 1.5),
+        logo(0.5, 0.14, 0.11),
+        vline('divider', 0.5, 0.47, 0.36, GOLD, 1.2),
+        words('hostHi', 0.27, 0.3, 0.4, 22, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
+        words('inviteHi', 0.27, 0.42, 0.4, 20, { font: 'hindiFormal', color: INK, bold: false }, { lines: 1 }),
+        words('occasionHi', 0.27, 0.54, 0.4, 34, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
+        words('host', 0.73, 0.3, 0.4, 19, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
+        words('invite', 0.73, 0.42, 0.4, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
+        words('occasion', 0.73, 0.54, 0.4, 31, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+        words('when', 0.5, 0.72, 0.84, 21, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
+        words('venue', 0.5, 0.78, 0.84, 20, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
+        words('dress', 0.5, 0.835, 0.84, 19, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
+        words('rsvp', 0.08, 0.91, 0.42, 16, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('note', 0.92, 0.91, 0.38, 16, { font: 'elegant', color: INK, bold: false, italic: true, align: 'right' }, { anchor: 'right', lines: 1 })
+      ]
+    }),
+    modern: Object.freeze({
+      key: 'modern',
+      label: 'Modern',
+      note: 'Clean, set on the left',
+      background: { type: 'color', value: '#ffffff' },
+      portrait: [
+        block('bar', 0.014, 0.5, 0.028, 1, { fill: NAVY, stroke: '' }),
+        logo(0.86, 0.1, 0.09),
+        words('host', 0.1, 0.1, 0.62, 20, { font: 'clean', color: GREY, bold: true, spacing: 6, align: 'left' }, { anchor: 'left', lines: 3 }),
+        words('invite', 0.1, 0.22, 0.8, 21, { font: 'clean', color: GREY, bold: false, align: 'left' }, { anchor: 'left' }),
+        rule('guestline', 0.45, 0.305, 0.7, INK, 1.5),
+        words('guest', 0.1, 0.29, 0.7, 28, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('occasion', 0.1, 0.43, 0.82, 66, { font: 'clean', color: NAVY, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
+        rule('rule', 0.2, 0.535, 0.2, NAVY, 4),
+        words('when', 0.1, 0.61, 0.82, 26, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('venue', 0.1, 0.66, 0.82, 25, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('dress', 0.1, 0.71, 0.82, 23, { font: 'clean', color: NAVY, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('rsvp', 0.1, 0.875, 0.8, 18, { font: 'clean', color: GREY, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('note', 0.1, 0.91, 0.8, 17, { font: 'clean', color: GREY, bold: false, italic: true, align: 'left' }, { anchor: 'left', lines: 1 })
+      ],
+      landscape: [
+        block('bar', 0.01, 0.5, 0.02, 1, { fill: NAVY, stroke: '' }),
+        logo(0.9, 0.17, 0.11),
+        words('host', 0.07, 0.12, 0.66, 18, { font: 'clean', color: GREY, bold: true, spacing: 6, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('invite', 0.07, 0.26, 0.7, 19, { font: 'clean', color: GREY, bold: false, align: 'left' }, { anchor: 'left' }),
+        rule('guestline', 0.34, 0.365, 0.54, INK, 1.5),
+        words('guest', 0.07, 0.345, 0.54, 26, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('occasion', 0.07, 0.49, 0.84, 56, { font: 'clean', color: NAVY, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('when', 0.07, 0.66, 0.84, 22, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('venue', 0.07, 0.725, 0.84, 21, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('dress', 0.07, 0.785, 0.84, 20, { font: 'clean', color: NAVY, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('rsvp', 0.07, 0.885, 0.84, 16, { font: 'clean', color: GREY, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('note', 0.07, 0.93, 0.84, 15, { font: 'clean', color: GREY, bold: false, italic: true, align: 'left' }, { anchor: 'left', lines: 1 })
+      ]
     })
   });
 
@@ -133,6 +308,19 @@
     const width = core.PAGE_WIDTH;
     const height = core.pageHeight(sizeKey);
     return Math.min(Math.sqrt(width * height / Math.SQRT2), Math.min(width, height) * 1.3) / 1000;
+  }
+
+  /** The unit's three colours from the details ("#7a1f2b #c9a54a #1d2c55"), each checked. */
+  function colourList(text) {
+    const given = String(text || '').trim().split(/[\s,]+/);
+    const fallback = DEFAULT_DETAILS.colours.split(' ');
+    return [0, 1, 2].map((i) => (/^#[0-9a-f]{6}$/i.test(given[i] || '') ? given[i].toLowerCase() : fallback[i]));
+  }
+
+  /** Whether a design follows the unit's colours. */
+  function usesColours(designKey) {
+    const design = DESIGNS[designKey];
+    return Boolean(design && JSON.stringify(design.portrait).includes('"band'));
   }
 
   /** Whether a page this shape takes a design's portrait arrangement (square counts as portrait). */
@@ -177,19 +365,51 @@
     const unit = unitOf(collage.size);
     const wording = { ...DEFAULT_DETAILS, ...(details || {}) };
     const parts = isPortrait(collage.size) ? design.portrait : design.landscape;
+    // The unit's colours for the Regimental band: 'band1' to 'band3' in a look stand for them.
+    const colours = colourList(wording.colours);
+    const tinted = (look) => {
+      const out = { ...look };
+      const tints = {};
+      for (const prop of ['fill', 'stroke', 'color']) {
+        const match = /^band([123])$/.exec(out[prop] || '');
+        if (match) {
+          out[prop] = colours[Number(match[1]) - 1];
+          tints[prop] = Number(match[1]);
+        }
+      }
+      // Which colour each property follows, so the Card panel can recolour the band later.
+      if (Object.keys(tints).length) out.tint = tints;
+      return out;
+    };
+    // A photo the user put in the last design's frame goes into this design's frame, or stays
+    // on the page as their own when this design has none.
+    const framed = (collage.items || []).filter((item) => item.role === 'photo' && item.kind === 'photo');
     const made = [];
     for (const part of parts) {
+      const look = part.look ? tinted(part.look) : {};
       if (part.kind === 'shape' && part.inset !== undefined) {
         const inset = part.inset * Math.min(width, height);
-        const look = { ...part.look, strokeWidth: part.look.strokeWidth * unit, role: part.role };
-        made.push(core.shapeItem(newId(), 'rect', { x: width / 2, y: height / 2, width: width - inset * 2, aspect: (width - inset * 2) / (height - inset * 2) }, look));
+        made.push(core.shapeItem(newId(), 'rect', { x: width / 2, y: height / 2, width: width - inset * 2, aspect: (width - inset * 2) / (height - inset * 2) }, { ...look, strokeWidth: part.look.strokeWidth * unit, role: part.role }));
+      } else if (part.kind === 'shape' && part.h !== undefined) {
+        const w = part.w * width;
+        const h = part.h * height;
+        made.push(core.shapeItem(newId(), part.form, { x: part.x * width, y: part.y * height, width: w, aspect: w / h }, { ...look, strokeWidth: (part.look.strokeWidth || 0) * unit, radius: (part.look.radius || 0) * unit, role: part.role }));
+      } else if (part.kind === 'shape' && part.scaled !== undefined) {
+        const w = part.scaled * 1000 * unit;
+        made.push(core.shapeItem(newId(), part.form, { x: part.x * width, y: part.y * height, width: w, aspect: part.aspect }, { ...look, strokeWidth: (part.look.strokeWidth || 0) * unit, role: part.role }));
       } else if (part.kind === 'shape') {
-        // A divider standing upright: w of 0 means a line down the page's middle third.
-        const upright = part.w === 0;
-        const length = upright ? height * 0.6 : part.w * width;
-        const item = core.shapeItem(newId(), 'line', { x: part.x * width, y: part.y * height, width: length }, { ...part.look, strokeWidth: part.look.strokeWidth * unit, role: part.role });
+        // A rule across, or standing upright: w of 0 is a line down the page's middle third,
+        // and `len` an upright line that long a share of the page's height.
+        const upright = part.w === 0 || part.len !== undefined;
+        const length = part.len !== undefined ? part.len * height : part.w === 0 ? height * 0.6 : part.w * width;
+        const item = core.shapeItem(newId(), 'line', { x: part.x * width, y: part.y * height, width: length }, { ...look, strokeWidth: part.look.strokeWidth * unit, role: part.role });
         if (upright) item.angle = 90;
         made.push(item);
+      } else if (part.kind === 'slot') {
+        const place = { x: part.x * width, y: part.y * height, width: part.w * width, aspect: (part.w * width) / (part.h * height) };
+        const slot = { ...core.slotItem(newId(), place), role: 'photo' };
+        const photo = framed.shift();
+        made.push(photo ? { ...core.fillSlot(slot, photo.photo), crop: { ...(photo.crop || core.FULL_CROP) }, look: photo.look || 'none' } : slot);
       } else if (part.kind === 'sticker') {
         const w = part.w * 1000 * unit;
         made.push(core.stickerItem(newId(), part.sticker, { x: part.x * width, y: part.y * height, width: w, aspect: part.aspect }, { role: part.role }));
@@ -197,7 +417,7 @@
         const text = String(wording[part.field] ?? '').slice(0, core.TEXT_LIMITS.maxLength);
         if (!text.trim()) continue;
         const item = core.textItem(newId(), text, { x: part.x * width, y: part.y * height }, {
-          ...part.look,
+          ...look,
           size: Math.round(part.size * unit),
           maxWidth: part.w * width,
           maxLines: part.lines || 1,
@@ -212,12 +432,14 @@
         made.push(item);
       }
     }
+    // Photos from the last design's frame with no frame here become the user's own.
+    const leftOver = framed.map(({ role, ...item }) => item);
     const own = (collage.items || []).filter((item) => !item.role);
     return {
       ...collage,
       background: { ...design.background },
       layout: null,
-      items: [...made, ...own],
+      items: [...made, ...own, ...leftOver],
       card: {
         design: designKey,
         details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])),
@@ -239,5 +461,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, fieldsOf });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, fieldsOf, usesColours, colourList });
 });

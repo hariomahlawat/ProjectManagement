@@ -190,6 +190,29 @@
     margin: -0.25rem 0 0.7rem;
 }
 
+.clg-card-colours__row {
+    display: flex;
+    gap: 0.9rem;
+}
+
+.clg-card-colour {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    font-size: 0.78rem;
+    color: var(--pdft-muted);
+}
+
+.clg-card-colour input {
+    width: 2.6rem;
+    height: 2rem;
+    padding: 0.1rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 8px;
+    background: var(--pdft-surface);
+}
+
 @media (max-width: 575.98px) {
     .clg-design-card {
         width: calc(50% - 0.5rem);
