@@ -74,7 +74,7 @@ async function setUp({ members = [], rows = [row(1, 'Alpha'), row(2, 'Bravo'), r
       state.listReplies.push(wait);
       return wait.promise;
     }
-    return Promise.resolve(reply({ rows }));
+    return Promise.resolve(reply({ rows, ...(state.listPayloadExtra || {}) }));
   };
   const root = document.querySelector('[data-pbd-root]');
   const form = document.querySelector('[data-pbd-filter-add-form]');
@@ -286,7 +286,7 @@ test('ticks that fill the room hold the other ticks back, and Tick all ticks onl
   assert.equal(page.$('[data-pbd-filter-ticked]').textContent, '2 ticked · Review');
   assert.equal(page.$('[data-pbd-filter-tick="3"]').disabled, true, 'the third does not fit');
   assert.equal(page.$('[data-pbd-filter-tick="1"]').disabled, false, 'a ticked one can be unticked');
-  assert.match(page.$('[data-pbd-filter-room]').textContent, /The ticks fill the deck's room/);
+  assert.match(page.$('[data-pbd-filter-room]').textContent, /These ticks use the deck's last 2 places/);
   const box = page.$('[data-pbd-filter-tick="1"]');
   box.checked = false;
   box.dispatchEvent(new page.window.Event('change', { bubbles: true }));
@@ -351,13 +351,22 @@ test('keyboard focus is never dropped: Tick the first N, the last untick in Revi
   assert.equal(page.document.activeElement, page.$('[data-pbd-filter-panel] input'), 'then moves into the choices');
 });
 
-test('the choices are fetched again on each opening, and older completion years can be shown', async () => {
+test('the choices are fetched again on an opening once they are two minutes old, and older completion years can be shown', async () => {
   const years = Array.from({ length: 15 }, (_, index) => ({ value: 2026 - index, label: `FY ${2026 - index}` }));
   const page = await setUp({ options: { completionFinancialYears: years } });
   const optionLoads = () => page.state.fetches.filter((href) => href.includes('FilterOptions')).length;
   const before = optionLoads();
   page.controller.open();
   await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(optionLoads(), before, 'still fresh: not read again');
+  const realNow = Date.now;
+  Date.now = () => realNow() + 121000;
+  try {
+    page.controller.open();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  } finally {
+    Date.now = realNow;
+  }
   assert.equal(optionLoads(), before + 1);
   page.$('[data-pbd-filter-open="completed"]').click();
   assert.equal(page.$('[data-pbd-filter-range="completedFrom"]').options.length, 12);
@@ -440,4 +449,82 @@ test('"Ongoing" with "Completed between" says why nothing matches', async () => 
   from.dispatchEvent(new page.window.Event('change', { bubbles: true }));
   await new Promise((resolve) => setTimeout(resolve, 150));
   assert.match(page.$('[data-pbd-filter-count]').textContent, /ongoing projects have no completion year/);
+});
+
+test('a long list draws the first 200, with Show all; the count and Tick all cover every match', async () => {
+  const rows = Array.from({ length: 230 }, (_, index) => row(index + 1, `Project ${String(index + 1).padStart(3, '0')}`));
+  const page = await setUp({ rows });
+  assert.equal(page.document.querySelectorAll('.pbd-filter__row').length, 200);
+  assert.equal(page.$('[data-pbd-filter-count]').textContent, '230 projects match');
+  assert.equal(page.$('[data-pbd-filter-show-all]').textContent, 'Show all 230 projects');
+  page.$('[data-pbd-filter-show-all]').click();
+  assert.equal(page.document.querySelectorAll('.pbd-filter__row').length, 230);
+  assert.equal(page.$('[data-pbd-filter-show-all]'), null);
+  assert.equal(page.document.activeElement, page.$('[data-pbd-filter-tick="201"]'), 'the keyboard carries on at the first new row');
+});
+
+test('choice counts show only when no other filter or search is set', async () => {
+  const page = await setUp({ options: { arppYears: [{ value: 2026, label: 'FY 2026-27', count: 3 }] } });
+  page.$('[data-pbd-filter-open="arpp"]').click();
+  assert.match(page.$('[data-pbd-filter-panel]').textContent, /FY 2026-27 · 3/);
+  page.$('[data-pbd-filter-query]').value = 'alpha';
+  page.$('[data-pbd-filter-query]').dispatchEvent(new page.window.Event('input', { bubbles: true }));
+  assert.doesNotMatch(page.$('[data-pbd-filter-panel]').textContent, /· 3/);
+  assert.match(page.$('[data-pbd-filter-panel]').textContent, /Counts show when no other filter or search is set/);
+});
+
+test('Escape in the search closes an open filter, not the dialog', async () => {
+  const page = await setUp();
+  page.$('[data-pbd-filter-open="arpp"]').click();
+  const event = new page.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+  page.$('[data-pbd-filter-query]').dispatchEvent(event);
+  assert.equal(page.$('[data-pbd-filter-panel]').hidden, true);
+  assert.equal(event.defaultPrevented, true);
+});
+
+test('Undo ticks the projects again from any earlier Add, and reports how many', async () => {
+  const page = await setUp();
+  page.tickRow(1);
+  page.$('[data-pbd-filter-add]').click();
+  page.settle({ skippedProjectIds: [] });
+  // A later Add is refused: the first Add's projects can still be ticked again by its Undo.
+  page.tickRow(2);
+  page.$('[data-pbd-filter-add]').click();
+  page.settle({ message: 'refused' }, false);
+  page.state.members = [];
+  page.controller.refreshMembership(page.state.members);
+  const undone = new page.window.CustomEvent('pbd:add-undone', { detail: { projectIds: [1], reticked: 0 } });
+  page.document.dispatchEvent(undone);
+  assert.equal(undone.detail.reticked, 1);
+  assert.equal(page.$('[data-pbd-filter-tick="1"]').checked, true);
+});
+
+test('the room follows the deck size the server reports, until the page has a newer deck', async () => {
+  const page = await setUp({ members: [] });
+  assert.match(page.$('[data-pbd-filter-room]').textContent, /Room for 120 more/);
+  page.state.listPayloadExtra = { deckProjectCount: 120 };
+  page.controller.open();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.match(page.$('[data-pbd-filter-room]').textContent, /This deck is full/);
+  page.controller.refreshMembership([]);
+  assert.match(page.$('[data-pbd-filter-room]').textContent, /Room for 120 more/);
+});
+
+test('a list reply read before a Remove does not bring back the full-deck size (Codex review)', async () => {
+  const page = await setUp({ members: [], holdList: true });
+  page.state.listReplies.shift().resolve(reply({ rows: [row(1, 'Alpha')] }));
+  await tick();
+  page.state.listPayloadExtra = null;
+  // A list request goes out while the server still counts 120...
+  page.controller.open();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  // ...then the page removes a project and has the newer deck...
+  page.controller.refreshMembership([]);
+  assert.match(page.$('[data-pbd-filter-room]').textContent, /Room for 120 more/);
+  // ...and the older reply arrives.
+  page.state.listReplies.shift().resolve(reply({ rows: [row(1, 'Alpha')], deckProjectCount: 120 }));
+  await tick();
+  await tick();
+  assert.match(page.$('[data-pbd-filter-room]').textContent, /Room for 120 more/);
+  assert.equal(page.$('[data-pbd-filter-tick="1"]').disabled, false);
 });

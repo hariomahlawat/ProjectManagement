@@ -169,3 +169,33 @@ UX 8, code 8; no High (target met). The remaining findings are fixed in one PR.
 - When none of the ticked projects can be added, the names follow the server's message without repeating the reason. When some were added, the note about the rest comes before Undo.
 - The choices are fetched again, quietly, each time the dialog opens, so their counts follow the list. A failed choices load shows the server's message.
 - The completed range note says a completion year with no date counts from April of that year. "Show all N years" lists every year, and a range set to an older year shows them all.
+
+## Fifth cold review (18 Nov 2026)
+
+UX 8, code 8; no High. The findings are fixed in one PR.
+
+**Undo**
+- Undo keeps the keyboard in the dialog: focus goes to the "n ticked" button (or Add). The message says the projects are ticked again.
+- The rows each Add sent are kept by project across Adds, so Undo ticks the right projects whatever was added or refused since.
+
+**Load**
+- The list draws the first 200 rows, with "Show all N projects". The count and Tick all cover every match.
+- The choices are fetched again on opening only when they are over two minutes old.
+
+**Smaller fixes**
+- Choice counts show only when no other filter or search is set; otherwise the note says so. The counts are of all projects and would contradict the list.
+- Escape anywhere in the dialog body closes an open filter first, the search included.
+- The smallest filter text is now 0.78rem.
+- Wording:
+  - "These ticks use the deck's last N places."
+  - The Review count reads "Showing the N ticked projects, whatever the filters."
+- The completed range lists only the years some project was completed in.
+- The list reply carries the deck's size, so the room line follows another editor's changes until the page has a newer deck.
+- A list rebuilt under someone in it keeps them on the same row.
+
+**Tests**
+- A behaviour test of the page's own Add and Undo (`project-briefing-add-undo.behaviour.test.js`).
+- A full deck takes projects it already holds again and refuses a new one.
+
+**Open question for the owner**
+- A completion year with no date counts from April of that year. If `CompletedYear` holds a calendar year, a project finished in January–March lands one financial year late.

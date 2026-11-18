@@ -97,6 +97,7 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
             TechnicalCategories = technicalCategories,
             ArppYears = arppYears,
             MinimumCompletionFinancialYear = completionFinancialYears.Length == 0 ? thisFinancialYear : completionFinancialYears.Min(),
+            CompletionFinancialYears = completionFinancialYears.Distinct().OrderByDescending(year => year).ToArray(),
             CompletedWithoutDateCount = Math.Max(0, (lifecycleCounts.FirstOrDefault(row => row.Status == ProjectLifecycleStatus.Completed)?.Count ?? 0) - completionFinancialYears.Length),
             MaximumCompletionFinancialYear = completionFinancialYears.Length == 0 ? thisFinancialYear : completionFinancialYears.Max()
         };

@@ -278,6 +278,8 @@ public sealed class ProjectBriefingSelectionOptionsVm
     // Completed projects with neither a completion date nor a year: "Completed between" cannot
     // match them, and the panel says how many there are.
     public int CompletedWithoutDateCount { get; init; }
+    // The financial years some project was completed in, each once.
+    public IReadOnlyList<int> CompletionFinancialYears { get; init; } = Array.Empty<int>();
     public int MaximumCompletionFinancialYear { get; init; }
 }
 

@@ -1369,10 +1369,18 @@ if (root) {
       undo.disabled = true;
       try {
         await updateMembership([], added, addProjectsStatus);
-        document.dispatchEvent(new CustomEvent('pbd:add-undone', { detail: { projectIds: added } }));
-        const message = `Removed the ${added.length === 1 ? 'project' : `${added.length} projects`} just added.`;
+        const undone = new CustomEvent('pbd:add-undone', { detail: { projectIds: added, reticked: 0 } });
+        document.dispatchEvent(undone);
+        const reticked = undone.detail.reticked || 0;
+        const message = `Removed the ${added.length === 1 ? 'project' : `${added.length} projects`} just added.${reticked ? ` ${reticked === 1 ? 'It is' : 'They are'} ticked again.` : ''}`;
         setState(addProjectsStatus, message, 'saved');
         setState(membershipStatus, message, 'saved');
+        // The status line was rewritten, taking the Undo button and the keyboard with it (cold
+        // review 5): carry on at the ticked projects, or at Add.
+        if (addProjectsModalElement?.classList.contains('show') || addProjectsModalElement?.contains(document.activeElement) || document.activeElement === document.body) {
+          (addProjectsModalElement?.querySelector('[data-pbd-filter-ticked]:not(:disabled)')
+            || addProjectsModalElement?.querySelector('[data-pbd-filter-add]'))?.focus();
+        }
         if (button?.classList.contains('is-added')) {
           button.classList.remove('is-added');
           button.textContent = 'Add';

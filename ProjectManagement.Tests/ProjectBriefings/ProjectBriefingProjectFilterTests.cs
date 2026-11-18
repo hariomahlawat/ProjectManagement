@@ -239,6 +239,20 @@ public sealed class ProjectBriefingProjectFilterTests
         Assert.Equal(rows.Count, options.TechnicalCategories.Single(category => category.Name == "VR").MatchCount);
     }
 
+    // Only the years some project was completed in are offered (cold review 5): one stray old year
+    // does not bring every year between.
+    [Fact]
+    public async Task Options_ListOnlyTheCompletionYearsInUse()
+    {
+        await using var db = await SeedAsync();
+        db.Projects.Single(project => project.Id == 106).CompletedYear = 1990;
+        await db.SaveChangesAsync();
+
+        var options = await Service(db).GetOptionsAsync();
+
+        Assert.Equal(new[] { 2025, 2024, 1990 }, options.CompletionFinancialYears);
+    }
+
     // "%" and "_" typed in the search box are matched as themselves (cold review 3).
     [Theory]
     [InlineData("50%", @"%50\%%")]

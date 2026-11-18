@@ -111,12 +111,12 @@ public sealed class IndexModel : PageModel
         completedCount = options.CompletedCount,
         proliferationCount = options.ProliferationAvailableCount,
         completedWithoutDateCount = options.CompletedWithoutDateCount,
-        completionFinancialYears = options.MaximumCompletionFinancialYear < options.MinimumCompletionFinancialYear
-            ? Array.Empty<object>()
-            : Enumerable.Range(options.MinimumCompletionFinancialYear, options.MaximumCompletionFinancialYear - options.MinimumCompletionFinancialYear + 1)
-                .Reverse()
-                .Select(year => (object)new { value = year, label = ProjectBriefingSelectionService.FinancialYearLabel(year) })
-                .ToArray()
+        // Only years some project was completed in (cold review 5): one mistyped year, say 1900,
+        // no longer fills the list with a century of empty years.
+        completionFinancialYears = options.CompletionFinancialYears
+            .OrderByDescending(year => year)
+            .Select(year => (object)new { value = year, label = ProjectBriefingSelectionService.FinancialYearLabel(year) })
+            .ToArray()
     };
 
     public async Task<IActionResult> OnGetAsync(long? deckId, string? start, CancellationToken cancellationToken)
@@ -1059,6 +1059,8 @@ public sealed class IndexModel : PageModel
         {
             total = rows.Length,
             inDeck = rows.Count(row => row.IsSelected),
+            // The deck's size now, so the dialog's room follows another editor's changes (cold review 5).
+            deckProjectCount = deck.Items.Count,
             rows
         });
     }

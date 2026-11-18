@@ -3943,7 +3943,7 @@ html.pm-no-has.pm-has-pbd-viewer-open {
 /* "Room for N more", and a warning when the ticks are more than the deck can take. */
 .pbd-filter__room {
     color: var(--pbd-muted);
-    font-size: .74rem;
+    font-size: .78rem;
 }
 
 .pbd-filter__room.is-over {
@@ -4020,7 +4020,7 @@ html.pm-no-has.pm-has-pbd-viewer-open {
 
 .pbd-filter__reset {
     padding: .2rem .3rem;
-    font-size: .74rem;
+    font-size: .78rem;
 }
 
 .pbd-filter__panel {
@@ -4063,13 +4063,13 @@ html.pm-no-has.pm-has-pbd-viewer-open {
     gap: .2rem;
     min-width: 9rem;
     color: var(--pbd-muted);
-    font-size: .72rem;
+    font-size: .78rem;
 }
 
 .pbd-filter__note {
     flex-basis: 100%;
     color: var(--pbd-muted);
-    font-size: .68rem;
+    font-size: .78rem;
 }
 
 .pbd-filter__summary {
@@ -4079,12 +4079,12 @@ html.pm-no-has.pm-has-pbd-viewer-open {
     align-items: center;
     gap: .4rem;
     color: var(--pbd-muted);
-    font-size: .76rem;
+    font-size: .78rem;
 }
 
 .pbd-filter__summary .btn-link {
     padding: 0;
-    font-size: .76rem;
+    font-size: .78rem;
 }
 
 .pbd-filter__results {
@@ -4113,12 +4113,18 @@ html.pm-no-has.pm-has-pbd-viewer-open {
 }
 
 /* Larger than the old search results' text (cold review, L5). */
+/* "Show all N projects" under the first 200 (cold review 5). */
+.pbd-filter__more {
+    grid-column: 1 / -1;
+    justify-self: center;
+}
+
 .pbd-filter__row strong {
     font-size: .82rem;
 }
 
 .pbd-filter__row small {
-    font-size: .74rem;
+    font-size: .8rem;
 }
 
 .pbd-filter__footer {
