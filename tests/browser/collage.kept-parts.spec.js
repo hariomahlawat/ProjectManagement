@@ -53,7 +53,7 @@ test('a draft keeps the parts a newer PRISM made when it is edited and saved her
     const photo = record.model.items.find((i) => i.kind === 'photo').photo;
     record.model.items.splice(0, 0, parts.shape);
     record.model.items.push(parts.logo);
-    record.model.back = { background: { type: 'color', value: '#fbf7ee' }, items: [{ id: 'zback', kind: 'photo', photo, x: 0, y: 0, width: 1000, aspect: 1.4 }] };
+    record.model.reverse = { background: { type: 'color', value: '#fbf7ee' }, items: [{ id: 'zback', kind: 'photo', photo, x: 0, y: 0, width: 1000, aspect: 1.4 }] };
     record.model.design = 'classic';
     return { write: true };
   }, newer);
@@ -73,7 +73,7 @@ test('a draft keeps the parts a newer PRISM made when it is edited and saved her
   expect(model.items[0]).toEqual(newer.shape);
   expect(model.items[2]).toEqual(newer.logo);
   expect(model.design).toBe('classic');
-  expect(model.back.items[0].photo).toBe(model.items[1].photo);
+  expect(model.reverse.items[0].photo).toBe(model.items[1].photo);
   expect(model.kept).toBeUndefined();
   // The photo stays in the draft, used on the page and on the kept back page.
   expect(photos).toBe(1);

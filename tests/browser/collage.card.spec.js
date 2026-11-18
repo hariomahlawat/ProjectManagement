@@ -367,3 +367,49 @@ test('crests that arrive after a card is open appear in Card details as logos', 
   await expect(page.locator(`[data-card-logo-use="unit:${crest.id}"]`)).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('a back with the programme: added and shown, typed from the front, and saved as a two-page PDF', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(async () => (await newestDraft(page))?.model?.side).toBe('back');
+  // The back's programme is typed in Card details, even with the front showing.
+  await page.locator('[data-card-side="front"]').click();
+  await expect(page.locator('[data-card-side="front"]')).toHaveAttribute('aria-pressed', 'true');
+  const programme = page.locator('[data-card-field="programme"]');
+  await programme.fill('1900 h · Arrival\n1930 h · Dinner');
+  await programme.blur();
+  await expect.poll(async () => (await newestDraft(page))?.model?.back?.items?.find((item) => item.field === 'programme')?.text).toBe('1900 h · Arrival\n1930 h · Dinner');
+
+  // Save: both sides are a PDF of two pages, front first.
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-sides]')).toBeVisible();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  let download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  let file = await download;
+  const pages = await page.evaluate(async (base64) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    return (await window.PDFLib.PDFDocument.load(bytes)).getPageCount();
+  }, (await streamBytes(file)).toString('base64'));
+  expect(pages).toBe(2);
+  await expect(page.locator('[data-save-result]')).toContainText('2 pages');
+  // The front alone, as a picture: one file named for its side.
+  await page.locator('input[name="sides"][value="front"]').check();
+  await page.getByRole('button', { name: 'A slide or a screen' }).click();
+  download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  file = await download;
+  expect(file.suggestedFilename()).toMatch(/-front\.png$/);
+  await page.keyboard.press('Escape');
+
+  // Deleted, the card is one-sided again, with Undo.
+  await page.locator('[data-card-side="delete"]').click();
+  await expect(page.locator('[data-card-side="add"]')).toBeVisible();
+  await expect.poll(async () => (await newestDraft(page))?.model?.back).toBe(undefined);
+  expect(errors).toEqual([]);
+});

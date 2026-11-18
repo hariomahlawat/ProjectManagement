@@ -96,6 +96,9 @@
     const chosen = (name) => saveDialog.querySelector(`input[name="${name}"]:checked`)?.value;
 
     function syncSaveDialog() {
+      // Sides are offered for a card with a back (PR 8).
+      const sidesBox = $('[data-save-sides]');
+      if (sidesBox) sidesBox.hidden = !getCollage().back;
       const size = core.sizeOf(getCollage().size);
       const pixels = core.savePixels(getCollage().size, 'print');
       $('[data-print-note]').textContent = size.mm
@@ -249,56 +252,67 @@
         const wanted = core.savePixels(getCollage().size, quality);
         const fits = renderer.largestCanvas(wanted.width, wanted.height);
         if (!fits) throw new Error('canvas');
-        const drawn = await renderer.drawCollage(getCollage(), photos, fits.width, fits.height);
-        canvas = drawn.canvas;
-        saveLeftOut = drawn.leftOutPhotos;
-        saveStickersLeftOut = drawn.leftOutStickers;
+        // A card with a back (docs/ux/invitations-posters.md, PR 8): the sides chosen, front
+        // first; a PDF gets a page for each, a picture a file for each.
+        const all = core.pagesOf(getCollage());
+        const sides = all.length > 1 ? (chosen('sides') || 'both') : 'front';
+        const pages = all.length > 1 ? (sides === 'front' ? [all[0]] : sides === 'back' ? [all[1]] : all) : all;
+        const names = all.length > 1 ? (sides === 'both' ? ['front', 'back'] : [sides]) : [''];
         const stem = core.fileStem(collageTitle());
-        let bytes;
-        let width = canvas.width;
-        let height = canvas.height;
+        saveLeftOut = 0;
+        saveStickersLeftOut = 0;
+        let width = 0;
+        let height = 0;
         let missed = false;
-        let type;
-        let name;
-        if (format === 'png') {
-          type = 'image/png';
-          name = `${stem}.png`;
-          bytes = await renderer.toBytes(canvas, type);
-        } else if (format === 'jpeg') {
-          type = 'image/jpeg';
-          name = `${stem}.jpg`;
-          if (targetBytes && photoTools) {
-            const result = await photoTools.encodeToTarget({
-              encode: (w, h, q) => renderer.scaledBytes(canvas, w, h, type, q),
-              lossy: true,
-              width,
-              height,
-              targetBytes
-            });
-            bytes = result.bytes;
-            width = result.width;
-            height = result.height;
-            missed = !result.reached;
-          } else {
-            bytes = await renderer.toBytes(canvas, type, 0.92);
-          }
-        } else {
-          type = 'application/pdf';
-          name = `${stem}.pdf`;
-          const page = core.pdfPage(getCollage().size);
-          const jpeg = await renderer.toBytes(canvas, 'image/jpeg', 0.92);
-          const pdf = await window.PDFLib.PDFDocument.create();
+        const files = [];
+        const pdf = format === 'pdf' ? await window.PDFLib.PDFDocument.create() : null;
+        if (pdf) {
           pdf.setTitle(collageTitle());
           pdf.setCreator('PRISM Collage Studio');
-          const image = await pdf.embedJpg(jpeg);
-          pdf.addPage([page.width, page.height]).drawImage(image, { x: 0, y: 0, width: page.width, height: page.height });
-          bytes = await pdf.save();
         }
-        renderer.release(canvas);
-        canvas = null;
-        download(bytes, type, name);
-        const sizeText = photoTools ? photoTools.formatBytes(bytes.length) : `${Math.ceil(bytes.length / 1000)} KB`;
-        const parts = [`Saved “${name}”`, `${width.toLocaleString('en-IN')} × ${height.toLocaleString('en-IN')} pixels`, sizeText];
+        for (const [index, collagePage] of pages.entries()) {
+          const drawn = await renderer.drawCollage(collagePage, photos, fits.width, fits.height);
+          canvas = drawn.canvas;
+          saveLeftOut += drawn.leftOutPhotos;
+          saveStickersLeftOut += drawn.leftOutStickers;
+          width = canvas.width;
+          height = canvas.height;
+          const suffix = names[index] ? `-${names[index]}` : '';
+          if (format === 'png') {
+            files.push({ bytes: await renderer.toBytes(canvas, 'image/png'), type: 'image/png', name: `${stem}${suffix}.png` });
+          } else if (format === 'jpeg') {
+            let bytes;
+            if (targetBytes && photoTools) {
+              const result = await photoTools.encodeToTarget({
+                encode: (w, h, q) => renderer.scaledBytes(canvas, w, h, 'image/jpeg', q),
+                lossy: true,
+                width,
+                height,
+                targetBytes
+              });
+              bytes = result.bytes;
+              width = result.width;
+              height = result.height;
+              missed = missed || !result.reached;
+            } else {
+              bytes = await renderer.toBytes(canvas, 'image/jpeg', 0.92);
+            }
+            files.push({ bytes, type: 'image/jpeg', name: `${stem}${suffix}.jpg` });
+          } else {
+            const page = core.pdfPage(getCollage().size);
+            const image = await pdf.embedJpg(await renderer.toBytes(canvas, 'image/jpeg', 0.92));
+            pdf.addPage([page.width, page.height]).drawImage(image, { x: 0, y: 0, width: page.width, height: page.height });
+          }
+          renderer.release(canvas);
+          canvas = null;
+        }
+        if (pdf) files.push({ bytes: await pdf.save(), type: 'application/pdf', name: `${stem}.pdf` });
+        for (const file of files) download(file.bytes, file.type, file.name);
+        const total = files.reduce((sum, file) => sum + file.bytes.length, 0);
+        const sizeText = photoTools ? photoTools.formatBytes(total) : `${Math.ceil(total / 1000)} KB`;
+        const saved = files.length === 1 ? `Saved “${files[0].name}”` : `Saved ${files.map((file) => `“${file.name}”`).join(' and ')}`;
+        const pageNote = pdf && pages.length > 1 ? `${pages.length} pages` : null;
+        const parts = [saved, pageNote, `${width.toLocaleString('en-IN')} × ${height.toLocaleString('en-IN')} pixels`, sizeText].filter(Boolean);
         let line = `${parts.join(' · ')}.`;
         if (fits.scaled) {
           const dpi = core.paperDpi(getCollage().size, fits.width);

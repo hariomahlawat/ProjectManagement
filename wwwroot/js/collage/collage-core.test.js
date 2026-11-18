@@ -1081,15 +1081,15 @@ test('a draft keeps the parts a newer PRISM made, and writes them back in their 
   const shape = { id: 'b', kind: 'seal', seal: 'rect', x: 10, y: 10, width: 980, aspect: 0.7, stroke: '#a8842f', points: [[0, 0], [1, 1]] };
   const logo = { id: 'c', kind: 'sticker', sticker: 'seal:navy', x: 400, y: 40, width: 120, aspect: 0.59 };
   const words = { ...collage.textItem('d', 'Raising Day Dinner', { x: 500, y: 300 }), font: 'cinzel', field: 'occasion', maxWidth: 800 };
-  const back = { background: { type: 'color', value: '#fbf7ee' }, items: [{ id: 'e', kind: 'photo', photo: 'p2', x: 0, y: 0, width: 1000, aspect: 1.4 }] };
-  const raw = { version: 1, size: 'a4p', background: { type: 'color', value: '#ffffff' }, layout: null, items: [photo, shape, logo, words], back, design: 'classic' };
+  const reverse = { background: { type: 'color', value: '#fbf7ee' }, items: [{ id: 'e', kind: 'photo', photo: 'p2', x: 0, y: 0, width: 1000, aspect: 1.4 }] };
+  const raw = { version: 1, size: 'a4p', background: { type: 'color', value: '#ffffff' }, layout: null, items: [photo, shape, logo, words], reverse, design: 'classic' };
 
   const read = collage.readDraftModel(raw, ['p1', 'p2']);
   // Only what this PRISM draws is on the page; the rest is held aside, untouched.
   assert.deepEqual(read.items.map((i) => i.id), ['a', 'd']);
   assert.equal(collage.keptCount(read), 4);
   assert.deepEqual(read.kept.items, [{ at: 1, item: shape }, { at: 2, item: logo }]);
-  assert.deepEqual(read.kept.fields, { back, design: 'classic' });
+  assert.deepEqual(read.kept.fields, { reverse, design: 'classic' });
   // A newer font and new fields on a known item stay by name; the font draws as the clean one.
   assert.equal(read.items[1].font, 'cinzel');
   assert.equal(read.items[1].field, 'occasion');
@@ -1106,7 +1106,7 @@ test('a draft keeps the parts a newer PRISM made, and writes them back in their 
   assert.deepEqual(written.items.map((i) => i.id), ['a', 'b', 'c', 'd']);
   assert.deepEqual(written.items[1], shape);
   assert.deepEqual(written.items[2], logo);
-  assert.deepEqual(written.back, back);
+  assert.deepEqual(written.reverse, reverse);
   assert.equal(written.design, 'classic');
   assert.equal(written.size, 'a4l');
   // Read again, written again: nothing is lost or doubled however often an older page saves.

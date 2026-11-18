@@ -1589,7 +1589,7 @@
   const ASPECT_LIMITS = Object.freeze([0.02, 50]);
   // The kinds this PRISM draws, and the collage fields it uses.
   const DRAWN_KINDS = Object.freeze(['photo', 'slot', 'text', 'sticker', 'shape']);
-  const MODEL_FIELDS = Object.freeze(['version', 'size', 'background', 'layout', 'items', 'kept', 'card']);
+  const MODEL_FIELDS = Object.freeze(['version', 'size', 'background', 'layout', 'items', 'kept', 'card', 'back', 'side']);
   // A kind, sticker or font name a newer PRISM may write: short, lower case, no markup.
   const PART_NAME = /^[a-z][a-z0-9:_-]{0,40}$/;
   // How much a draft may hold that is not understood: well past any real card.
@@ -1724,6 +1724,16 @@
     const model = { version: MODEL_VERSION, size: isSize(raw.size) ? raw.size : DEFAULT_SIZE, background, layout, items };
     const card = readCard(raw.card);
     if (card) model.card = card;
+    // A card's other side (docs/ux/invitations-posters.md, PR 8): its own background and items,
+    // read with the same care. `side` says the back is the one showing now.
+    if (raw.back && typeof raw.back === 'object' && Array.isArray(raw.back.items)) {
+      const back = readDraftModel({ version: raw.version, size: raw.size, background: raw.back.background, items: raw.back.items }, photoIds);
+      if (back) {
+        model.back = { background: back.background, items: back.items };
+        if (back.kept) model.back.kept = back.kept;
+        if (raw.side === 'back') model.side = 'back';
+      }
+    }
     // Fields of the collage this PRISM does not use (a newer PRISM's back page, for example).
     const fields = {};
     for (const [key, value] of Object.entries(raw)) {
@@ -1753,6 +1763,30 @@
     // The fields the design placed (PR 5): names only, as the designs name them.
     const placed = Array.isArray(raw.placed) ? [...new Set(raw.placed.filter((field) => typeof field === 'string' && CARD_FIELD.test(field)))].slice(0, 40) : [];
     return design ? { design, details, placed } : null;
+  }
+
+  /**
+   * The card turned over (PR 8): the other side becomes the one shown and edited, so every tool
+   * works on it, and Undo covers turning over. A collage with no back is returned as it is.
+   */
+  function flipSide(collage) {
+    if (!collage?.back) return collage;
+    const { back, side, kept, ...rest } = collage;
+    const shown = { background: collage.background, items: collage.items };
+    if (kept) shown.kept = kept;
+    const flipped = { ...rest, background: back.background, items: back.items, back: shown };
+    if (back.kept) flipped.kept = back.kept;
+    if (side !== 'back') flipped.side = 'back';
+    return flipped;
+  }
+
+  /** The card's pages in order, front first, each a plain collage of the card's size, for Save. */
+  function pagesOf(collage) {
+    const page = (part) => ({ version: MODEL_VERSION, size: collage.size, background: part.background, layout: null, items: part.items });
+    if (!collage?.back) return [collage];
+    const shown = page(collage);
+    const other = page(collage.back);
+    return collage.side === 'back' ? [other, shown] : [shown, other];
   }
 
   /** How many parts of a collage were made by a newer PRISM and are kept but not shown. */
@@ -1866,8 +1900,10 @@
    */
   function photosInUse(collage) {
     const used = new Set();
-    for (const item of collage?.items || []) if (item.kind === 'photo' && item.photo) used.add(item.photo);
-    if (collage?.background?.type === 'photo' && collage.background.photo) used.add(collage.background.photo);
+    for (const item of [...(collage?.items || []), ...(collage?.back?.items || [])]) if (item.kind === 'photo' && item.photo) used.add(item.photo);
+    for (const background of [collage?.background, collage?.back?.background]) {
+      if (background?.type === 'photo' && background.photo) used.add(background.photo);
+    }
     const walk = (value, depth) => {
       if (!value || typeof value !== 'object' || depth > 12) return;
       for (const [key, inner] of Object.entries(value)) {
@@ -1876,6 +1912,7 @@
       }
     };
     walk(collage?.kept, 0);
+    walk(collage?.back?.kept, 0);
     return used;
   }
 
@@ -1993,6 +2030,8 @@
     sortDrafts,
     photosInUse,
     keptCount,
+    flipSide,
+    pagesOf,
     draftModel,
     sliderText,
     CAPTION_STRIP,

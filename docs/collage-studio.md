@@ -101,6 +101,21 @@ its npm package by hand; the libman entry records the version.
   - **Changing the design** keeps every word, replaces only the design's own parts, keeps
     anything the user added, and offers Undo.
   - **Title:** a card's automatic title is its occasion ("Raising Day Dinner card").
+  - **Front and back** (PR 8): **Add a back** gives the card a back in its design, with:
+    - a title ("Programme") and the programme, one line each;
+    - a frame for a route sketch or venue photo;
+    - a note at the bottom;
+    - the front's logo, small.
+
+    **Front** and **Back** turn the card over; the side showing is edited on the page, and Undo
+    covers turning over. The back's fields are typed in Card details whichever side shows.
+    Changing the design rebuilds both sides and keeps the side showing. **Delete the back**
+    offers Undo. In the model the side not showing is in `back` (its background and items), and
+    `side: "back"` says the back shows; `core.flipSide` turns the card over and `core.pagesOf`
+    gives the pages front first.
+
+    Save asks **Both sides / Front only / Back only**: a PDF has a page for each side chosen, a
+    PNG or JPG a file for each (`…-front.png`, `…-back.png`). Drafts keep both sides.
   - **Logo** (PR 7): Card details has a **Logo** section. It names the current logo and offers:
     - Crests and logos (the SDD logo and any uploaded crests) to pick from;
     - **Your own logo…**: a PNG, JPG or WEBP read in this browser like a photo, kept with the
