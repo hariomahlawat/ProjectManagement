@@ -331,15 +331,22 @@
     logoFile.hidden = true;
     logoFile.dataset.cardLogoFile = '';
     ui.root.appendChild(logoFile);
-    logoFile.addEventListener('change', async () => {
+    logoFile.addEventListener('change', () => {
       const file = logoFile.files?.[0];
       logoFile.value = '';
       if (!file) return;
       // A card left (or another opened) while the picture is read gets nothing from it.
       const forCollage = state.collageSession;
-      const stillOpen = () => forCollage === state.collageSession;
       // The logo it was chosen for, kept while the picture is read.
       const role = targetRole();
+      // In turn with photo imports and other logo reads, so the photo count and the pixel budget
+      // are checked with every read before it finished.
+      parts.afterImports(() => readLogo(file, forCollage, role));
+    });
+
+    async function readLogo(file, forCollage, role) {
+      const stillOpen = () => forCollage === state.collageSession;
+      if (!stillOpen()) return;
       let type = null;
       try { type = core.sniffImageType(new Uint8Array(await file.slice(0, 16).arrayBuffer())); } catch { type = null; }
       if (!stillOpen()) return;
@@ -367,7 +374,11 @@
       // The second logo it was chosen for may have been removed meanwhile: then it is the logo.
       const into = role === 'logo2' && state.collage.items.some((item) => item.role === 'logo2') ? 'logo2' : 'logo';
       setLogo((place) => core.photoItem(doc.newItemId(), photo.id, photo.aspect, place), into === 'logo2' ? 'Your own logo is the second logo.' : 'Your own logo is on the card.', into);
-    });
+    }
+
+    // The crests and logos an administrator uploaded arrive after the page opens: the Card
+    // panel's logo choices are drawn again with them.
+    ui.root.addEventListener('collage:stickers-loaded', () => refresh());
 
     /** A second logo beside the first: the two side by side when the first is in the middle. */
     function addSecondLogo() {

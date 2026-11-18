@@ -351,3 +351,19 @@ test('a logo is a photo of the collage: with 60 photos already, Your own logo is
   await expect(page.locator('[data-card-logo-name]')).toHaveText('SDD');
   expect(errors).toEqual([]);
 });
+
+test('crests that arrive after a card is open appear in Card details as logos', async ({ page }) => {
+  const samples = require('./fixtures/collage-api-samples.json');
+  const crest = samples.stickers.stickers[0];
+  // Hold back the crest list until the card is open.
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  await page.route('**/api/collage/stickers', async (route) => { await held; await route.continue(); });
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await expect(page.locator('[data-card-logo-use="logo:sdd"]')).toBeVisible();
+  await expect(page.locator(`[data-card-logo-use="unit:${crest.id}"]`)).toHaveCount(0);
+  release();
+  await expect(page.locator(`[data-card-logo-use="unit:${crest.id}"]`)).toBeVisible();
+  expect(errors).toEqual([]);
+});
