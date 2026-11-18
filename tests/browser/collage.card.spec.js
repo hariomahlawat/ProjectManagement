@@ -603,8 +603,9 @@ test('a logo still being read when the card is turned over stays in the tray, no
   await page.locator('[data-card-field="venue"]').blur();
   await expect.poll(async () => Boolean(await newestDraft(page))).toBe(true);
   const model = (await newestDraft(page)).model;
-  const front = model.side === 'back' ? model.back.items : model.items;
-  const back = model.side === 'back' ? model.items : model.back.items;
+  // A draft keeps the front at the top, whichever side shows.
+  const front = model.items;
+  const back = model.back.items;
   expect(front.find((item) => item.role === 'logo').sticker).toBe('logo:sdd');
   expect(back.some((item) => item.role === 'logo')).toBe(false);
 });
