@@ -46,6 +46,10 @@ test('two logos: removing the first leaves the second as the logo; the roundel w
   // No logo: the roundel hides; a logo picked brings it back.
   await page.locator('[data-card-logo="remove"]').click();
   await expect.poll(async () => (await roundelOf())?.hidden).toBe(true);
+  // Save does not call the design's hidden roundel a hidden item of the user's.
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-empty]')).not.toContainText('hidden item');
+  await page.keyboard.press('Escape');
   await page.locator('[data-card-logo-use="logo:sdd"]').click();
   await expect.poll(async () => (await roundelOf())?.hidden).toBe(false);
   expect(errors).toEqual([]);

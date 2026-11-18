@@ -638,13 +638,6 @@
   }
 
   /**
-   * The collage with `designKey` applied: its background, and a new set of design parts, made
-   * from the details, in place of the parts of any design applied before. Items the user added
-   * (photos, stickers, their own words: anything without a `role`) stay where they are, in front.
-   * A field left empty has no item. `measure(text, font)` sizes the words as the page does;
-   * `newId()` gives each new item its id. The page size never changes.
-   */
-  /**
    * One side's items: the design's parts for it, made from the wording, then the user's own
    * items (and a second logo) from `items`, the side as it was. A photo in the side's frame
    * (`frameRole`) goes into the new frame, or stays as the user's own when there is none.

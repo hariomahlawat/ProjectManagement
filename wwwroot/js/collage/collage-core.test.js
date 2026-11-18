@@ -1407,6 +1407,8 @@ test('guest names come one a line from pasted text, or the first column of a CSV
   assert.equal(collage.readGuests('Maj A').over, 0);
   // A CSV whose first row heads a Name column takes that column, not the rank before it.
   assert.deepEqual(collage.guestNames('Rank,Name,Unit\nBrig,"P. Singh, SM",5 Sikh\nCol,D. Nair,', { csv: true }), ['P. Singh, SM', 'D. Nair']);
+  assert.deepEqual(collage.guestNames('Rank;Guest name' + String.fromCharCode(10) + 'Brig;P. Singh, SM', { csv: true }), ['P. Singh, SM']);
+  assert.deepEqual(collage.guestNames('Guests' + String.fromCharCode(10) + 'Maj A' + String.fromCharCode(10) + 'Capt B'), ['Maj A', 'Capt B']);
   assert.deepEqual(collage.guestNames('Full name\nMaj A', { csv: true }), ['Maj A']);
   // A draft keeps the list, cleaned the same way.
   const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: {}, guests: ['Col D. Nair', '', 7, 'Maj B'] } }, []);

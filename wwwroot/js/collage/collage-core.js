@@ -1892,7 +1892,7 @@
   }
 
   /** The cells of one CSV row: quoted cells may hold commas, and a doubled quote is a quote. */
-  function csvCells(line) {
+  function csvCells(line, separator = ',') {
     const cells = [];
     let cell = '';
     let quoted = false;
@@ -1903,7 +1903,7 @@
         else if (ch === '"') quoted = false;
         else cell += ch;
       } else if (ch === '"' && !cell.trim()) { cell = ''; quoted = true; }
-      else if (ch === ',') { cells.push(cell); cell = ''; }
+      else if (ch === separator) { cells.push(cell); cell = ''; }
       else cell += ch;
     }
     cells.push(cell);
@@ -1920,13 +1920,16 @@
     const names = [];
     let column = 0;
     let first = true;
+    // A CSV saved with semicolons (as some spreadsheets do) when its first row has no comma.
+    const head = lines.find((line) => line.trim()) || '';
+    const separator = csv && head.includes(';') && !head.includes(',') ? ';' : ',';
     let over = 0;
     for (const line of lines) {
       if (!line.trim()) continue;
-      const cells = csv ? csvCells(line) : [line];
+      const cells = csv ? csvCells(line, separator) : [line];
       if (first) {
         first = false;
-        const heading = cells.findIndex((cell) => /^\s*(full\s+)?names?\s*$/i.test(cell));
+        const heading = cells.findIndex((cell) => /^\s*((full|guest|guest's|guest’s)\s+)?names?\s*$|^\s*guests?\s*$/i.test(cell));
         if (heading >= 0) { column = heading; continue; }
       }
       const name = String(cells[column] ?? '').replace(/\s+/g, ' ').trim().slice(0, GUEST_LIMITS.length);

@@ -139,8 +139,11 @@
       targetRow.hidden = !jpeg;
       targetValue.disabled = !targetOn.checked;
       targetUnit.disabled = !targetOn.checked;
-      const empty = getCollage().items.filter((item) => item.kind === 'slot').length;
-      const hidden = getCollage().items.filter((item) => item.kind !== 'slot' && item.hidden).length;
+      // Both sides of a card are counted. The roundel a design hides while there is no logo is
+      // the design's, not something the user hid.
+      const sides = [...getCollage().items, ...(getCollage().back?.items || [])];
+      const empty = sides.filter((item) => item.kind === 'slot').length;
+      const hidden = sides.filter((item) => item.kind !== 'slot' && item.hidden && item.role !== 'roundel').length;
       const emptyLine = $('[data-save-empty]');
       emptyLine.textContent = leftOutLine(empty, hidden);
       emptyLine.hidden = !emptyLine.textContent;

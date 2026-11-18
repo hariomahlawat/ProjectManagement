@@ -210,9 +210,11 @@
     }
 
     function renderTrayNow() {
+      // Both sides of a card count: a photo on the back is in use, and cannot be removed here.
       const used = new Map();
-      for (const item of state.collage.items) if (item.kind === 'photo') used.set(item.photo, (used.get(item.photo) || 0) + 1);
-      const background = state.collage.background?.type === 'photo' ? state.collage.background.photo : null;
+      for (const item of [...state.collage.items, ...(state.collage.back?.items || [])]) if (item.kind === 'photo') used.set(item.photo, (used.get(item.photo) || 0) + 1);
+      const background = state.collage.background?.type === 'photo' ? state.collage.background.photo
+        : state.collage.back?.background?.type === 'photo' ? state.collage.back.background.photo : null;
       ui.tray.textContent = '';
       for (const photo of doc.photos.values()) {
         if (photo.removed) continue;
