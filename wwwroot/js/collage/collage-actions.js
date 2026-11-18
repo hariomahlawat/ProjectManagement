@@ -232,7 +232,7 @@
       if (ui.sizeSelect.value === 'custom') {
         ui.showSize(state.collage.size);
         selection.select(null);
-        parts.setPropsOpen?.(true);
+        parts.setPropsOpen?.(true, 'settings');
         window.requestAnimationFrame(() => ui.props.querySelector('[data-custom-size="width"]')?.focus());
         return;
       }

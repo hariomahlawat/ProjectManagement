@@ -98,8 +98,9 @@ test('a custom card size typed in mm: refused out of range, then the card saves 
   expect(Math.abs(pageSize.width - 120 / 25.4 * 72)).toBeLessThan(0.5);
   expect(Math.abs(pageSize.height - 180 / 25.4 * 72)).toBeLessThan(0.5);
 
-  // In the editor, Custom size… opens Page settings to type another size.
+  // In the editor, Custom size… opens Page settings to type another size, even from Layers.
   await page.keyboard.press('Escape');
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
   await page.locator('[data-size]').selectOption('custom');
   await expect(page.locator('[data-size]')).toHaveValue('mm:120x180');
   const width = page.locator('[data-props] [data-custom-size="width"]');
