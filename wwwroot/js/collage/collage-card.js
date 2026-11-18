@@ -320,10 +320,33 @@
           draft.items.splice(own < 0 ? draft.items.length : own, 0, fresh);
         }
       }, 'none');
+      followLogoOnBack();
       history.commit();
       surface.syncAll();
       renderPanel();
       messages.announce(said);
+    }
+
+    /**
+     * The back's small logo shows the front's logo (PR 8): the same picture in the back's place,
+     * or none when the front has none. Done inside the change it follows, so one Undo covers both.
+     */
+    function followLogoOnBack() {
+      doc.edit((draft) => {
+        if (!draft.back) return;
+        const front = draft.items.find((item) => item.role === 'logo' && item.kind !== 'slot');
+        const at = draft.back.items.findIndex((item) => item.role === 'backlogo');
+        if (!front) {
+          if (at >= 0) draft.back.items.splice(at, 1);
+          return;
+        }
+        // The back's place for it: where it is now, or where the design puts it.
+        const place = at >= 0 ? draft.back.items[at] : designs.backPage(draft, draft.card?.design, designs.detailsOf(draft), options()).items.find((item) => item.role === 'backlogo');
+        if (!place) return;
+        const small = { ...front, id: at >= 0 ? place.id : doc.newItemId(), x: place.x, y: place.y, width: place.width, angle: 0, role: 'backlogo' };
+        if (at >= 0) draft.back.items.splice(at, 1, small);
+        else draft.back.items.push(small);
+      }, 'none');
     }
 
     function useLogoSticker(id) {
@@ -437,6 +460,7 @@
         if (promoting) draft.items = draft.items.map((item) => (item.role === 'logo2' ? { ...item, role: 'logo' } : item));
       }, 'none');
       logoTarget = 'logo';
+      followLogoOnBack();
       history.commit();
       surface.syncAll();
       renderPanel();

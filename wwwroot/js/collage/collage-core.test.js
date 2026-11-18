@@ -1318,3 +1318,14 @@ test('a card with a back: a size change moves both sides; the back keeps its new
   assert.equal(collage.keptCount(again), 1, 'the back\'s newer part survives a save');
   assert.deepEqual(collage.draftModel(again).back.items.map((item) => item.id), ['n', 'h']);
 });
+
+// Each side keeps its own photo layout when the card turns over, and in the draft (PR 8).
+test('a side keeps its photo layout through turning over and a draft', () => {
+  const front = { ...collage.newCollage('a5p'), layout: { key: 't2', gap: 12, radius: 0 }, back: { background: { type: 'color', value: '#ffffff' }, items: [], layout: null } };
+  const over = collage.flipSide(front);
+  assert.equal(over.layout, null, 'the back has no layout');
+  assert.deepEqual(over.back.layout, { key: 't2', gap: 12, radius: 0 });
+  assert.deepEqual(collage.flipSide(over).layout, { key: 't2', gap: 12, radius: 0 }, 'back to the front, its layout is there');
+  const read = collage.readDraftModel(JSON.parse(JSON.stringify(collage.draftModel(over))), []);
+  assert.deepEqual(read.back.layout?.key, 't2');
+});

@@ -432,3 +432,30 @@ test('a unit colour changed from the front reaches the back too', async ({ page 
   for (const item of tinted) for (const [prop, which] of Object.entries(item.tint)) if (which === 1) expect(item[prop]).toBe('#1f5b3a');
   expect(errors).toEqual([]);
 });
+
+test('the back\'s small logo follows the front\'s: replaced, removed and put back', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await page.locator('[data-card-side="front"]').click();
+  const backLogo = async () => {
+    const model = (await newestDraft(page))?.model;
+    const back = model?.side === 'back' ? model.items : model?.back?.items;
+    return (back || []).find((item) => item.role === 'backlogo') || null;
+  };
+  await expect.poll(async () => (await backLogo())?.sticker).toBe('logo:sdd');
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 60;
+    canvas.height = 60;
+    canvas.getContext('2d').fillRect(0, 0, 60, 60);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  await page.locator('[data-card-logo-file]').setInputFiles({ name: 'unit.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect.poll(async () => (await backLogo())?.kind).toBe('photo');
+  await page.locator('[data-card-logo="remove"]').click();
+  await expect.poll(async () => await backLogo()).toBe(null);
+  await page.locator('[data-card-logo-use="logo:sdd"]').click();
+  await expect.poll(async () => (await backLogo())?.sticker).toBe('logo:sdd');
+  expect(errors).toEqual([]);
+});

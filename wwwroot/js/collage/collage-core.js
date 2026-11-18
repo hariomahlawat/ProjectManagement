@@ -1726,9 +1726,9 @@
     // A card's other side (docs/ux/invitations-posters.md, PR 8): its own background and items,
     // read with the same care. `side` says the back is the one showing now.
     if (raw.back && typeof raw.back === 'object' && Array.isArray(raw.back.items)) {
-      const back = readDraftModel({ version: raw.version, size: raw.size, background: raw.back.background, items: raw.back.items }, photoIds);
+      const back = readDraftModel({ version: raw.version, size: raw.size, background: raw.back.background, layout: raw.back.layout, items: raw.back.items }, photoIds);
       if (back) {
-        model.back = { background: back.background, items: back.items };
+        model.back = { background: back.background, items: back.items, layout: back.layout };
         if (back.kept) model.back.kept = back.kept;
         if (raw.side === 'back') model.side = 'back';
       }
@@ -1771,9 +1771,10 @@
   function flipSide(collage) {
     if (!collage?.back) return collage;
     const { back, side, kept, ...rest } = collage;
-    const shown = { background: collage.background, items: collage.items };
+    // Each side keeps its own background, items and photo layout.
+    const shown = { background: collage.background, items: collage.items, layout: collage.layout || null };
     if (kept) shown.kept = kept;
-    const flipped = { ...rest, background: back.background, items: back.items, back: shown };
+    const flipped = { ...rest, background: back.background, items: back.items, layout: back.layout || null, back: shown };
     if (back.kept) flipped.kept = back.kept;
     if (side !== 'back') flipped.side = 'back';
     return flipped;
@@ -1811,7 +1812,7 @@
     if (!collage) return collage;
     // The other side keeps its own newer parts too (PR 8), put back the same way.
     const withBack = collage.back?.kept
-      ? { ...collage, back: { background: collage.back.background, items: putBack(collage.back) } }
+      ? { ...collage, back: { background: collage.back.background, layout: collage.back.layout || null, items: putBack(collage.back) } }
       : collage;
     if (!withBack.kept) return withBack;
     const { kept, ...model } = withBack;
