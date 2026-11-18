@@ -98,6 +98,15 @@
       return importQueue;
     }
 
+    /**
+     * Runs `task` after every import (and logo read) before it, so photo counts and the pixel
+     * budget are checked one read at a time. Returns its promise.
+     */
+    function afterImports(task) {
+      importQueue = importQueue.then(task).catch(() => {});
+      return importQueue;
+    }
+
     async function importFiles(files, { at = null, frameId = null } = {}, forCollage) {
       // A collage left before its photos were read gets none of them, and neither does the next.
       const stillOpen = () => forCollage === state.collageSession;
@@ -377,7 +386,9 @@
     });
 
 
-    return { setTarget, chooseFor, readPhoto, missingPhoto, libraryPicker, renderTray, keptPhotos, forgetRemovedPhotos };
+    /** Working copies made smaller first, so `count` photos stay within the pixel budget. */
+    const fitBudget = (count) => photoReader.fitBudget(doc.photos, count);
+    return { setTarget, chooseFor, readPhoto, missingPhoto, libraryPicker, renderTray, keptPhotos, forgetRemovedPhotos, photosInCollage, fitBudget, afterImports };
   }
 
   return Object.freeze({ createTray });

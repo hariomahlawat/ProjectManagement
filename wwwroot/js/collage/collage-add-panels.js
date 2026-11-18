@@ -194,8 +194,11 @@
         unitState = error?.reason === 'signed-out' ? 'signedOut' : 'failed';
       }).finally(() => {
         renderStickerPanel();
-        // A collage opened before the list arrived draws its crests at their listed address now.
+        // A collage opened before the list arrived draws its crests at their listed address now,
+        // and Card details offers them as logos.
         if (!ui.views.editor.hidden) surface.syncPage();
+        const View = ui.root.ownerDocument?.defaultView || window;
+        ui.root.dispatchEvent(new View.Event('collage:stickers-loaded'));
       });
     }
 

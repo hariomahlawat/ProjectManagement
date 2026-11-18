@@ -204,3 +204,166 @@ test('a Card field clicked straight after typing words in Settings shows those w
   await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'venue')?.text).toBe('Sudarshan Halls');
   expect(errors).toEqual([]);
 });
+
+test('the user\'s own logo: a see-through PNG keeps the card showing through it, and a removed logo stays off', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await expect(page.locator('[data-card-logo-name]')).toHaveText('SDD');
+
+  // A 200 × 200 PNG: clear all round, a red disc in the middle.
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 200;
+    canvas.height = 200;
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#d01010';
+    context.beginPath();
+    context.arc(100, 100, 50, 0, Math.PI * 2);
+    context.fill();
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  await page.locator('[data-card-logo-file]').setInputFiles({ name: 'unit-logo.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect(page.locator('[data-card-logo-name]')).toHaveText('Your own logo (unit-logo.png)');
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'logo')?.kind).toBe('photo');
+  const logo = (await newestDraft(page)).model.items.find((item) => item.role === 'logo');
+
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'A slide or a screen' }).click();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  const file = await download;
+  const pixels = await page.evaluate(async ([base64, item]) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext('2d');
+    context.drawImage(bitmap, 0, 0);
+    const scale = bitmap.width / 1000;
+    const at = (x, y) => [...context.getImageData(Math.round(x * scale), Math.round(y * scale), 1, 1).data].slice(0, 3);
+    const half = item.width / 2;
+    return { middle: at(item.x, item.y), corner: at(item.x - half * 0.85, item.y - half * 0.85) };
+  }, [(await streamBytes(file)).toString('base64'), logo]);
+  // The disc is drawn; round it, the card's ivory shows through.
+  expect(pixels.middle[0]).toBeGreaterThan(180);
+  expect(pixels.middle[1]).toBeLessThan(60);
+  expect(pixels.corner).toEqual([0xfb, 0xf7, 0xee]);
+  await page.keyboard.press('Escape');
+
+  // Removed, it stays off when the design changes; the SDD logo can be put back.
+  await page.locator('[data-card-logo="remove"]').click();
+  await expect(page.locator('[data-card-logo-name]')).toHaveText('No logo');
+  await page.locator('[data-card-design="navy"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.card?.design).toBe('navy');
+  expect((await newestDraft(page)).model.items.some((item) => item.role === 'logo')).toBe(false);
+  await page.locator('[data-card-logo-use="logo:sdd"]').click();
+  await expect(page.locator('[data-card-logo-name]')).toHaveText('SDD');
+  expect(errors).toEqual([]);
+});
+
+async function streamBytes(download) {
+  const chunks = [];
+  for await (const chunk of await download.createReadStream()) chunks.push(chunk);
+  return Buffer.concat(chunks);
+}
+
+test('a second logo can be changed: the choices change the logo picked above them', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-logo="second"]').click();
+  // Straight after adding it, the choices change the second logo.
+  await expect(page.locator('[data-card-logo-target="logo2"]')).toHaveAttribute('aria-pressed', 'true');
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 120;
+    canvas.height = 60;
+    canvas.getContext('2d').fillRect(0, 0, 120, 60);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  await page.locator('[data-card-logo-file]').setInputFiles({ name: 'second.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect(page.locator('[data-card-logo-name]')).toHaveText('Your own logo (second.png)');
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'logo2')?.kind).toBe('photo');
+  const items = (await newestDraft(page)).model.items;
+  // The first logo is still the SDD logo.
+  expect(items.find((item) => item.role === 'logo').sticker).toBe('logo:sdd');
+  // First logo picked: the name shown is the first's.
+  await page.locator('[data-card-logo-target="logo"]').click();
+  await expect(page.locator('[data-card-logo-name]')).toHaveText('SDD');
+  // Remove takes the logo picked: the second, then the one left.
+  await page.locator('[data-card-logo-target="logo2"]').click();
+  await page.locator('[data-card-logo="remove"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.some((item) => item.role === 'logo2')).toBe(false);
+  expect((await newestDraft(page)).model.items.find((item) => item.role === 'logo').sticker).toBe('logo:sdd');
+  await expect(page.locator('[data-card-logo-target]')).toHaveCount(0);
+  // With two again, removing the first leaves the second as the card's logo, still removable.
+  await page.locator('[data-card-logo="second"]').click();
+  await page.locator('[data-card-logo-file]').setInputFiles({ name: 'second.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'logo2')?.kind).toBe('photo');
+  await page.locator('[data-card-logo-target="logo"]').click();
+  await page.locator('[data-card-logo="remove"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'logo')?.kind).toBe('photo');
+  await expect(page.locator('[data-card-logo="remove"]')).toHaveText(/Remove logo/);
+  expect(errors).toEqual([]);
+});
+
+test('a locked logo is neither replaced nor removed from Card details', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  // A word typed, so the draft is saved and can be read.
+  await page.locator('[data-card-field="venue"]').fill('Sudarshan Hall');
+  await page.locator('[data-card-field="venue"]').blur();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.some((item) => item.role === 'logo')).toBe(true);
+  // Lock the logo through Layers.
+  const logoId = (await newestDraft(page)).model.items.find((item) => item.role === 'logo').id;
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator(`[data-layer-lock="${logoId}"]`).click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'logo')?.locked).toBe(true);
+  const before = (await newestDraft(page)).model.items.find((item) => item.role === 'logo');
+  await page.locator('[data-card-logo="remove"]').click();
+  await expect(page.locator('[data-prism-toast]').filter({ hasText: 'locked' })).toBeVisible();
+  await page.locator('[data-card-logo-use="logo:sdd"]').click();
+  const after = (await newestDraft(page)).model.items.find((item) => item.role === 'logo');
+  expect(after?.id).toBe(before.id);
+  expect(errors).toEqual([]);
+});
+
+test('a logo is a photo of the collage: with 60 photos already, Your own logo is refused', async ({ page }) => {
+  test.setTimeout(120000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 8;
+    canvas.height = 8;
+    canvas.getContext('2d').fillRect(0, 0, 8, 8);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  const files = Array.from({ length: 60 }, (_, i) => ({ name: `p${i}.png`, mimeType: 'image/png', buffer: Buffer.from(png, 'base64') }));
+  await page.locator('[data-file-input]').setInputFiles(files);
+  await expect(page.locator('[data-photo-count]')).toHaveText('60 of 60 photos');
+  await page.locator('[data-card-logo-file]').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect(page.locator('[data-prism-toast]').filter({ hasText: 'the most it can hold' })).toBeVisible();
+  await expect(page.locator('[data-photo-count]')).toHaveText('60 of 60 photos');
+  await expect(page.locator('[data-card-logo-name]')).toHaveText('SDD');
+  expect(errors).toEqual([]);
+});
+
+test('crests that arrive after a card is open appear in Card details as logos', async ({ page }) => {
+  const samples = require('./fixtures/collage-api-samples.json');
+  const crest = samples.stickers.stickers[0];
+  // Hold back the crest list until the card is open.
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  await page.route('**/api/collage/stickers', async (route) => { await held; await route.continue(); });
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await expect(page.locator('[data-card-logo-use="logo:sdd"]')).toBeVisible();
+  await expect(page.locator(`[data-card-logo-use="unit:${crest.id}"]`)).toHaveCount(0);
+  release();
+  await expect(page.locator(`[data-card-logo-use="unit:${crest.id}"]`)).toBeVisible();
+  expect(errors).toEqual([]);
+});
