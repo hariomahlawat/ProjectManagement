@@ -6210,13 +6210,5 @@ html[data-pbd-focus] .pbd-focus-toggle {
         border: 1px solid var(--pbd-border);
         background: var(--pm-card, var(--pbd-surface));
     }
-
-    .pbd-quick-card .btn.is-added,
-    .pbd-quick-card .btn.is-added:hover,
-    .pbd-quick-card .btn.is-added:focus,
-    .pbd-quick-card .btn.is-added:focus-visible,
-    .pbd-quick-card .btn.is-added:active {
-        background: var(--pbd-surface);
-    }
 }
 /* END GENERATED: color-mix() fallbacks */
