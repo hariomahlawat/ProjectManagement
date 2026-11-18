@@ -591,3 +591,23 @@ test('folded cards: the cover is the outside sheet\'s right half, and inside rea
     }
   }
 });
+
+// The logo keeps clear of the bands and rules around it (a car pass's logo touched its band).
+test('at every size, the logo keeps at least 10 units clear of any band or rule it is not inside', () => {
+  for (const key of Object.keys(designs.DESIGNS).filter((each) => !designs.DESIGNS[each].poster)) {
+    for (const size of designs.DESIGNS[key].pocket ? pocketSizes : cardSizes) {
+      const card = designs.applyDesign(core.newCollage(size), key, {}, { measure, newId });
+      const logo = card.items.find((item) => item.role === 'logo');
+      // A logo in a roundel (Regimental) sits over the colour band by design.
+      if (!logo || card.items.some((item) => item.role === 'roundel')) continue;
+      const l = box(logo);
+      for (const shape of card.items.filter((item) => item.kind === 'shape' && item.role !== 'roundel')) {
+        const s = box(shape);
+        const inside = s.left <= l.left && s.right >= l.right && s.top <= l.top && s.bottom >= l.bottom;
+        if (inside) continue;
+        const gap = Math.max(s.left - l.right, l.left - s.right, s.top - l.bottom, l.top - s.bottom);
+        assert.ok(gap >= 10, `${key} ${size}: the logo is ${gap.toFixed(1)} from ${shape.role}`);
+      }
+    }
+  }
+});

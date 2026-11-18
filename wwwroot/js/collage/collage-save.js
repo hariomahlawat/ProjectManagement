@@ -129,7 +129,10 @@
       }
       const size = core.sizeOf(getCollage().size);
       const pixels = core.savePixels(getCollage().size, 'print');
-      $('[data-print-note]').textContent = size.mm
+      // A PDF's quality in print words; a picture's in pixels.
+      $('[data-print-note]').textContent = chosen('format') === 'pdf'
+        ? `300 dots per inch: sharp in print.`
+        : size.mm
         ? `${pixels.width.toLocaleString('en-IN')} × ${pixels.height.toLocaleString('en-IN')} pixels, 300 dots per inch on ${size.label} paper.`
         : `${pixels.width.toLocaleString('en-IN')} × ${pixels.height.toLocaleString('en-IN')} pixels.`;
       $('[data-pdf-note]').textContent = size.mm

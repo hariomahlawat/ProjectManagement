@@ -404,6 +404,9 @@
     showView('editor');
     card?.refresh();
     setPanel(collage.card ? 'card' : 'photos');
+    // A new collage opens its panel at the top (the designs), not where the last one was scrolled.
+    const drawer = document.getElementById('clgDrawer');
+    if (drawer) drawer.scrollTop = 0;
     syncAll();
   }
 

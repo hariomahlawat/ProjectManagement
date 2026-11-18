@@ -276,7 +276,7 @@
       landscape: [
         border('border', 0.03, GOLD, 1.5),
         logo(0.5, 0.14, 0.11),
-        vline('divider', 0.5, 0.34, 0.2, GOLD, 1.2),
+        vline('divider', 0.5, 0.355, 0.17, GOLD, 1.2),
         words('hostHi', 0.27, 0.29, 0.4, 20, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
         words('inviteHi', 0.27, 0.4, 0.4, 18, { font: 'hindiFormal', color: INK, bold: false }, { lines: 1 }),
         words('host', 0.73, 0.29, 0.4, 18, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
@@ -376,7 +376,7 @@
       background: { type: 'color', value: '#ffffff' },
       portrait: [
         block('band1', 0.5, 0.03, 1, 0.06, { fill: NAVY, stroke: '' }),
-        logo(0.5, 0.16, 0.16),
+        logo(0.5, 0.175, 0.15),
         words('passTitle', 0.5, 0.34, 0.86, 64, { font: 'clean', color: MAROON, bold: true, spacing: 8 }, { lines: 1 }),
         words('occasion', 0.5, 0.46, 0.86, 40, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
         words('when', 0.5, 0.58, 0.86, 30, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
@@ -751,6 +751,24 @@
         if (part.angle) item.angle = part.angle;
         if (part.radius && (item.kind === 'slot' || item.kind === 'photo')) item.radius = Math.min(part.radius, core.LAYOUT_LIMITS.radiusMax);
       }
+    }
+    // A logo in a white box (Ceremonial) fits inside it with a margin, whatever its shape.
+    const box = made.find((item) => item.role === 'logobox');
+    const boxed = made.find((item) => item.role === 'logo');
+    if (box && boxed && !boxed.locked) {
+      const aspect = boxed.width / core.itemHeight(boxed);
+      boxed.width = Math.min(boxed.width, box.width * 0.84, core.itemHeight(box) * 0.86 * aspect);
+      boxed.x = box.x;
+      boxed.y = box.y;
+    }
+    // A logo inside a border keeps clear of its line (a very wide card squeezes the logo up to it):
+    // made smaller about its middle until it is 12 units inside the frame.
+    const frame = made.find((item) => item.role === 'border' && item.kind === 'shape');
+    const framedLogo = made.find((item) => item.role === 'logo');
+    if (frame && framedLogo && !framedLogo.locked) {
+      const top = frame.y - core.itemHeight(frame) / 2 + 12;
+      const half = core.itemHeight(framedLogo) / 2;
+      if (framedLogo.y - half < top && framedLogo.y > top) framedLogo.width *= (framedLogo.y - top) / half;
     }
     // Photos from the last design's frame with no frame here become the user's own.
     const leftOver = framed.map(({ role, ...item }) => item);

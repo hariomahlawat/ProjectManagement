@@ -296,6 +296,13 @@
     // The field typed in since it was focused: its words are the user's, never put back.
     let typedIn = null;
     form?.addEventListener('focusin', (event) => { if (event.target.dataset.cardField) typedIn = null; });
+    // While a field is typed in, a phone's sheet is shorter, so the card above stays readable.
+    form?.addEventListener('focusin', (event) => {
+      if (event.target.matches('input:not([type="color"]), textarea')) ui.root.classList.add('is-card-typing');
+    });
+    form?.addEventListener('focusout', () => {
+      setTimeout(() => { if (!form.contains(document.activeElement)) ui.root.classList.remove('is-card-typing'); }, 0);
+    });
 
     /** Every field shows the card's words, in place, except one being typed in. */
     function syncInputs() {

@@ -908,6 +908,11 @@
         --clg-sheet: 52vh;
     }
 
+    /* Typing in Card details: a shorter sheet, so the card above stays big enough to read. */
+    .clg.is-card-typing {
+        --clg-sheet: 38vh;
+    }
+
     .clg-body,
     .clg-body.is-drawer-closed {
         grid-template-columns: 1fr;
