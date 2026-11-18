@@ -299,6 +299,8 @@
     function setLogo(make, said) {
       const role = targetRole();
       const current = state.collage.items.find((item) => item.role === role) || null;
+      // A locked logo is not replaced: unlocked first, as everywhere else.
+      if (current?.locked) { messages.sayLocked(); return; }
       const place = current || designs.roleItem(state.collage, 'logo', options());
       if (!place) return;
       selection.select(null);
@@ -366,8 +368,12 @@
       selection.select(null);
       doc.edit((draft) => {
         const first = draft.items.find((item) => item.role === 'logo');
-        const second = { ...first, id: doc.newItemId(), role: 'logo2' };
-        if (middle) {
+        const second = { ...first, id: doc.newItemId(), role: 'logo2', locked: false };
+        // A locked first logo stays where it is; the second goes beside it.
+        if (first.locked) {
+          second.x = Math.min(core.PAGE_WIDTH - first.width / 2, first.x + first.width * 1.3);
+          if (second.x - first.x < first.width) second.x = Math.max(first.width / 2, first.x - first.width * 1.3);
+        } else if (middle) {
           first.x = core.PAGE_WIDTH / 2 - step;
           second.x = core.PAGE_WIDTH / 2 + step;
         } else {
@@ -390,7 +396,9 @@
      */
     function removeLogo() {
       const role = targetRole();
-      if (!state.collage.items.some((item) => item.role === role)) return;
+      const target = state.collage.items.find((item) => item.role === role);
+      if (!target) return;
+      if (target.locked) { messages.sayLocked(); return; }
       const promoting = role === 'logo' && state.collage.items.some((item) => item.role === 'logo2');
       selection.select(null);
       doc.edit((draft) => {

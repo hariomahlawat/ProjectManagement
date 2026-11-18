@@ -309,3 +309,24 @@ test('a second logo can be changed: the choices change the logo picked above the
   await expect(page.locator('[data-card-logo="remove"]')).toHaveText(/Remove logo/);
   expect(errors).toEqual([]);
 });
+
+test('a locked logo is neither replaced nor removed from Card details', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  // A word typed, so the draft is saved and can be read.
+  await page.locator('[data-card-field="venue"]').fill('Sudarshan Hall');
+  await page.locator('[data-card-field="venue"]').blur();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.some((item) => item.role === 'logo')).toBe(true);
+  // Lock the logo through Layers.
+  const logoId = (await newestDraft(page)).model.items.find((item) => item.role === 'logo').id;
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator(`[data-layer-lock="${logoId}"]`).click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'logo')?.locked).toBe(true);
+  const before = (await newestDraft(page)).model.items.find((item) => item.role === 'logo');
+  await page.locator('[data-card-logo="remove"]').click();
+  await expect(page.locator('[data-prism-toast]').filter({ hasText: 'locked' })).toBeVisible();
+  await page.locator('[data-card-logo-use="logo:sdd"]').click();
+  const after = (await newestDraft(page)).model.items.find((item) => item.role === 'logo');
+  expect(after?.id).toBe(before.id);
+  expect(errors).toEqual([]);
+});
