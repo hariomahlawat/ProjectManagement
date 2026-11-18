@@ -37,10 +37,14 @@ export function initAddProjects(deps) {
   let optionsState = 'idle';
   let optionsLoad = null;
   let optionsError = '';
-  const loadFilterOptions = () => {
-    if (deckId <= 0 || optionsState === 'loaded' || optionsState === 'loading') return optionsLoad;
-    optionsState = 'loading';
-    renderFilterPanel();
+  // With refresh, choices already loaded are fetched again quietly (each opening, cold review 4),
+  // so their counts follow the list; what is shown stays until the new ones arrive.
+  const loadFilterOptions = ({ refresh = false } = {}) => {
+    if (deckId <= 0 || optionsState === 'loading' || optionsState === 'refreshing') return optionsLoad;
+    if (optionsState === 'loaded' && !refresh) return optionsLoad;
+    const quiet = optionsState === 'loaded';
+    optionsState = quiet ? 'refreshing' : 'loading';
+    if (!quiet) renderFilterPanel();
     const url = new URL(root.dataset.filterOptionsUrl, view.location.origin);
     url.searchParams.set('deckId', String(deckId));
     optionsLoad = view.fetch(url, {
@@ -49,28 +53,45 @@ export function initAddProjects(deps) {
     })
       .then(async (response) => {
         checkReply(response, { read: true });
-        if (!response.ok) throw new Error('The choices could not be loaded.');
-        filterOptions = (await response.json()) || {};
+        const payload = await response.json().catch(() => null);
+        // The server's own message (deck not found, no access) when it gives one (cold review 4).
+        if (!response.ok) throw new Error(payload?.message || 'The choices could not be loaded.');
+        filterOptions = payload || {};
         optionsState = 'loaded';
       })
       .catch((error) => {
         // checkReply's message (signed out, no access) says more than a generic failure
-        // (cold review 3).
+        // (cold review 3). A failed quiet refresh keeps the choices already shown.
+        if (quiet) { optionsState = 'loaded'; return; }
         optionsError = error?.message || '';
         optionsState = 'failed';
       })
       .finally(() => {
-        renderFilterChips();
-        renderFilterPanel();
+        // Whoever was on the open filter's chip while its choices loaded is taken into them
+        // (cold review 4); focus inside the panel is not pulled away by a quiet refresh.
+        const active = doc.activeElement;
+        const onOpenChip = Boolean(openFilter) && active?.dataset?.pbdFilterOpen === openFilter;
+        const inPanel = filterPanel.contains(active);
+        const inChips = filterChips.contains(active);
+        if (!(quiet && inChips)) renderFilterChips();
+        if (!(quiet && inPanel)) renderFilterPanel();
+        if (onOpenChip) {
+          (filterPanel.querySelector('input, select, button')
+            || filterChips.querySelector(`[data-pbd-filter-open="${openFilter}"]`))?.focus();
+        }
       });
     return optionsLoad;
   };
+  let showAllYears = false;
 
   // The completed-between lists offer the last ten financial years and the earliest (cold review
   // 2): thirty-five years back to FY 1992-93 made a long list for a rare choice.
+  // "Show all years" lists every one (cold review 4), as does a range already set to an older year.
   const completionYears = () => {
     const years = filterOptions.completionFinancialYears || [];
-    if (years.length <= 11) return years;
+    if (years.length <= 11 || showAllYears) return years;
+    const shown = new Set(years.slice(0, 10).map((year) => String(year.value)).concat(String(years[years.length - 1].value)));
+    if ([filterState.completedFrom, filterState.completedTo].some((value) => value && !shown.has(String(value)))) return years;
     const earliest = years[years.length - 1];
     return [...years.slice(0, 10), { value: earliest.value, label: `${earliest.label} (earliest)` }];
   };
@@ -193,7 +214,7 @@ export function initAddProjects(deps) {
     if (!filter) return;
     filterPanel.id = 'pbd-filter-panel';
     filterPanel.setAttribute('aria-label', filter.label);
-    if (optionsState !== 'loaded' && !filter.toggle && filter.key !== 'status') {
+    if (!['loaded', 'refreshing'].includes(optionsState) && !filter.toggle && filter.key !== 'status') {
       if (optionsState === 'failed') {
         filterPanel.append(panelNote(optionsError || 'The choices could not be loaded.'));
         const retry = doc.createElement('button');
@@ -223,11 +244,23 @@ export function initAddProjects(deps) {
         wrap.append(text, element);
         return wrap;
       };
-      filterPanel.append(select('completedFrom', 'From'), select('completedTo', 'To'), panelDone());
+      filterPanel.append(select('completedFrom', 'From'), select('completedTo', 'To'));
+      const allYears = filterOptions.completionFinancialYears || [];
+      if (years.length < allYears.length) {
+        const more = doc.createElement('button');
+        more.type = 'button';
+        more.className = 'btn btn-link btn-sm';
+        more.dataset.pbdFilterAllYears = 'true';
+        more.textContent = `Show all ${allYears.length} years`;
+        filterPanel.append(more);
+      }
+      filterPanel.append(panelDone());
       const undated = filterOptions.completedWithoutDateCount;
-      filterPanel.append(panelNote(undated
-        ? `Financial years, April to March. ${undated} completed ${undated === 1 ? 'project has' : 'projects have'} no completion date and ${undated === 1 ? 'is' : 'are'} not matched.`
-        : 'Financial years, April to March.'));
+      // A project recorded with a year but no date or month is counted from April of that year
+      // (cold review 4): the note says so.
+      filterPanel.append(panelNote(`Financial years, April to March. A completion year with no date counts from April of that year.${undated
+        ? ` ${undated} completed ${undated === 1 ? 'project has' : 'projects have'} no completion date or year and ${undated === 1 ? 'is' : 'are'} not matched.`
+        : ''}`));
       return;
     }
     const options = filter.options();
@@ -267,12 +300,26 @@ export function initAddProjects(deps) {
 
   // How many more projects the deck can take, and whether the ticks fit (cold review 2, High).
   const room = () => Math.max(0, maximumProjects - members().size);
+  if (filterRoom && !filterRoom.id) filterRoom.id = 'pbd-filter-room';
+  let roomAnnouncer = root.querySelector('[data-pbd-filter-announce]');
+  if (!roomAnnouncer && filterRoom) {
+    roomAnnouncer = doc.createElement('span');
+    roomAnnouncer.className = 'visually-hidden';
+    roomAnnouncer.dataset.pbdFilterAnnounce = 'true';
+    roomAnnouncer.setAttribute('aria-live', 'polite');
+    filterRoom.after(roomAnnouncer);
+  }
   // When the ticks fill the deck's room, the projects not ticked cannot be ticked (cold review 3,
   // M2): finding out only on Add was too late. Ticked ones can always be unticked.
   const syncTickLimits = () => {
     const full = ticked.size >= room();
     filterResults.querySelectorAll('input[data-pbd-filter-tick]').forEach((checkbox) => {
-      checkbox.disabled = full && !checkbox.checked;
+      const held = full && !checkbox.checked;
+      checkbox.disabled = held;
+      // A held-back tick is described by the room line, so it is not just "dimmed" (cold review 4).
+      const describedBy = [checkbox.dataset.metaId, held && filterRoom?.id].filter(Boolean).join(' ');
+      if (describedBy) checkbox.setAttribute('aria-describedby', describedBy);
+      else checkbox.removeAttribute('aria-describedby');
     });
   };
   let roomWasOver = false;
@@ -290,8 +337,13 @@ export function initAddProjects(deps) {
       const left = room();
       const over = count > left;
       // Read out only when the ticks go over the room or come back within it, not on every tick
-      // (cold review 3).
-      filterRoom.setAttribute('aria-live', over !== roomWasOver ? 'polite' : 'off');
+      // (cold review 3), through a region that is always live (cold review 4: switching a region
+      // live in the same moment as its text changes is often not read).
+      if (over !== roomWasOver && roomAnnouncer) {
+        roomAnnouncer.textContent = over
+          ? `More projects are ticked than the deck has room for: untick ${count - left}.`
+          : 'The ticked projects fit in the deck again.';
+      }
       roomWasOver = over;
       filterRoom.textContent = left === 0
         ? `This deck is full: it holds ${maximumProjects} projects. Remove some to add others.`
@@ -365,12 +417,18 @@ export function initAddProjects(deps) {
         checkbox.type = 'checkbox';
         checkbox.checked = ticked.has(row.projectId);
         checkbox.dataset.pbdFilterTick = String(row.projectId);
+        // Named by the project's name, its details read as a description, not all as the name
+        // (cold review 4).
+        checkbox.setAttribute('aria-labelledby', `pbd-filter-name-${row.projectId}`);
+        checkbox.dataset.metaId = `pbd-filter-meta-${row.projectId}`;
+        checkbox.setAttribute('aria-describedby', checkbox.dataset.metaId);
         item.append(checkbox);
       }
       const body = doc.createElement('span');
       const heading = doc.createElement('span');
       heading.className = 'pbd-search-result__heading';
       const name = doc.createElement('strong');
+      name.id = `pbd-filter-name-${row.projectId}`;
       name.textContent = row.projectName;
       heading.append(name);
       if (row.isSelected) {
@@ -380,6 +438,7 @@ export function initAddProjects(deps) {
         heading.append(badge);
       }
       const meta = doc.createElement('small');
+      meta.id = `pbd-filter-meta-${row.projectId}`;
       meta.textContent = [...new Set([row.lifecycle, row.presentStage, row.technicalCategory, row.projectCategory, row.projectOfficer].filter(Boolean))].join(' · ');
       body.append(heading, meta);
       item.append(body);
@@ -405,6 +464,7 @@ export function initAddProjects(deps) {
     const url = new URL(root.dataset.filterUrl, view.location.origin);
     url.searchParams.set('deckId', String(deckId));
     const query = filterQuery?.value.trim() || '';
+    lastQuery = query;
     if (query) url.searchParams.set('query', query);
     ['arpp', 'technicalCategory', 'projectCategory', 'status'].forEach((key) => {
       filterState[key].forEach((value) => url.searchParams.append(key, value));
@@ -469,7 +529,13 @@ export function initAddProjects(deps) {
     if (focusChip) filterChips.querySelector(`[data-pbd-filter-open="${key}"]`)?.focus();
   };
 
-  filterQuery?.addEventListener('input', () => { renderFilterChips(); reloadFilterRows(260); });
+  // Spaces or a retyped letter that leave the search as it was send nothing (cold review 4).
+  let lastQuery = '';
+  filterQuery?.addEventListener('input', () => {
+    renderFilterChips();
+    if (filterQuery.value.trim() === lastQuery) return;
+    reloadFilterRows(300);
+  });
   filterListRetry?.addEventListener('click', () => {
     filterListRetry.hidden = true;
     if (filterCount) filterCount.textContent = 'Finding projects…';
@@ -516,12 +582,20 @@ export function initAddProjects(deps) {
     if (openFilter && optionsState === 'failed') loadFilterOptions();
     renderFilterChips();
     renderFilterPanel();
-    if (openFilter) filterPanel.querySelector('input, select, button')?.focus();
+    // While its choices load the panel has nothing to focus: the chip keeps it (cold review 4),
+    // and the choices take it when they arrive.
+    if (openFilter) (filterPanel.querySelector('input, select, button') || filterChips.querySelector(`[data-pbd-filter-open="${key}"]`))?.focus();
     else filterChips.querySelector(`[data-pbd-filter-open="${key}"]`)?.focus();
   });
   filterPanel.addEventListener('click', (event) => {
     if (!(event.target instanceof view.Element)) return;
     if (event.target.closest('[data-pbd-filter-retry]')) { loadFilterOptions(); return; }
+    if (event.target.closest('[data-pbd-filter-all-years]')) {
+      showAllYears = true;
+      renderFilterPanel();
+      filterPanel.querySelector('[data-pbd-filter-range="completedFrom"]')?.focus();
+      return;
+    }
     if (event.target.closest('[data-pbd-filter-done]')) closePanel();
   });
   filterPanel.addEventListener('change', (event) => {
@@ -571,7 +645,11 @@ export function initAddProjects(deps) {
       const next = item?.nextElementSibling?.querySelector('input') || item?.previousElementSibling?.querySelector('input');
       renderFilterRows();
       renderFilterChips();
-      (next ? filterResults.querySelector(`[data-pbd-filter-tick="${next.dataset.pbdFilterTick}"]`) : filterTickedLabel)?.focus();
+      // With nothing left ticked the review ends and its button is disabled: the search takes
+      // focus (cold review 4).
+      (next
+        ? filterResults.querySelector(`[data-pbd-filter-tick="${next.dataset.pbdFilterTick}"]`)
+        : ticked.size ? filterTickedLabel : filterQuery)?.focus();
       return;
     }
     target.closest('.pbd-filter__row')?.classList.toggle('is-selected', target.checked);
@@ -587,7 +665,9 @@ export function initAddProjects(deps) {
       else if (!ticked.has(row.projectId) && fits > 0) { ticked.set(row.projectId, row); fits -= 1; }
     });
     renderFilterRows();
-    filterTickAll.focus();
+    // "Tick the first N that fit" is hidden once they are ticked: focus goes to the count of
+    // ticked projects instead of nowhere (cold review 4).
+    (filterTickAll.hidden ? (ticked.size ? filterTickedLabel : filterQuery) : filterTickAll)?.focus();
   });
   filterClear?.addEventListener('click', () => {
     ticked.clear();
@@ -648,8 +728,14 @@ export function initAddProjects(deps) {
       skipped.forEach((projectId) => ticked.delete(projectId));
       const note = doc.createElement('span');
       note.className = 'pbd-filter__skipped';
-      note.textContent = ` ${skipped.length === 1 ? 'One project was' : `${skipped.length} projects were`} not added: ${names.join(', ') || 'no longer available'} (archived, deleted or cancelled).`;
-      statusElement?.append(note);
+      // When none could be added the server's message already says why: only the names follow.
+      // Otherwise the note comes before Undo, not after it (cold review 4).
+      note.textContent = event.detail?.ok
+        ? ` ${skipped.length === 1 ? 'One project was' : `${skipped.length} projects were`} not added: ${names.join(', ') || 'no longer available'} (archived, deleted or cancelled).`
+        : names.length ? ` (${names.join(', ')})` : '';
+      const undo = statusElement?.querySelector('button');
+      if (undo) undo.before(note, ' ');
+      else statusElement?.append(note);
       // They are no longer offered either.
       filterRows = filterRows.filter((row) => !skipped.includes(row.projectId));
       renderFilterRows();
@@ -708,7 +794,7 @@ export function initAddProjects(deps) {
   // The choices load when the dialog first opens. The list loads on every opening (cold review 3,
   // M4), so projects created, archived or re-categorised since are shown as they are now. Ticks stay.
   const openDialog = () => {
-    loadFilterOptions();
+    loadFilterOptions({ refresh: true });
     reloadFilterRows();
   };
   modalElement?.addEventListener('show.bs.modal', openDialog);

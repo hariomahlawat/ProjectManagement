@@ -912,7 +912,7 @@
                                             <input type="search" class="form-control" placeholder="Search name, officer or file no." autocomplete="off" data-pbd-filter-query />
                                         </label>
                                         <div class="pbd-filter__chips" role="group" aria-label="Filters" data-pbd-filter-chips></div>
-                                        <div class="pbd-filter__panel" data-pbd-filter-panel role="group" hidden></div>
+                                        <div class="pbd-filter__panel" id="pbd-filter-panel" data-pbd-filter-panel role="group" hidden></div>
                                         <div class="pbd-filter__summary">
                                             <span data-pbd-filter-count aria-live="polite">Loading projects…</span>
                                             <button type="button" class="btn btn-link btn-sm" data-pbd-filter-tick-all hidden></button>
@@ -933,7 +933,8 @@
                                         <div class="pbd-filter__footer-info">
                                             <p class="pbd-add-projects__status" data-pbd-add-projects-status aria-live="polite"></p>
                                             <button type="button" class="btn btn-link btn-sm pbd-filter__ticked" data-pbd-filter-ticked disabled>Nothing ticked</button>
-                                            <span class="pbd-filter__room" data-pbd-filter-room aria-live="off"></span>
+                                            <span class="pbd-filter__room" id="pbd-filter-room" data-pbd-filter-room></span>
+                                            <span class="visually-hidden" data-pbd-filter-announce aria-live="polite"></span>
                                         </div>
                                         <button type="button" class="btn btn-link btn-sm" data-pbd-filter-clear hidden>Clear ticks</button>
                                         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-pbd-add-projects-done>Done</button>

@@ -144,3 +144,28 @@ UX 7.5, code 8; no High. Fixed in one PR.
 - The "n ticked" button no longer has a pressed state on top of its changing label.
 - On a phone the search and chips stay in view: the chips scroll sideways, and an open filter scrolls within 38% of the screen.
 - Remove's question always names the project.
+
+## Fourth cold review (18 Nov 2026)
+
+UX 8, code 8; no High (target met). The remaining findings are fixed in one PR.
+
+**Keyboard focus is never dropped**
+- After "Tick the first N that fit" hides itself, focus goes to the "n ticked" button.
+- Unticking the last project in Review moves focus to the search.
+- A filter opened while its choices load keeps focus on its chip; the choices take it when they arrive.
+
+**The list request**
+- Completed projects (most of the list) no longer read their stages: they show "Completed".
+- A search that is unchanged after trimming (an added space) sends nothing; the wait after typing is 0.3 s.
+- A PostgreSQL test (`ProjectBriefingFilterPostgresTests`, run in the database workflow) covers the search with escaped wildcards, officer name and rank, the category tree, ARPP, proliferation and combined filters.
+
+**Screen readers**
+- Going over the room, and back, is announced once each through an always-live hidden region; the room line itself is not live.
+- A held-back tick is described by the room line.
+- Each tick is named by the project's name; its details are its description.
+- The filter panel has its id in the markup, so the chips' `aria-controls` always points at it.
+
+**Smaller fixes**
+- When none of the ticked projects can be added, the names follow the server's message without repeating the reason. When some were added, the note about the rest comes before Undo.
+- The choices are fetched again, quietly, each time the dialog opens, so their counts follow the list. A failed choices load shows the server's message.
+- The completed range note says a completion year with no date counts from April of that year. "Show all N years" lists every year, and a range set to an older year shows them all.

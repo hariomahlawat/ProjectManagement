@@ -351,7 +351,12 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
                 project.LeadPoUser != null ? project.LeadPoUser.FullName : null))
             .ToListAsync(cancellationToken);
 
-        var projectIds = projectRows.Select(row => row.ProjectId).ToArray();
+        // Only ongoing projects need their stages (a completed one reads "Completed"): most of the
+        // list is completed, so this keeps each keystroke's read small (cold review 4).
+        var projectIds = projectRows
+            .Where(row => row.LifecycleStatus != ProjectLifecycleStatus.Completed)
+            .Select(row => row.ProjectId)
+            .ToArray();
         var stageRows = projectIds.Length == 0
             ? new List<SearchStageDatabaseRow>()
             : await _db.ProjectStages
