@@ -834,7 +834,9 @@
     // Lines the user broke always count: a programme of eight lines may have eight.
     const given = String(item.text || '').split(String.fromCharCode(10)).length;
     const lines = Math.max(given, Number.isInteger(item.maxLines) ? item.maxLines : TEXT_FIT.defaultLines);
-    const smallest = Math.max(TEXT_LIMITS.size[0], item.size * TEXT_FIT.smallest);
+    // A part may set the smallest its words go (`minSize`, a guest's name): past it they take
+    // another line rather than shrink out of reading.
+    const smallest = Math.min(item.size, Math.max(TEXT_LIMITS.size[0], item.size * TEXT_FIT.smallest, isNumber(item.minSize) ? item.minSize : 0));
     let size = item.size;
     let layout = null;
     for (let step = 0; step < 16; step += 1) {
@@ -1821,6 +1823,8 @@
         else delete clean.maxWidth;
         if (Number.isInteger(item.maxLines)) clean.maxLines = Math.min(TEXT_FIT.maxLines[1], Math.max(TEXT_FIT.maxLines[0], item.maxLines));
         else delete clean.maxLines;
+        if (isNumber(item.minSize) && item.minSize > 0) clean.minSize = Math.min(TEXT_LIMITS.size[1], item.minSize);
+        else delete clean.minSize;
         delete clean.crop;
         delete clean.radius;
       }

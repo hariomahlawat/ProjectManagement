@@ -559,8 +559,12 @@ test('card designs at custom sizes stay on the page, and are readable from A6 up
         assert.ok(b.left >= -0.5 && b.right <= core.PAGE_WIDTH + 0.5 && b.top >= -0.5 && b.bottom <= height + 0.5, `${key} ${size}: ${item.role || item.field} off the page`);
       }
       const texts = card.items.filter((item) => item.kind === 'text');
-      for (let i = 0; i < texts.length; i += 1) {
-        for (let j = i + 1; j < texts.length; j += 1) assert.ok(!overlap(box(texts[i]), box(texts[j])), `${key} ${size}: ${texts[i].field} overlaps ${texts[j].field}`);
+      // A custom card smaller than A6 is warned of on the start screen: its words, kept at least
+      // 6 pt, may crowd; at A6 and up nothing overlaps.
+      if (!small) {
+        for (let i = 0; i < texts.length; i += 1) {
+          for (let j = i + 1; j < texts.length; j += 1) assert.ok(!overlap(box(texts[i]), box(texts[j])), `${key} ${size}: ${texts[i].field} overlaps ${texts[j].field}`);
+        }
       }
       if (!small) {
         const letters = Math.min(...texts.map((item) => core.layoutText(item, measure).size)) * mmWide / core.PAGE_WIDTH;
@@ -610,4 +614,60 @@ test('at every size, the logo keeps at least 10 units clear of any band or rule 
       }
     }
   }
+});
+
+// Words big enough to read (cold review 2): every design's words print at 6 pt or more, on every
+// size it is offered for, both sides, after fitting.
+test('every design prints its words at 6 pt or more at every size it is offered for', () => {
+  const sizes = Object.keys(core.SIZES).filter((key) => ['card', 'pocket', 'folded'].includes(core.SIZES[key].group));
+  for (const size of sizes) {
+    const mmPerUnit = core.sizeOf(size).mm[0] / core.PAGE_WIDTH;
+    for (const design of designs.designsFor(size, 'card')) {
+      const card = designs.applyDesign(core.newCollage(size), design.key, {}, { measure, newId });
+      for (const item of [...card.items, ...(card.back?.items || [])].filter((each) => each.kind === 'text')) {
+        const pt = core.layoutText(item, measure).size * mmPerUnit * 72 / 25.4;
+        assert.ok(pt >= 5.99, `${design.key} ${size}: ${item.field} prints at ${pt.toFixed(1)} pt`);
+      }
+    }
+  }
+});
+
+// Logos (cold review 2): a card with no logo gets no empty roundel when it changes to Regimental;
+// a wide unit logo keeps the place's area, so it is not squeezed to a sliver, and the roundel
+// grows round it.
+test('Regimental with no logo hides its roundel; a wide logo keeps the place\'s area and the roundel fits it', () => {
+  const classic = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
+  const noLogo = { ...classic, items: classic.items.filter((item) => item.role !== 'logo') };
+  const regimental = designs.applyDesign(noLogo, 'regimental', designs.detailsOf(noLogo), { measure, newId });
+  assert.equal(regimental.items.find((item) => item.role === 'roundel').hidden, true);
+
+  // A logo four times as wide as tall, in place of the SDD logo.
+  const wide = { ...classic, items: classic.items.map((item) => (item.role === 'logo' ? { ...item, kind: 'photo', photo: 'p1', sticker: undefined, aspect: 4 } : item)) };
+  const sdd = classic.items.find((item) => item.role === 'logo');
+  const applied = designs.applyDesign(wide, 'regimental', designs.detailsOf(wide), { measure, newId });
+  const logo = applied.items.find((item) => item.role === 'logo');
+  const sddPlace = designs.applyDesign(classic, 'regimental', designs.detailsOf(classic), { measure, newId }).items.find((item) => item.role === 'logo');
+  const area = (item) => item.width * core.itemHeight(item);
+  assert.ok(Math.abs(area(logo) - area(sddPlace)) / area(sddPlace) < 0.05 || logo.width >= sddPlace.width * 2.39, 'the same area, or as wide as allowed');
+  assert.ok(logo.width > sdd.width * 1.5, 'wider than the crest place');
+  const roundel = applied.items.find((item) => item.role === 'roundel');
+  assert.ok(!roundel.hidden && roundel.width > logo.width, 'the roundel goes round the wide logo');
+  assert.equal(designs.logoWidth(100, 0.5, 0.5), 100, 'a logo the place\'s shape keeps its width');
+});
+
+// A long guest's name (cold review 2) shrinks only so far, then takes a second line: it never
+// prints smaller than 6 pt or 60% of the design's size.
+test('a long guest name keeps a readable size and takes a second line', () => {
+  const long = 'Lieutenant General Rajendra Kumar Mehta, PVSM, AVSM, VSM and Mrs Mehta';
+  const card = designs.applyDesign(core.newCollage('a6p'), 'classic', { guest: long }, { measure, newId });
+  const guest = card.items.find((item) => item.field === 'guest');
+  const layout = core.layoutText(guest, measure);
+  const pt = layout.size * core.sizeOf('a6p').mm[0] / core.PAGE_WIDTH * 72 / 25.4;
+  assert.ok(pt >= 5.99, `prints at ${pt.toFixed(1)} pt`);
+  assert.ok(layout.size >= guest.size * 0.6 - 0.01);
+  assert.ok(layout.lines >= 2, 'on two lines');
+  assert.ok(layout.width <= guest.maxWidth + 0.5);
+  // It is kept by a draft.
+  const read = core.readDraftModel(JSON.parse(JSON.stringify(card)), []);
+  assert.equal(read.items.find((item) => item.field === 'guest').minSize, guest.minSize);
 });

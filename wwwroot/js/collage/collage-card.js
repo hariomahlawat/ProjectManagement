@@ -408,6 +408,8 @@
       doc.edit((draft) => {
         if (draft.card?.details?.logoMode === 'none') draft.card = { ...draft.card, details: { ...draft.card.details, logoMode: '' } };
         const fresh = { ...make({ x: place.x, y: place.y, width: place.width }), role };
+        // A wide logo gets the place's area, not only its width (a crest's place is narrow).
+        fresh.width = designs.logoWidth(place.width, place.width / core.itemHeight(place), fresh.width / core.itemHeight(fresh));
         const index = draft.items.findIndex((item) => item.role === role);
         if (index >= 0) draft.items.splice(index, 1, fresh);
         else {
@@ -430,28 +432,8 @@
      * wide as both when there are two, back to its design size with one. Inside the same change.
      */
     function fitRoundel() {
-      const made = designs.roleItem(state.collage, 'roundel', options());
-      doc.edit((draft) => {
-        const roundel = draft.items.find((item) => item.role === 'roundel' && !item.locked);
-        if (!roundel || !made) return;
-        const logo = draft.items.find((item) => item.role === 'logo' && item.kind !== 'slot');
-        const second = draft.items.find((item) => item.role === 'logo2');
-        if (!logo) { roundel.hidden = true; return; }
-        delete roundel.hidden;
-        if (second) {
-          const left = Math.min(logo.x - logo.width / 2, second.x - second.width / 2);
-          const right = Math.max(logo.x + logo.width / 2, second.x + second.width / 2);
-          const width = Math.max(made.width, right - left + made.width * 0.35);
-          const height = made.width / made.aspect;
-          roundel.x = (left + right) / 2;
-          roundel.width = width;
-          roundel.aspect = width / height;
-        } else {
-          roundel.x = logo.x;
-          roundel.width = made.width;
-          roundel.aspect = made.aspect;
-        }
-      }, 'none');
+      const base = designs.roleItem(state.collage, 'roundel', options());
+      doc.edit((draft) => designs.fitRoundel(draft.items, base), 'none');
     }
 
     /**

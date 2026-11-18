@@ -143,7 +143,8 @@
         words('invite', 0.5, 0.395, 0.8, 34, { font: 'script', color: IVORY, bold: false }),
         rule('guestline', 0.5, 0.47, 0.6, IVORY, 1.2),
         words('guest', 0.5, 0.455, 0.6, 34, { font: 'script', color: IVORY, bold: false }, { lines: 1 }),
-        words('occasion', 0.5, 0.575, 0.82, 60, { font: 'elegant', color: PALE_GOLD, bold: true }, { lines: 2 }),
+        words('at', 0.5, 0.515, 0.4, 22, { font: 'elegant', color: IVORY, bold: false, italic: true }),
+        words('occasion', 0.5, 0.58, 0.82, 60, { font: 'elegant', color: PALE_GOLD, bold: true }, { lines: 2 }),
         rule('rule', 0.5, 0.65, 0.22, PALE_GOLD, 1.5),
         words('when', 0.5, 0.705, 0.82, 25, { font: 'clean', color: IVORY, bold: true }, { lines: 2 }),
         words('venue', 0.5, 0.752, 0.82, 24, { font: 'clean', color: IVORY, bold: false }, { lines: 2 }),
@@ -159,7 +160,8 @@
         words('invite', 0.6, 0.29, 0.6, 32, { font: 'script', color: IVORY, bold: false }),
         rule('guestline', 0.6, 0.38, 0.46, IVORY, 1.2),
         words('guest', 0.6, 0.36, 0.46, 32, { font: 'script', color: IVORY, bold: false }, { lines: 1 }),
-        words('occasion', 0.6, 0.5, 0.6, 54, { font: 'elegant', color: PALE_GOLD, bold: true }, { lines: 2 }),
+        words('at', 0.6, 0.42, 0.4, 20, { font: 'elegant', color: IVORY, bold: false, italic: true }),
+        words('occasion', 0.6, 0.51, 0.6, 54, { font: 'elegant', color: PALE_GOLD, bold: true }, { lines: 2 }),
         words('when', 0.6, 0.63, 0.6, 23, { font: 'clean', color: IVORY, bold: true }, { lines: 1 }),
         words('venue', 0.6, 0.7, 0.6, 22, { font: 'clean', color: IVORY, bold: false }, { lines: 1 }),
         words('dress', 0.6, 0.765, 0.6, 21, { font: 'clean', color: PALE_GOLD, bold: true }, { lines: 1 }),
@@ -492,7 +494,8 @@
         words('invite', 0.1, 0.22, 0.8, 21, { font: 'clean', color: GREY, bold: false, align: 'left' }, { anchor: 'left' }),
         rule('guestline', 0.45, 0.305, 0.7, INK, 1.5),
         words('guest', 0.1, 0.29, 0.7, 28, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('occasion', 0.1, 0.43, 0.82, 66, { font: 'clean', color: NAVY, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('at', 0.1, 0.35, 0.5, 20, { font: 'clean', color: GREY, bold: false, italic: true, align: 'left' }, { anchor: 'left' }),
+        words('occasion', 0.1, 0.435, 0.82, 66, { font: 'clean', color: NAVY, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
         rule('rule', 0.2, 0.535, 0.2, NAVY, 4),
         words('when', 0.1, 0.61, 0.82, 26, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
         words('venue', 0.1, 0.66, 0.82, 25, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 2 }),
@@ -507,7 +510,8 @@
         words('invite', 0.07, 0.26, 0.7, 19, { font: 'clean', color: GREY, bold: false, align: 'left' }, { anchor: 'left' }),
         rule('guestline', 0.34, 0.365, 0.54, INK, 1.5),
         words('guest', 0.07, 0.345, 0.54, 26, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('occasion', 0.07, 0.49, 0.84, 56, { font: 'clean', color: NAVY, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('at', 0.07, 0.415, 0.5, 18, { font: 'clean', color: GREY, bold: false, italic: true, align: 'left' }, { anchor: 'left' }),
+        words('occasion', 0.07, 0.505, 0.84, 56, { font: 'clean', color: NAVY, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
         words('when', 0.07, 0.66, 0.84, 22, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
         words('venue', 0.07, 0.725, 0.84, 21, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
         words('dress', 0.07, 0.785, 0.84, 20, { font: 'clean', color: NAVY, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
@@ -642,7 +646,7 @@
    * items (and a second logo) from `items`, the side as it was. A photo in the side's frame
    * (`frameRole`) goes into the new frame, or stays as the user's own when there is none.
    */
-  function makePage(items, parts, { width, height, unit, wording, measure, newId, isCard, frameRole, lockedElsewhere = new Set() }) {
+  function makePage(items, parts, { width, height, unit, minSize = 0, wording, measure, newId, isCard, frameRole, lockedElsewhere = new Set() }) {
     // The unit's colours for the Regimental band: 'band1' to 'band3' in a look stand for them.
     const colours = colourList(wording.colours);
     const tinted = (look) => {
@@ -720,7 +724,9 @@
         // sized by this design; a card whose logo was removed stays without one (PR 7).
         const logo = (items || []).find((item) => item.role === 'logo');
         if (logo) {
-          const w = part.w * 1000 * unit;
+          // Sized by area for its own shape: a wide unit logo is not squeezed into a crest's width.
+          const own = logo.kind === 'slot' ? part.aspect : logo.width / core.itemHeight(logo);
+          const w = logoWidth(part.w * 1000 * unit, part.aspect || SDD_ASPECT, own);
           made.push({ ...logo, id: newId(), x: part.x * width, y: part.y * height, width: w, angle: 0 });
         }
       } else if (part.kind === 'sticker') {
@@ -731,12 +737,14 @@
         if (!text.trim()) continue;
         const item = core.textItem(newId(), text, { x: part.x * width, y: part.y * height }, {
           ...look,
-          size: Math.round(part.size * unit),
+          size: Math.max(Math.round(part.size * unit), Math.ceil(minSize)),
           maxWidth: part.w * width,
           maxLines: part.lines || 1,
           field: part.field,
           role: part.role
         });
+        // A guest's name shrinks only so far (6 pt, or 60% of its size), then takes a second line.
+        if (part.field === 'guest') item.minSize = Math.max(Math.ceil(minSize), Math.round(item.size * 0.6));
         const layout = core.layoutText(item, measure);
         item.width = layout.width;
         item.aspect = layout.width / layout.height;
@@ -752,6 +760,9 @@
         if (part.radius && (item.kind === 'slot' || item.kind === 'photo')) item.radius = Math.min(part.radius, core.LAYOUT_LIMITS.radiusMax);
       }
     }
+    // The roundel behind the logo follows it: hidden with none, wide enough for a wide logo or two.
+    const roundel = made.find((item) => item.role === 'roundel');
+    if (roundel) fitRoundel([...made, ...(items || []).filter((item) => item.role === 'logo2')], { width: roundel.width, aspect: roundel.aspect });
     // A logo in a white box (Ceremonial) fits inside it with a margin, whatever its shape.
     const box = made.find((item) => item.role === 'logobox');
     const boxed = made.find((item) => item.role === 'logo');
@@ -850,8 +861,47 @@
   const INSIDE_FIELDS = Object.freeze(['invite', 'guest', 'at', 'occasion', 'when', 'venue', 'dress', 'rsvp']);
 
   /** The measures one side of a card of this size is built with. */
+  /**
+   * The width a logo of this shape (`aspect`, width over height) gets in a place made for one
+   * `placeWidth` wide and `placeAspect` in shape: the same area, so a wide unit logo is not
+   * squeezed to a sliver where a tall crest fits, and at most 2.4 times as wide as the place.
+   */
+  function logoWidth(placeWidth, placeAspect, aspect) {
+    if (!(aspect > 0) || !(placeAspect > 0)) return placeWidth;
+    return Math.min(placeWidth * 2.4, Math.sqrt(placeWidth * (placeWidth / placeAspect) * aspect));
+  }
+
+  /**
+   * The roundel behind the logo (Regimental) follows the logos, in `items` (changed in place):
+   * hidden with no logo; around one logo, at least the design's size (`base`) and wide enough for
+   * a wide logo; around two side by side. A locked roundel stays as it is.
+   */
+  function fitRoundel(items, base) {
+    const roundel = items.find((item) => item.role === 'roundel' && !item.locked);
+    if (!roundel || !base) return;
+    const logos = items.filter((item) => (item.role === 'logo' && item.kind !== 'slot') || item.role === 'logo2');
+    if (!logos.some((item) => item.role === 'logo')) { roundel.hidden = true; return; }
+    delete roundel.hidden;
+    const left = Math.min(...logos.map((item) => item.x - item.width / 2));
+    const right = Math.max(...logos.map((item) => item.x + item.width / 2));
+    const height = base.width / base.aspect;
+    const width = Math.max(base.width, right - left + base.width * 0.35);
+    roundel.x = logos.length > 1 ? (left + right) / 2 : logos[0].x;
+    roundel.width = width;
+    roundel.aspect = width / height;
+  }
+
+  /** The smallest a design's words print, in points: smaller is hard to read on a card. */
+  const MIN_PRINT_PT = 6;
+
+  /** MIN_PRINT_PT in page units on a page of this size (0 for a page with no paper size). */
+  function minTextUnits(sizeKey) {
+    const mm = core.sizeOf(sizeKey)?.mm;
+    return mm ? MIN_PRINT_PT * 25.4 / 72 * core.PAGE_WIDTH / mm[0] : 0;
+  }
+
   function pageContext(collage, wording, { measure, newId }, extra) {
-    return { width: core.PAGE_WIDTH, height: core.pageHeight(collage.size), unit: unitOf(collage.size), wording, measure, newId, ...extra };
+    return { width: core.PAGE_WIDTH, height: core.pageHeight(collage.size), unit: unitOf(collage.size), minSize: minTextUnits(collage.size), wording, measure, newId, ...extra };
   }
 
   /**
@@ -1022,5 +1072,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, INSIDE_FIELDS, partsFor, sideOf, fieldsOnCard, startDetails });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, INSIDE_FIELDS, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, fitRoundel });
 });
