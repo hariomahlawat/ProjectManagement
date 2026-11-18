@@ -1357,6 +1357,12 @@
    */
   /** The first line of the collage's first words (not a placeholder), shortened; '' if none. */
   function autoTitleFromText(items) {
+    // A card is called by its occasion (docs/ux/invitations-posters.md, PR 5).
+    const occasion = (items || []).find((item) => item.kind === 'text' && item.field === 'occasion' && String(item.text || '').trim());
+    if (occasion) {
+      const named = `${String(occasion.text).split('\n').map((part) => part.trim()).find(Boolean)} card`;
+      return named.length > 40 ? `${named.slice(0, 39)}…` : named;
+    }
     const placeholders = new Set(Object.values(TEXT_PLACEHOLDERS));
     const text = (items || []).find((item) => item.kind === 'text' && String(item.text || '').trim() && !placeholders.has(String(item.text).trim()));
     const line = text ? String(text.text).split('\n').map((part) => part.trim()).find(Boolean) || '' : '';

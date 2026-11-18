@@ -55,6 +55,7 @@
       ui.body.classList.toggle('is-drawer-closed', !name);
       if (name === 'layouts') renderLayoutPanel();
       if (name === 'background') screens.renderBackgroundPanel();
+      if (name === 'card') screens.renderCardPanel();
       syncSheets();
     }
 

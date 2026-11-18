@@ -101,6 +101,121 @@
     color: var(--pdft-muted);
 }
 
+/* ---------- Invitation cards on the start screen (docs/ux/invitations-posters.md, PR 5) ---------- */
+
+.clg-start-cards__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+}
+
+.clg-start-cards__size {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.6rem;
+    color: var(--pdft-muted);
+    font-size: 0.85rem;
+}
+
+.clg-start-cards__size select {
+    width: auto;
+    max-width: min(22rem, 70vw);
+}
+
+.clg-design-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.clg-design-card {
+    display: flex;
+    flex-direction: column;
+    width: 200px;
+    overflow: hidden;
+    padding: 0;
+    border: 1px solid var(--pdft-border);
+    border-radius: 12px;
+    background: var(--pdft-surface);
+    color: var(--bs-body-color);
+    text-align: left;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.clg-design-card:hover,
+.clg-design-card:focus-visible {
+    border-color: var(--clg-accent);
+    box-shadow: var(--pdft-shadow);
+    transform: translateY(-2px);
+}
+
+.clg-design-card__pic {
+    display: grid;
+    place-items: center;
+    min-height: 196px;
+    padding: 1rem 0;
+    background: var(--bs-tertiary-bg);
+}
+
+.clg-design-card__pic canvas {
+    display: block;
+    box-shadow: var(--clg-soft-shadow);
+}
+
+.clg-design-card__body {
+    padding: 0.6rem 0.8rem 0.8rem;
+}
+
+.clg-design-card b {
+    display: block;
+    font-size: 0.92rem;
+}
+
+.clg-design-card small {
+    color: var(--pdft-muted);
+}
+
+.clg-card-designs {
+    margin-bottom: 0.8rem;
+}
+
+.clg-card-form .clg-field {
+    margin-bottom: 0.55rem;
+}
+
+.clg-card-picks {
+    margin: -0.25rem 0 0.7rem;
+}
+
+@media (max-width: 575.98px) {
+    .clg-design-card {
+        width: calc(50% - 0.5rem);
+    }
+
+    .clg-design-card__pic {
+        min-height: 150px;
+    }
+
+    /* On a phone the blank pages stay near the top (docs/ux/collage-review-3-fixes.md, PR 8);
+       the cards come after them, before the credits. */
+    .clg-start[data-view="start"]:not([hidden]) {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .clg-start-cards {
+        order: 1;
+        margin-top: 1rem;
+    }
+
+    .clg-credits-link {
+        order: 2;
+    }
+}
+
 /* ---------- Editor ---------- */
 
 .clg-editor {
