@@ -1561,13 +1561,17 @@
    * items, and the fields back on the collage, exactly as they were read. Each kept part goes
    * just under the first item that was above it when the draft was read and is still there, so
    * it keeps its place in the stacking order when items around it are deleted here; with none
-   * of those left it goes on top. A collage with nothing kept is returned as it is.
+   * of those left it goes on top. Kept parts always stay in their order among themselves.
+   * A collage with nothing kept is returned as it is.
    */
   function draftModel(collage) {
     if (!collage || !collage.kept) return collage;
     const { kept, ...model } = collage;
     const items = [...model.items];
     const order = kept.order || [];
+    // Kept parts never change order among themselves: each goes no lower than just above the
+    // one put back before it, even when the items they were under have been reordered here.
+    let floor = 0;
     for (const { at, item } of [...(kept.items || [])].sort((a, b) => a.at - b.at)) {
       let index = -1;
       for (const above of order) {
@@ -1575,8 +1579,9 @@
         index = items.findIndex((each) => each.id === above.id);
         if (index >= 0) break;
       }
-      if (index < 0) items.push(item);
-      else items.splice(index, 0, item);
+      index = Math.max(index < 0 ? items.length : index, floor);
+      items.splice(index, 0, item);
+      floor = index + 1;
     }
     return { ...(kept.fields || {}), ...model, items };
   }

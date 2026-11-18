@@ -1170,4 +1170,10 @@ test('a kept part keeps its place in the stacking order when items around it are
   // Two kept parts in a row stay in their order.
   const two = collage.readDraftModel({ version: 1, size: 'a4p', items: [a, shape, { ...shape, id: 'e' }, c] }, ['p1']);
   assert.deepEqual(ids(collage.draftModel(without(two, 'a'))), ['b', 'e', 'c']);
+  // Items reordered here (text d sent to the back): the kept shapes stay in their own order.
+  const mixed = collage.readDraftModel({ version: 1, size: 'a4p', items: [shape, { ...c, id: 'tb' }, { ...shape, id: 'sc' }, { ...d, id: 'td' }] }, []);
+  const moved = { ...mixed, items: [mixed.items[1], mixed.items[0]] };
+  const written = ids(collage.draftModel(moved));
+  assert.ok(written.indexOf('b') < written.indexOf('sc'), written.join());
+  assert.deepEqual([...written].sort(), ['b', 'sc', 'tb', 'td']);
 });
