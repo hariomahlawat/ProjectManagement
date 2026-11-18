@@ -997,6 +997,73 @@ public sealed class IndexModel : PageModel
         return new JsonResult(rows);
     }
 
+    // The Add projects filter (docs/ux/briefing-add-projects.md): the projects matching the chips,
+    // each marked when it is already in the deck. Read-only, so a deck this person can open is
+    // enough; adding and removing go through AddSelection and UpdateMembership, which need Edit.
+    public async Task<IActionResult> OnGetFilterProjectsAsync(
+        [FromQuery] FilterProjectsInput input,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        if (input.DeckId <= 0)
+        {
+            return BadRequest(new { message = "Select a deck before choosing projects." });
+        }
+
+        var deck = await _deckService.GetEntityAsync(input.DeckId, userId, includeItems: true, cancellationToken);
+        if (deck is null)
+        {
+            return NotFound(new { message = ProjectBriefingDeckService.NotFoundMessage });
+        }
+
+        var projects = await _selectionService.FilterAsync(
+            new ProjectBriefingProjectFilter
+            {
+                Query = input.Query,
+                ArppFinancialYears = input.Arpp,
+                ProjectCategoryIds = input.ProjectCategory,
+                TechnicalCategoryIds = input.TechnicalCategory,
+                Statuses = input.Status,
+                CompletedFromFinancialYear = input.CompletedFrom,
+                CompletedToFinancialYear = input.CompletedTo,
+                AvailableForProliferation = input.Proliferation
+            },
+            cancellationToken);
+
+        var membership = deck.Items.ToDictionary(item => item.ProjectId, item => item.SortOrder);
+        var rows = projects.Select(project => new ProjectBriefingManageSearchResultVm(
+            project.ProjectId,
+            project.ProjectName,
+            project.Lifecycle,
+            project.PresentStage,
+            project.ProjectCategory,
+            project.TechnicalCategory,
+            project.ProjectOfficer,
+            project.CaseFileNumber,
+            membership.ContainsKey(project.ProjectId),
+            membership.TryGetValue(project.ProjectId, out var sortOrder) ? sortOrder : null))
+            .ToArray();
+        return new JsonResult(new
+        {
+            total = rows.Length,
+            inDeck = rows.Count(row => row.IsSelected),
+            rows
+        });
+    }
+
+    public sealed class FilterProjectsInput
+    {
+        public long DeckId { get; set; }
+        public string? Query { get; set; }
+        public List<int> Arpp { get; set; } = new();
+        public List<int> ProjectCategory { get; set; } = new();
+        public List<int> TechnicalCategory { get; set; } = new();
+        public List<ProjectLifecycleStatus> Status { get; set; } = new();
+        public int? CompletedFrom { get; set; }
+        public int? CompletedTo { get; set; }
+        public bool Proliferation { get; set; }
+    }
+
     public async Task<IActionResult> OnGetPreviewAsync(long deckId, CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
