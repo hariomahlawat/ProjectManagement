@@ -607,9 +607,14 @@
     if (!design) return { front: [], back: [] };
     if (isFolded(sizeKey)) return { front: foldedParts(designKey, 'outside'), back: foldedParts(designKey, 'inside') };
     const front = isPortrait(sizeKey) ? design.portrait : (design.landscape || design.portrait);
-    return { front, back: backParts(designKey, isPortrait(sizeKey)) };
+    // A field the front already shows (a programme card's programme) is not on the back as well:
+    // one field, one place, so the words typed are the words printed.
+    const onFront = new Set(fieldsIn(front));
+    return { front, back: backParts(designKey, isPortrait(sizeKey)).filter((part) => part.kind !== 'text' || !onFront.has(part.field)) };
   }
-  const fieldsIn = (parts) => [...new Set(parts.filter((part) => part.kind === 'text').map((part) => part.field))];
+  function fieldsIn(parts) {
+    return [...new Set(parts.filter((part) => part.kind === 'text').map((part) => part.field))];
+  }
 
   /** Which side of the card a field is on, from the design: 'front', 'back', or null when it has none. */
   function sideOf(collage, field) {
@@ -867,10 +872,6 @@
     ];
   }
 
-  /** The fields on a folded card's inside, so the panel knows which side holds them. */
-  const INSIDE_FIELDS = Object.freeze(['invite', 'guest', 'at', 'occasion', 'when', 'venue', 'dress', 'rsvp', 'inviteHi', 'occasionHi']);
-
-  /** The measures one side of a card of this size is built with. */
   /**
    * The width a logo of this shape (`aspect`, width over height) gets in a place made for one
    * `placeWidth` wide and `placeAspect` in shape: the same area, so a wide unit logo is not
@@ -910,6 +911,7 @@
     return mm ? MIN_PRINT_PT * 25.4 / 72 * core.PAGE_WIDTH / mm[0] : 0;
   }
 
+  /** The measures one side of a card of this size is built with. */
   function pageContext(collage, wording, { measure, newId }, extra) {
     return { width: core.PAGE_WIDTH, height: core.pageHeight(collage.size), unit: unitOf(collage.size), minSize: minTextUnits(collage.size), wording, measure, newId, ...extra };
   }
@@ -921,12 +923,8 @@
   function backPage(collage, designKey, details, opts, items = []) {
     const look = BACK_LOOKS[designKey] || BACK_LOOKS.classic;
     const wording = { ...DEFAULT_DETAILS, ...(details || {}) };
-    // A folded card's inside comes from its own panels; any other back leaves out the fields its
-    // front already shows (a programme card's programme).
-    const onFront = new Set(fieldsOf(designKey, collage.size));
-    const parts = isFolded(collage.size)
-      ? foldedParts(designKey, 'inside')
-      : backParts(designKey, isPortrait(collage.size)).filter((part) => part.kind !== 'text' || !onFront.has(part.field));
+    const parts = partsFor(designKey, collage.size).back;
+    // A part locked on the front is not made again on the back (Codex on #3452).
     const lockedOnFront = new Set((collage.items || []).filter((item) => item.role && item.locked).map((item) => item.role));
     const made = makePage(items, parts, pageContext(collage, wording, opts, { isCard: false, frameRole: 'backphoto', lockedElsewhere: lockedOnFront }));
     // The back's small logo is the front's logo (the SDD logo, a crest or the user's own), or
@@ -967,7 +965,7 @@
       layout: null,
       items: makePage(card.items, parts, pageContext(card, wording, opts, { isCard: Boolean(card.card), frameRole: 'photo', lockedElsewhere: new Set((card.back?.items || []).filter((item) => item.role && item.locked).map((item) => item.role)) })),
       // The guest list, and fields a newer PRISM keeps on the card, stay through a design change.
-      card: { ...(card.card || {}), design: designKey, details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) }
+      card: { ...(card.card || {}), design: designKey, details: { ...(card.card?.details || {}), ...Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) } }
     };
     // A folded card always has both sides.
     if (card.back || isFolded(card.size)) {
@@ -1045,11 +1043,20 @@
     if (!collage?.back) return collage;
     const front = collage.side === 'back' ? core.flipSide(collage) : collage;
     const { back, side, ...rest } = front;
-    // The back's fields are no longer on the card: their words, as they are now on the card
-    // (typed in Card details or in an item's Words box), are kept for a new back.
-    // A field the design shows on the front (a programme card's programme) stays tracked.
-    if (rest.card) rest.card = { ...rest.card, details: detailsOf(front), placed: (rest.card.placed || []).filter((field) => !isBackField(rest, field)) };
+    // The fields only the back had are no longer on the card: their words, as they are now on the
+    // card (typed in Card details or in an item's Words box), are kept for a new back.
+    const backOnly = new Set(fieldsIn(partsFor(rest.card?.design, rest.size).back));
+    if (rest.card) rest.card = { ...rest.card, details: detailsOf(front), placed: (rest.card.placed || []).filter((field) => !backOnly.has(field)) };
     return rest;
+  }
+
+  /**
+   * Whether a field is on the card's back: a back field, unless the design shows it on the
+   * front (a programme card has its programme and title on the front).
+   */
+  function isBackField(collage, field) {
+    // The design says which side a field is on (partsFor), a folded card's inside included.
+    return fieldsIn(partsFor(collage?.card?.design, collage?.size).back).includes(field);
   }
 
   /**
@@ -1057,16 +1064,6 @@
    * user emptied and fills again, so it comes back in its design's place. Null when the design
    * has no place for it or its words are empty.
    */
-  /**
-   * Whether a field is on the card's back: a back field, unless the design shows it on the
-   * front (a programme card has its programme and title on the front).
-   */
-  function isBackField(collage, field) {
-    // A folded card's inside fields are on its back (PR 9c).
-    if (isFolded(collage?.size) && INSIDE_FIELDS.includes(field)) return true;
-    return BACK_FIELDS.includes(field) && !fieldsOf(collage?.card?.design, collage?.size).includes(field);
-  }
-
   function fieldItem(collage, field, details, opts) {
     const key = collage?.card?.design;
     if (!DESIGNS[key]) return null;

@@ -104,6 +104,8 @@
    */
   function nameInField(field, name, layout) {
     const named = { ...field, text: name, width: layout.width, aspect: layout.width / layout.height };
+    // A guest's card shows the name, even where the empty line was hidden.
+    delete named.hidden;
     if (field.align === 'left') named.x = field.x - field.width / 2 + layout.width / 2;
     if (field.align === 'right') named.x = field.x + field.width / 2 - layout.width / 2;
     return named;
@@ -156,6 +158,15 @@
       // Sides are offered for a card with a back (PR 8).
       const sidesBox = $('[data-save-sides]');
       if (sidesBox) sidesBox.hidden = !getCollage().back;
+      // Which edge to flip on when printing both sides: a folded card and a landscape card on its
+      // own pages flip on the short edge, everything else on the long edge.
+      const flipNote = $('[data-sides-flip]');
+      if (flipNote && getCollage().back) {
+        const size = core.sizeOf(getCollage().size);
+        const onSheets = Boolean(sheetBoxChoice());
+        const short = size.group === 'folded' || (!onSheets && size.mm && size.mm[0] > size.mm[1]);
+        flipNote.textContent = `To print both on one card, flip on the ${short ? 'short' : 'long'} edge${size.group === 'folded' ? ', then fold down the middle' : ''}.`;
+      }
       // A card with a guest list, as a PDF, can be one card for each guest (PR 10).
       const guestsBox = $('[data-save-guests]');
       // Only where the design has a place for the guest's name (not a car pass or RSVP card).
@@ -333,9 +344,9 @@
     }
 
     /**
-     * A side of the card with a guest's name in the guest field (PR 10): the field's words, or,
-     * for a design that leaves a line to write on, the field its design has for the name, on the
-     * side that holds it (a folded card's inside).
+     * A side of the card (the one that holds the guest's name) with a guest's name in the guest
+     * field (PR 10): the field's words, or, for a design that leaves a line to write on, the field
+     * its design has for the name. Null when that side is not part of what is saved.
      */
     function namedPage(page, name) {
       if (!page) return null;

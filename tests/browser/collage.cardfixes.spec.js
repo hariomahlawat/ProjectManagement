@@ -413,3 +413,30 @@ test('Save offers A4 edge to edge where it fits more cards: 4 A6 touching, no cu
   await page.keyboard.press('Escape');
   expect(errors).toEqual([]);
 });
+
+test('a logo still being read when the card is turned over stays in the tray, not on the back', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await page.locator('[data-card-side="front"]').click();
+  // A large picture, so it is still being read when the card is turned.
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 3000;
+    canvas.height = 3000;
+    const context = canvas.getContext('2d');
+    for (let i = 0; i < 400; i += 1) { context.fillStyle = `hsl(${i}, 60%, 50%)`; context.fillRect((i * 37) % 3000, (i * 91) % 3000, 300, 300); }
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  const chosen = page.locator('[data-card-logo-file]').setInputFiles({ name: 'big-logo.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await page.locator('[data-card-side="back"]').click();
+  await chosen;
+  await expect(page.locator('[data-prism-toast]').filter({ hasText: 'turned over while your logo was read' })).toBeVisible({ timeout: 20000 });
+  await touch(page).catch(() => {});
+  const draft = (await newestDraft(page)).model;
+  // Stored front first: the front keeps the SDD logo, and the back has no logo in its place.
+  expect(draft.items.find((item) => item.role === 'logo').sticker).toBe('logo:sdd');
+  expect(draft.back.items.some((item) => item.role === 'logo')).toBe(false);
+  expect(errors).toEqual([]);
+});

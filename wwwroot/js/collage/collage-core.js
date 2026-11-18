@@ -1577,13 +1577,6 @@
     return { width: size.width / PRINT_DPI * PDF_POINTS_PER_INCH, height: size.height / PRINT_DPI * PDF_POINTS_PER_INCH };
   }
 
-  /**
-   * Print sheets (docs/ux/invitations-posters.md, PR 9): as many cards of a size as fit on an A4
-   * or A3 sheet, with room round them for cutting. The sheet is turned whichever way holds more
-   * (upright on a tie). Everything is in mm from the sheet's top-left; `cut` marks sit in the
-   * gaps, never on a card. A back sheet is mirrored so each back lands behind its front when the
-   * printer flips on the long edge: across for an upright sheet, top to bottom for a turned one.
-   */
   // Sheets for printing several cards. "Edge to edge" packs cards touching, with no margin, gaps
   // or cut marks: more to a sheet (4 A6 or 2 A5 on A4), cut on the card edges, where a printer
   // that cannot print to the paper's edge leaves a thin white line.
@@ -1594,6 +1587,13 @@
   });
   const SHEET_SPACE = Object.freeze({ margin: 8, gap: 4, mark: 2.5 });
 
+  /**
+   * Print sheets (docs/ux/invitations-posters.md, PR 9): as many cards of a size as fit on an A4
+   * or A3 sheet, with room round them for cutting. The sheet is turned whichever way holds more
+   * (upright on a tie). Everything is in mm from the sheet's top-left; `cut` marks sit in the
+   * gaps, never on a card. A back sheet is mirrored so each back lands behind its front when the
+   * printer flips on the long edge: across for an upright sheet, top to bottom for a turned one.
+   */
   function sheetLayout(sizeKey, sheetKey, { back = false } = {}) {
     const size = sizeOf(sizeKey);
     const sheet = SHEETS[sheetKey];
@@ -1756,6 +1756,7 @@
   }
 
   function readDraftModel(raw, photoIds) {
+    let showBack = false;
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.items)) return null;
     const version = isNumber(raw.version) ? raw.version : 1;
     if (version > MODEL_VERSION) return null;
@@ -1887,7 +1888,8 @@
       if (back) {
         model.back = { background: back.background, items: back.items, layout: back.layout };
         if (back.kept) model.back.kept = back.kept;
-        if (raw.side === 'back') model.side = 'back';
+        // The draft keeps the front at the top; `side` says the back was showing.
+        showBack = raw.side === 'back';
       }
     }
     // Fields of the collage this PRISM does not use, and a back it cannot read (a newer PRISM's),
@@ -1902,7 +1904,7 @@
       fields[key] = copy.value;
     }
     if (keptItems.length || Object.keys(fields).length) model.kept = { items: keptItems, fields, order: keptItems.length ? drawnOrder : [] };
-    return model;
+    return showBack ? flipSide(model) : model;
   }
 
   /**
@@ -1980,12 +1982,19 @@
     }
     row.push(cell);
     rows.push(row);
+    // A quote opened and never closed (a stray " in a name) would swallow every later line: read
+    // the lines again with each one's own cells, quotes kept as they are.
+    if (quoted) return source.split(/\r?\n/).map((line) => line.split(separator));
     return rows;
   }
 
   // Headings in a guest list's first row: the columns that make up a guest's name, in order.
+  // A rank column joins the name; a column whose heading names a person ("Name", "Rank & Name",
+  // "Name of Guest", "Surname"), not a unit or a place, is a name column.
   const RANK_HEADING = /^\s*(rank|title|appointment)\s*$/i;
-  const NAME_HEADING = /^\s*((full|guest|guest's|guest’s)\s+)?names?\s*$|^\s*guests?\s*$|^\s*(first|given|last|family|sur)\s*names?\s*$|^\s*surname\s*$|^\s*initials?\s*$/i;
+  const NAME_WORDS = /\bnames?\b|\bsurname\b|^\s*guests?\s*$|^\s*initials?\s*$/i;
+  const NOT_A_PERSON = /\b(unit|regiment|formation|organi[sz]ation|station|place|venue|file|company|establishment)\b/i;
+  const NAME_HEADING = { test: (cell) => NAME_WORDS.test(cell) && !NOT_A_PERSON.test(cell) };
 
   /**
    * The guest list read from text, one name a line, with how many names did not fit (past
@@ -2073,6 +2082,9 @@
    */
   function draftModel(collage) {
     if (!collage) return collage;
+    // A card is stored front first, whichever side is showing, so the draft's shape never depends
+    // on the screen (a PRISM without backs opens the front); `side` says the back was showing.
+    if (collage.side === 'back' && collage.back) return { ...draftModel(flipSide(collage)), side: 'back' };
     // The other side keeps its own newer parts too (PR 8), put back the same way.
     const withBack = collage.back?.kept
       ? { ...collage, back: { ...(collage.back.kept.fields || {}), background: collage.back.background, layout: collage.back.layout || null, items: putBack(collage.back) } }

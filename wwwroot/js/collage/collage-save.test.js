@@ -96,4 +96,5 @@ test('a guest\'s name keeps its field\'s edge: left, right or the middle', () =>
   assert.equal(save.nameInField({ ...field, align: 'center' }, 'Maj A', layout).x, 500);
   assert.equal(save.nameInField(field, 'Maj A', layout).text, 'Maj A');
   assert.equal(save.nameInField(field, 'Maj A', layout).width, 200);
+  assert.equal(save.nameInField({ ...field, hidden: true }, 'Maj A', layout).hidden, undefined, 'a hidden line still shows the name');
 });

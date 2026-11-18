@@ -118,7 +118,13 @@ its npm package by hand; the libman entry records the version.
     Changing the design rebuilds both sides and keeps the side showing. **Delete the back**
     offers Undo. In the model the side not showing is in `back` (its background and items), and
     `side: "back"` says the back shows; `core.flipSide` turns the card over and `core.pagesOf`
-    gives the pages front first.
+    gives the pages front first. The draft always stores the front at the top, with `side`
+    saying which side was showing, so its shape never depends on the screen. A field is on one
+    side only (`designs.partsFor`): a programme card, which has its programme on the front, gets
+    a back without a second programme. Your own logo still being read when the card is turned
+    over goes to the photo tray, since the logo belongs to the front. Saved with both sides, the
+    dialog says which edge to flip on: the long edge, or the short edge for a folded card or a
+    landscape card on its own pages.
 
     **Print sheets** (PR 9): a card, pocket card or custom size saved as a PDF can go **on A4
     sheets** or **on A3 sheets**, or each card on its own page. The note says how many fit.
@@ -215,7 +221,9 @@ its npm package by hand; the libman entry records the version.
   new lines within it, up to `maxLines` (3 unless set, at most 12; lines the user breaks always
   count), and if they still don't fit, the letters get smaller, down to 40% of the size. A single
   word too long even then (a long unbroken name) is broken between letters. Text items hold up to
-  1,000 characters. The words typed never change, only how they're laid out.
+  1,000 characters (and fit to up to 12 lines). A PRISM older than this one cuts such text to
+  300 characters and 6 lines when it opens the draft, so going back a release shortens long
+  programmes in drafts made since. The words typed never change, only how they're laid out.
   Curved words aren't fitted. Dragging a corner of fitted words makes the width grow with them.
   The card designs (PR 4b) set this, so a long occasion never runs off a card.
 - **Photos**: add up to 60 photos (JPEG, PNG, WEBP, GIF or BMP, at most 50 MB each) by the

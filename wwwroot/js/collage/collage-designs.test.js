@@ -258,7 +258,7 @@ test('a card gets a back in its design, turns over, keeps both sides through a d
   assert.deepEqual(navy.back.background, { type: 'gradient', key: 'navy' }, 'the navy front, now behind');
   assert.equal(navy.back.items.find((item) => item.field === 'occasion').text, 'Raising Day Dinner');
   // A draft keeps both sides and the side showing.
-  const read = core.readDraftModel(JSON.parse(JSON.stringify(navy)), []);
+  const read = core.readDraftModel(JSON.parse(JSON.stringify(core.draftModel(navy))), []);
   assert.equal(read.side, 'back');
   assert.equal(read.back.items.length, navy.back.items.length);
   // Deleted, the card shows its front alone.
@@ -691,4 +691,23 @@ test('a design change keeps the guest list, and the back keeps the front logo', 
   const front = navy.items.find((item) => item.role === 'logo');
   const back = navy.back.items.find((item) => item.role === 'backlogo');
   assert.equal(back.sticker, front.sticker, 'the back shows the front logo');
+});
+
+// One field, one place (cold review 3): a programme card's programme is on its front, so its back
+// does not carry a second programme; parts and details a newer PRISM keeps survive a design change.
+test('a programme card with a back has its programme once; newer parts and details survive a design change', () => {
+  const front = designs.applyDesign(core.newCollage('a7p'), 'programmecard', {}, { measure, newId });
+  const card = designs.addBack(front, { measure, newId });
+  const fields = (items) => items.filter((item) => item.kind === 'text').map((item) => item.field);
+  const onFront = fields(card.items);
+  assert.ok(onFront.includes('programme'));
+  assert.ok(!fields(card.back.items).some((field) => onFront.includes(field)), 'no field on both sides');
+  assert.equal(designs.sideOf(card, 'programme'), 'front');
+
+  const kept = { ...card, card: { ...card.card, details: { ...card.card.details, futureField: 'x' } }, back: { ...card.back, kept: { items: [{ at: 0, item: { id: 'h', kind: 'hologram' } }], order: [] } } };
+  const changed = designs.applyDesign(kept, 'pocketinvite', designs.detailsOf(kept), { measure, newId });
+  assert.equal(changed.card.details.futureField, 'x');
+  assert.equal(core.keptCount(changed), 1);
+  const resized = designs.applyDesign(core.changeSize(kept, 'a7l'), 'programmecard', designs.detailsOf(kept), { measure, newId });
+  assert.equal(core.keptCount(resized), 1);
 });

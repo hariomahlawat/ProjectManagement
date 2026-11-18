@@ -1597,3 +1597,36 @@ test('edge to edge on A4 fits 4 A6 and 2 A5, touching, with no cut marks', () =>
   assert.equal(back.cards.length, 4);
   assert.equal(collage.sheetLayout('a6p', 'a4').count, 2, 'with room for cutting, 2');
 });
+
+// A card's draft is stored front first (cold review 3): the saved shape never depends on which
+// side was showing, and the collage's own newer fields stay at the top.
+test('a card saved with its back showing is stored front first, and opens with the back showing', () => {
+  const front = { id: 'f', kind: 'text', text: 'Front', x: 500, y: 500, width: 200, aspect: 4, size: 40 };
+  const back = { id: 'b', kind: 'text', text: 'Back', x: 500, y: 500, width: 200, aspect: 4, size: 40 };
+  const card = collage.readDraftModel({ version: 1, size: 'a5p', background: { type: 'color', value: '#ffffff' }, items: [front], ribbon: 'gold',
+    back: { background: { type: 'color', value: '#ffffff' }, items: [back] } }, []);
+  const showingBack = collage.flipSide(card);
+  assert.equal(showingBack.items[0].id, 'b');
+  const saved = collage.draftModel(showingBack);
+  assert.equal(saved.items[0].id, 'f', 'the front at the top');
+  assert.equal(saved.back.items[0].id, 'b');
+  assert.equal(saved.side, 'back');
+  assert.equal(saved.ribbon, 'gold', 'the collage\'s own field at the top');
+  assert.equal(saved.back.ribbon, undefined);
+  const reopened = collage.readDraftModel(JSON.parse(JSON.stringify(saved)), []);
+  assert.equal(reopened.side, 'back');
+  assert.equal(reopened.items[0].id, 'b', 'opens with the back showing');
+  assert.equal(collage.draftModel(reopened).items[0].id, 'f');
+});
+
+// Guest list headings as units write them (cold review 3): "Ser No, Rank & Name, Unit" and
+// "S.No, Rank, Name of Guest" give names, never serial numbers; a stray quote spoils one line only.
+test('guest list headings with serial numbers, "Rank & Name" and "Name of Guest"; a stray quote', () => {
+  const nl = String.fromCharCode(10);
+  assert.deepEqual(collage.guestNames(['Ser No,Rank & Name,Unit', '1,Brig P. Singh,HQ', '2,Col D. Nair,5 Sikh'].join(nl), { csv: true }), ['Brig P. Singh', 'Col D. Nair']);
+  assert.deepEqual(collage.guestNames(['S.No,Rank,Name of Guest', '1,Maj,A. Rao'].join(nl), { csv: true }), ['Maj A. Rao']);
+  // A unit's name is not a guest's.
+  assert.deepEqual(collage.guestNames(['Name,Unit Name', 'Col D. Nair,5 Sikh'].join(nl), { csv: true }), ['Col D. Nair']);
+  // An unclosed quote: each line still a guest of its own.
+  assert.deepEqual(collage.guestNames(['Name', '"Maj A', 'Capt B', 'Lt C'].join(nl), { csv: true }), ['"Maj A', 'Capt B', 'Lt C']);
+});
