@@ -457,6 +457,23 @@ test('the back\'s small logo follows the front\'s: replaced, removed and put bac
   await expect.poll(async () => await backLogo()).toBe(null);
   await page.locator('[data-card-logo-use="logo:sdd"]').click();
   await expect.poll(async () => (await backLogo())?.sticker).toBe('logo:sdd');
+});
+
+test('pocket sizes offer the pocket cards; a car pass shows its own fields and shares the occasion', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('passl');
+  await expect(page.locator('[data-start-design]')).toHaveCount(4);
+  await page.locator('[data-start-design="pass"]').click();
+  await expect(page.locator('[data-card-field="passTitle"]')).toHaveValue('CAR PASS');
+  await expect(page.locator('[data-card-field="vehicle"]')).toBeVisible();
+  await expect(page.locator('[data-card-field="host"]')).toHaveCount(0);
+  await expect(page.locator('[data-card-design]')).toHaveCount(4);
+  // Another pocket design keeps the occasion typed for the pass.
+  await page.locator('[data-card-field="occasion"]').fill('Barakhana');
+  await page.locator('[data-card-field="occasion"]').blur();
+  await page.locator('[data-card-design="pocketinvite"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.card?.design).toBe('pocketinvite');
+  expect((await newestDraft(page)).model.items.find((item) => item.field === 'occasion').text).toBe('Barakhana');
   expect(errors).toEqual([]);
 });
 

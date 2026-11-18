@@ -17,9 +17,10 @@ function box(item) {
 }
 const overlap = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
 
+const pocketSizes = Object.keys(core.SIZES).filter((key) => core.SIZES[key].group === 'pocket');
 for (const key of Object.keys(designs.DESIGNS)) {
-  test(`${key}: at every card size every part is on the page and no words overlap`, () => {
-    for (const size of cardSizes) {
+  test(`${key}: at every size it is offered for, every part is on the page and no words overlap`, () => {
+    for (const size of designs.DESIGNS[key].pocket ? pocketSizes : cardSizes) {
       const card = designs.applyDesign(core.newCollage(size), key, { guest: 'Brig P. Singh, SM and Mrs Singh' }, { measure, newId });
       const height = core.pageHeight(size);
       for (const item of card.items) {
@@ -34,7 +35,7 @@ for (const key of Object.keys(designs.DESIGNS)) {
       }
       // The logo never sits on words.
       const logo = card.items.find((item) => item.role === 'logo');
-      for (const words of texts) assert.ok(!overlap(box(logo), box(words)), `${key} ${size}: the logo covers ${words.field}`);
+      if (logo) for (const words of texts) assert.ok(!overlap(box(logo), box(words)), `${key} ${size}: the logo covers ${words.field}`);
     }
   });
 }
@@ -271,7 +272,7 @@ test('a card gets a back in its design, turns over, keeps both sides through a d
 });
 
 test('every design\'s back stays on the page with no overlapping words at every card size', () => {
-  for (const key of Object.keys(designs.DESIGNS)) {
+  for (const key of Object.keys(designs.DESIGNS).filter((each) => !designs.DESIGNS[each].pocket)) {
     for (const size of cardSizes) {
       const card = designs.addBack(designs.applyDesign(core.newCollage(size), key, {}, { measure, newId }), { measure, newId });
       const height = core.pageHeight(size);
@@ -307,4 +308,22 @@ test('deleting the back keeps the programme as it was edited, for a new back', (
   const single = designs.deleteBack(edited);
   const again = designs.addBack(single, { measure, newId });
   assert.equal(again.back.items.find((item) => item.field === 'programme').text, '1900 h · Arrival');
+});
+
+// Pocket cards (PR 9b).
+test('pocket sizes are offered the pocket designs, and cards the others', () => {
+  assert.deepEqual(designs.designsFor('passl').map((d) => d.key), ['pass', 'reply', 'programmecard', 'pocketinvite']);
+  assert.ok(designs.designsFor('a5p').every((d) => !d.pocket));
+  assert.ok(designs.designsFor('mm:120x180').every((d) => !d.pocket));
+  const pass = designs.applyDesign(core.newCollage('passl'), 'pass', {}, { measure, newId });
+  assert.equal(pass.items.find((item) => item.field === 'passTitle').text, 'CAR PASS');
+  assert.ok(pass.items.some((item) => item.role === 'vehicleline'));
+  const reply = designs.applyDesign(core.newCollage('in355p'), 'reply', {}, { measure, newId });
+  assert.equal(reply.items.find((item) => item.field === 'attend').text, 'will / will not attend');
+  // The pocket cards share the card's wording: the occasion typed once is on every one.
+  const details = { occasion: 'Barakhana' };
+  for (const key of ['pass', 'reply', 'programmecard', 'pocketinvite']) {
+    const card = designs.applyDesign(core.newCollage('a7p'), key, details, { measure, newId });
+    assert.equal(card.items.find((item) => item.field === 'occasion').text, 'Barakhana', key);
+  }
 });
