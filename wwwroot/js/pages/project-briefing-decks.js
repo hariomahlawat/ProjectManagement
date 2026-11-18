@@ -1326,7 +1326,7 @@ if (root) {
         || submittedForm === settingsForm
         || submittedForm === profileForm
         || submittedForm === renameForm
-        || submittedForm.matches('[data-pbd-generate-form], [data-pbd-add-selection-form], [data-pbd-individual-form], [data-pbd-role-charter-form], [data-pbd-ffc-footprint-form]')) return;
+        || submittedForm.matches('[data-pbd-generate-form], [data-pbd-add-selection-form], [data-pbd-role-charter-form], [data-pbd-ffc-footprint-form]')) return;
     if (!settingsPending() && !profileDirty && !notesUnsaved()) return;
 
     event.preventDefault();
@@ -1899,11 +1899,6 @@ if (root) {
         .map((project) => Number(project.projectId))
         .filter((projectId) => !membersBefore.has(projectId));
       if (added.length) offerAddUndo(added, button);
-      if (button && form.classList.contains('pbd-quick-card')) {
-        button.classList.add('is-added');
-        button.replaceChildren(Object.assign(document.createElement('i'), { className: 'bi bi-check-lg' }), document.createTextNode(' Added'));
-        button.firstChild.setAttribute('aria-hidden', 'true');
-      }
     } catch (error) {
       // Someone else changed the deck: the same banner as every other save (review 2 fixes, PR 3).
       if (error instanceof RequestError && error.status === 409) showConflict(error.message);

@@ -149,8 +149,8 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("const FIX_IN_PROJECT = 'Fix in project';", studio, StringComparison.Ordinal);
         Assert.Contains("const THIS_DECK_ONLY = 'This deck only';", studio, StringComparison.Ordinal);
 
-        // Add projects: a quick add says it is done; Escape closes even when focus left the dialog.
-        Assert.Contains("document.createTextNode(' Added')", script, StringComparison.Ordinal);
+        // Add projects: an add says how many it added; Escape closes even when focus left the dialog.
+        Assert.Contains("project{(added.Added == 1 ? string.Empty : \"s\")} added.\"", Read("Index.cshtml.cs"), StringComparison.Ordinal);
         Assert.Contains("addProjectsModal?.hide();", script, StringComparison.Ordinal);
 
         // The library explains the empty slide count.
@@ -218,8 +218,9 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("document.addEventListener('visibilitychange', rebuildOnReturn);", studio, StringComparison.Ordinal);
         Assert.Contains("href: (p) => `${p.openUrl}#remarks`", studio, StringComparison.Ordinal);
 
-        // Added stays readable when focused; the header icon shows in dark theme.
-        Assert.Contains(".pbd-quick-card .btn.is-added:focus,", css, StringComparison.Ordinal);
+        // The header icon shows in dark theme; the old quick-add styles are gone with their tabs.
+        Assert.DoesNotContain(".pbd-quick-card", css, StringComparison.Ordinal);
+        Assert.DoesNotContain(".pbd-selector-tabs", css, StringComparison.Ordinal);
         Assert.Contains("color: var(--pbd-surface);\n    font-size: 1.13rem;", css.Replace("\r\n", "\n"), StringComparison.Ordinal);
         Assert.DoesNotContain(":where([data-bs-theme=\"dark\"]) .pbd-deck-header__mark {", css, StringComparison.Ordinal);
     }

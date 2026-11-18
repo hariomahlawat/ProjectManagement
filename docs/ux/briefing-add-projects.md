@@ -50,4 +50,7 @@ Owner choices (the recommendations, accepted with "Yes, build it"):
    Tick all, Add, Undo; ticks kept when a filter is cleared; Remove and Undo; completed FY
    2023-24 to 2025-26 16).
 3. **Phones, Dark, keyboard, guide.** Chips wrap, the list full width on phones; keyboard order and
-   labels; the Studio guide and this document updated.
+   labels; the Studio guide and this document updated. Built: checked at 375 px in the dark theme
+   (no sideways scroll, chips wrap, one column, Add at the foot); the search's placeholder is
+   short enough for a phone ("Search name, officer or file no."); the empty Studio's prompt names
+   the new filters; the old tabs' styles (48 selectors) and the quick-add "Added" code are gone.
