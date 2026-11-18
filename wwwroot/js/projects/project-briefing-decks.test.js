@@ -27,18 +27,19 @@ test('briefing deck JSON mutations use the configured antiforgery header and sam
   assert.match(source, /'X-Requested-With': 'XMLHttpRequest'/);
 });
 
-test('briefing deck project search safely renders server values with textContent', () => {
-  assert.match(source, /name\.textContent = project\.projectName/);
-  assert.match(source, /meta\.textContent = \[\.\.\.new Set\(\[project\.lifecycle/);
-  assert.doesNotMatch(source, /project\.projectName.*innerHTML/);
+test('briefing deck project list safely renders server values with textContent', () => {
+  assert.match(source, /name\.textContent = row\.projectName/);
+  assert.match(source, /meta\.textContent = \[\.\.\.new Set\(\[row\.lifecycle/);
+  assert.doesNotMatch(source, /projectName.*innerHTML/);
 });
 
-test('briefing deck selection tabs support keyboard navigation', () => {
-  assert.match(source, /ArrowLeft/);
-  assert.match(source, /ArrowRight/);
-  assert.match(source, /event\.key === 'Home'/);
-  assert.match(source, /event\.key === 'End'/);
-  assert.match(source, /aria-selected/);
+test('add projects filters are buttons that say whether they are open or on', () => {
+  const chips = source.slice(source.indexOf('const renderFilterChips'), source.indexOf('const renderFilterPanel'));
+  assert.match(chips, /button\.setAttribute\('aria-expanded', String\(openFilter === filter\.key\)\)/);
+  assert.match(chips, /button\.setAttribute\('aria-pressed', String\(filterState\.proliferation\)\)/);
+  assert.match(chips, /clear\.setAttribute\('aria-label', `Clear \$\{filter\.label\}`\)/);
+  // Escape closes the open filter and returns to its chip.
+  assert.match(source, /filterPanel\?\.addEventListener\('keydown', \(event\) => \{\s*if \(event\.key !== 'Escape'\) return;/);
 });
 
 test('studio outline reorders projects only within their present stage', () => {
@@ -84,9 +85,14 @@ test('membership changes refresh the studio from the returned deck', () => {
 test('add projects opens as a dialog whose selections save in place', () => {
   assert.match(source, /addProjectsModal\?\.show\(\);/);
   assert.match(viewSource, /id="pbd-add-projects-modal"/);
-  const addSelectionForms = viewSource.match(/asp-page-handler="AddSelection" class="pbd-(quick-card|inline-form|category-form)" data-pbd-add-selection-form/g) || [];
-  // Five selections, and My projects for a Project Officer.
-  assert.equal(addSelectionForms.length, 6);
+  // One list narrowed by filters; the ticked projects go through one AddSelection form
+  // (docs/ux/briefing-add-projects.md). No tabs and no "My projects".
+  const addSelectionForms = viewSource.match(/asp-page-handler="AddSelection" data-pbd-add-selection-form data-pbd-filter-add-form/g) || [];
+  assert.equal(addSelectionForms.length, 1);
+  assert.doesNotMatch(viewSource, /data-pbd-selector-tab/);
+  assert.doesNotMatch(viewSource, /My projects/);
+  assert.match(source, /filterAddForm\.requestSubmit\(\);/);
+  assert.match(source, /ticked\.forEach\(\(_name, projectId\) =>/);
   assert.match(source, /event\.target\.closest\('\[data-pbd-add-selection-form\]'\)/);
   assert.match(source, /'X-Requested-With': 'XMLHttpRequest'/);
   assert.doesNotMatch(viewSource, /data-pbd-selector-details/);
@@ -513,12 +519,16 @@ test('deleted or archived members can still be removed from the deck', () => {
   assert.match(source, /await updateMembership\(\[\], leftOut\.map\(\(project\) => project\.projectId\)\);/);
 });
 
-test('individual search follows every membership change and keeps unapplied ticks', () => {
+test('the add projects list follows every membership change and keeps ticks across filters', () => {
   const apply = source.slice(source.indexOf('const applyEditorState'), source.indexOf('const updateMembership'));
-  assert.match(apply, /reconcileSearchMembership\(projects\);/);
-  const reconcile = source.slice(source.indexOf('const reconcileSearchMembership'), source.indexOf('const renderSearchResults'));
-  assert.match(reconcile, /if \(desired !== resultBaseline\.get\(projectId\)\) pending\.set\(projectId, desired\);/);
-  assert.match(reconcile, /isSelected: members\.has\(Number\(project\.projectId\)\)/);
+  assert.match(apply, /refreshFilterMembership\(projects\);/);
+  const refresh = source.slice(source.indexOf('const refreshFilterMembership'), source.indexOf("filterQuery?.addEventListener('input'"));
+  // A ticked project now in the deck is no longer ticked; the rest of the ticks stay.
+  assert.match(refresh, /members\.forEach\(\(projectId\) => ticked\.delete\(projectId\)\);/);
+  assert.match(refresh, /isSelected: members\.has\(row\.projectId\)/);
+  // Changing a filter reloads the list but never clears the ticks.
+  const load = source.slice(source.indexOf('const loadFilterRows'), source.indexOf('const reloadFilterRows'));
+  assert.doesNotMatch(load, /ticked\.clear\(\)/);
 });
 
 test('each project can be shown as slides, a table row only, or left out', () => {
