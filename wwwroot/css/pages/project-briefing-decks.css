@@ -3871,8 +3871,45 @@ html.pm-no-has.pm-has-pbd-viewer-open {
     gap: .65rem;
 }
 
-/* No empty line above the search before anything has been saved. */
-.pbd-filter .pbd-add-projects__status:empty {
+/* The search, filters and count stay in view while the list scrolls (cold review, M1). */
+.pbd-filter__head {
+    display: grid;
+    gap: .65rem;
+}
+
+@media (min-width: 576px) {
+    .pbd-filter__head {
+        position: sticky;
+        top: calc(-1 * var(--bs-modal-padding, 1rem));
+        z-index: 2;
+        margin: calc(-1 * var(--bs-modal-padding, 1rem)) calc(-1 * var(--bs-modal-padding, 1rem)) 0;
+        padding: var(--bs-modal-padding, 1rem) var(--bs-modal-padding, 1rem) .55rem;
+        border-bottom: 1px solid var(--pbd-border);
+        background: var(--bs-modal-bg, var(--pbd-surface));
+    }
+}
+
+/* On a phone the lead keeps its first sentence. */
+@media (max-width: 575.98px) {
+    .pbd-add-projects__lead-more {
+        display: none;
+    }
+}
+
+.pbd-filter__footer-info {
+    display: grid;
+    flex: 1 1 14rem;
+    gap: .1rem;
+    min-width: 0;
+    margin-right: auto;
+}
+
+.pbd-filter__footer-info .pbd-add-projects__status {
+    min-height: 0;
+    margin: 0;
+}
+
+.pbd-filter__footer-info .pbd-add-projects__status:empty {
     display: none;
 }
 
@@ -3916,7 +3953,14 @@ html.pm-no-has.pm-has-pbd-viewer-open {
     font-weight: 700;
 }
 
+.pbd-filter-chip.is-open {
+    border-style: solid;
+    border-color: var(--pbd-blue);
+    background: var(--pbd-blue-soft);
+}
+
 .pbd-filter-chip__open[aria-expanded="true"] {
+    color: var(--pbd-blue);
     text-decoration: underline;
     text-underline-offset: .2em;
 }
@@ -4007,7 +4051,16 @@ html.pm-no-has.pm-has-pbd-viewer-open {
 
 .pbd-filter__remove {
     padding: 0;
-    font-size: .72rem;
+    font-size: .8rem;
+}
+
+/* Larger than the old search results' text (cold review, L5). */
+.pbd-filter__row strong {
+    font-size: .82rem;
+}
+
+.pbd-filter__row small {
+    font-size: .74rem;
 }
 
 .pbd-filter__footer {
@@ -4015,9 +4068,15 @@ html.pm-no-has.pm-has-pbd-viewer-open {
 }
 
 .pbd-filter__ticked {
-    margin-right: auto;
-    color: var(--pbd-muted);
+    justify-self: start;
+    padding: 0;
     font-size: .8rem;
+}
+
+.pbd-filter__ticked:disabled {
+    color: var(--pbd-muted);
+    text-decoration: none;
+    opacity: 1;
 }
 
 @media (max-width: 575.98px) {

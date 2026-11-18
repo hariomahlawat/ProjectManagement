@@ -628,3 +628,32 @@ test('settings changed by script (row order, Select all) count as changed for th
     movedSettings('A=1&UpdateSheetRowOrder=ProjectCost,AonDate&UpdateSheetRows=AonDate', 'A=1&UpdateSheetRowOrder=AonDate,ProjectCost&UpdateSheetRows=AonDate&UpdateSheetRows=ProjectCost'),
     ['UpdateSheetRowOrder', 'UpdateSheetRows']);
 });
+
+test('add projects: one Add at a time, waiting for the shared handler to settle (cold review, H1)', () => {
+  const add = source.slice(source.indexOf("filterAdd?.addEventListener('click'"), source.indexOf("filterResults?.addEventListener('click'"));
+  assert.match(add, /if \(!\(filterAddForm instanceof HTMLFormElement\) \|\| adding\) return;/);
+  assert.match(add, /adding = true;\s*filterAdd\.disabled = true;/);
+  assert.match(add, /filterAddForm\?\.addEventListener\('pbd:add-selection-settled', \(\) => \{\s*adding = false;/);
+  // The shared handler says when it is done, whether the add worked or not.
+  assert.match(source, /finally \{[\s\S]{0,400}form\.dispatchEvent\(new CustomEvent\('pbd:add-selection-settled', \{ bubbles: true \}\)\);/);
+  assert.match(add, /if \(ticked\.size > MAXIMUM_ADD\)/);
+});
+
+test('add projects: the ticked projects can be reviewed whatever the filters (cold review, M2)', () => {
+  const rows = source.slice(source.indexOf('const renderFilterRows'), source.indexOf('const loadFilterRows'));
+  assert.match(rows, /const rows = showTicked \? \[\.\.\.ticked\.values\(\)\] : filterRows;/);
+  assert.match(source, /filterTickedLabel\?\.addEventListener\('click', \(\) => \{\s*if \(ticked\.size === 0\) return;\s*showTicked = !showTicked;/);
+  assert.match(viewSource, /data-pbd-filter-ticked aria-pressed="false"/);
+});
+
+test('add projects: the status and Undo sit in the footer, the filters stay in view (cold review, M1)', () => {
+  const footer = viewSource.slice(viewSource.indexOf('<div class="modal-footer pbd-filter__footer">'));
+  assert.match(footer.slice(0, 900), /data-pbd-add-projects-status aria-live="polite"/);
+  assert.match(viewSource, /<div class="pbd-filter__head">/);
+});
+
+test('add projects: Escape on a chip closes the open filter, and a failed load leaves no stale rows', () => {
+  assert.match(source, /filterChips\?\.addEventListener\('keydown', \(event\) => \{\s*if \(event\.key !== 'Escape' \|\| !openFilter\) return;/);
+  const load = source.slice(source.indexOf('const loadFilterRows'), source.indexOf('const reloadFilterRows'));
+  assert.match(load, /filterRows = \[\];\s*renderFilterRows\(\);/);
+});
