@@ -313,6 +313,9 @@ export function initAddProjects(deps) {
 
   // How many more projects the deck can take, and whether the ticks fit (cold review 2, High).
   let serverMemberCount = null;
+  // Counts each membership change the page applies, so a list reply read before one is not
+  // trusted for the deck's size (Codex review).
+  let membershipVersion = 0;
   let showAllRows = false;
   const room = () => Math.max(0, maximumProjects - Math.max(members().size, serverMemberCount ?? 0));
   if (filterRoom && !filterRoom.id) filterRoom.id = 'pbd-filter-room';
@@ -494,6 +497,7 @@ export function initAddProjects(deps) {
     filterAbort?.abort();
     filterAbort = new view.AbortController();
     const request = ++listRequest;
+    const membershipAtRequest = membershipVersion;
     const url = new URL(root.dataset.filterUrl, view.location.origin);
     url.searchParams.set('deckId', String(deckId));
     const query = filterQuery?.value.trim() || '';
@@ -525,7 +529,10 @@ export function initAddProjects(deps) {
       // (cold review 2, M3).
       const inDeck = members();
       // The deck's size as the server saw it: another editor may have filled it (cold review 5).
-      serverMemberCount = Number.isFinite(payload?.deckProjectCount) ? payload.deckProjectCount : null;
+      // A Remove, Add or Undo applied while this request was out is newer than its count.
+      if (membershipAtRequest === membershipVersion) {
+        serverMemberCount = Number.isFinite(payload?.deckProjectCount) ? payload.deckProjectCount : null;
+      }
       showAllRows = false;
       filterRows = (payload?.rows || []).map((row) => {
         const projectId = Number(row.projectId);
@@ -551,8 +558,9 @@ export function initAddProjects(deps) {
   // After any change to the deck, mark the rows from its actual members; a ticked project that
   // is now in the deck is no longer ticked.
   const refreshMembership = (projects) => {
-    // The page's own reply is newer than the last list reply.
+    // The page's own reply is newer than the last list reply, and than any still on its way.
     serverMemberCount = null;
+    membershipVersion += 1;
     const inDeck = new Set(projects.map((project) => Number(project.projectId)));
     inDeck.forEach((projectId) => ticked.delete(projectId));
     filterRows = filterRows.map((row) => ({ ...row, isSelected: inDeck.has(row.projectId) }));

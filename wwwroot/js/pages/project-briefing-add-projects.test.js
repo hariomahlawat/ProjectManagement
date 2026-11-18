@@ -509,3 +509,22 @@ test('the room follows the deck size the server reports, until the page has a ne
   page.controller.refreshMembership([]);
   assert.match(page.$('[data-pbd-filter-room]').textContent, /Room for 120 more/);
 });
+
+test('a list reply read before a Remove does not bring back the full-deck size (Codex review)', async () => {
+  const page = await setUp({ members: [], holdList: true });
+  page.state.listReplies.shift().resolve(reply({ rows: [row(1, 'Alpha')] }));
+  await tick();
+  page.state.listPayloadExtra = null;
+  // A list request goes out while the server still counts 120...
+  page.controller.open();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  // ...then the page removes a project and has the newer deck...
+  page.controller.refreshMembership([]);
+  assert.match(page.$('[data-pbd-filter-room]').textContent, /Room for 120 more/);
+  // ...and the older reply arrives.
+  page.state.listReplies.shift().resolve(reply({ rows: [row(1, 'Alpha')], deckProjectCount: 120 }));
+  await tick();
+  await tick();
+  assert.match(page.$('[data-pbd-filter-room]').textContent, /Room for 120 more/);
+  assert.equal(page.$('[data-pbd-filter-tick="1"]').disabled, false);
+});
