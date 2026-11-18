@@ -169,6 +169,88 @@ public sealed class ProjectBriefingProjectFilterTests
         Assert.Equal(1106, rows.Count);
     }
 
+    [Fact]
+    public async Task ArppYear_AProjectDelistedThenRelistedInTheSameYearIsListed()
+    {
+        await using var db = await SeedAsync();
+        // 103 was delisted by the FY 2026-27 addendum; a later addendum lists it again.
+        db.ArppPublishedIssues.Add(new ArppPublishedIssue { ArppIssueId = 4, FinancialYearStart = 2026, IssueSequence = 2, IssueDate = new DateOnly(2027, 1, 20), Name = "Issue 4" });
+        db.ArppPublishedEntries.Add(new ArppPublishedEntry { Id = 99, ArppIssueId = 4, ProjectId = 103, Category = ArppCategory.New, ProjectReference = "P103" });
+        await db.SaveChangesAsync();
+
+        var rows = await Service(db).FilterAsync(new ProjectBriefingProjectFilter { ArppFinancialYears = new[] { 2026 } });
+
+        Assert.Equal(new[] { 101, 102, 103 }, rows.Select(row => row.ProjectId).OrderBy(id => id));
+    }
+
+    [Theory]
+    // A completion recorded as month and year only: January to March belong to the year before.
+    [InlineData((short)2, 2024)]
+    [InlineData((short)4, 2025)]
+    public async Task CompletedBetween_UsesTheRecordedMonthWhenThereIsNoDate(short month, int financialYear)
+    {
+        await using var db = await SeedAsync();
+        var project = db.Projects.Single(candidate => candidate.Id == 106);
+        project.CompletedYear = 2025;
+        project.CompletedMonth = month;
+        await db.SaveChangesAsync();
+
+        var rows = await Service(db).FilterAsync(new ProjectBriefingProjectFilter { CompletedFromFinancialYear = financialYear, CompletedToFinancialYear = financialYear });
+
+        Assert.Contains(rows, row => row.ProjectId == 106);
+    }
+
+    [Fact]
+    public async Task Options_ListEachCategoryFollowedByItsSubCategories()
+    {
+        await using var db = await SeedAsync();
+        // SortOrder counts within each parent, as the admin pages number it: a flat sort would
+        // put "CoE Short Term" (2) after "Other R&D" (1).
+        db.ProjectCategories.AddRange(
+            new ProjectCategory { Id = 20, Name = "CoE Long Term", ParentId = CoE, SortOrder = 0, IsActive = true },
+            new ProjectCategory { Id = 21, Name = "CoE Mid Term", ParentId = CoE, SortOrder = 1, IsActive = true },
+            new ProjectCategory { Id = 22, Name = "CoE Short Term", ParentId = CoE, SortOrder = 2, IsActive = true });
+        db.ProjectCategories.Single(category => category.Id == Other).SortOrder = 1;
+        await db.SaveChangesAsync();
+
+        var options = await Service(db).GetOptionsAsync();
+        var categories = await Service(db).GetCategoryOptionsAsync();
+
+        Assert.Equal(new[] { "CoE", "CoE Long Term", "CoE Mid Term", "CoE Short Term", "Other R&D" }, options.ProjectCategories.Select(category => category.Name));
+        Assert.Equal(new[] { 0, 1, 1, 1, 0 }, options.ProjectCategories.Select(category => category.Depth));
+        // The page's light list has the same order, with no counts.
+        Assert.Equal(options.ProjectCategories.Select(category => category.Name), categories.ProjectCategories.Select(category => category.Name));
+        Assert.All(categories.ProjectCategories, category => Assert.Equal(0, category.MatchCount));
+    }
+
+    [Theory]
+    [InlineData(ProjectBriefingSelectionKind.Ongoing)]
+    [InlineData(ProjectBriefingSelectionKind.RecentlyCompleted)]
+    [InlineData(ProjectBriefingSelectionKind.MyProjects)]
+    public async Task Resolve_RefusesTheOldWaysOfAdding(ProjectBriefingSelectionKind kind)
+    {
+        await using var db = await SeedAsync();
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Service(db).ResolveAsync(new ProjectBriefingSelectionRequest { Kind = kind, OfficerUserId = "u" }));
+
+        Assert.Contains("no longer available", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Resolve_AddsTheTickedProjects()
+    {
+        await using var db = await SeedAsync();
+
+        var result = await Service(db).ResolveAsync(new ProjectBriefingSelectionRequest
+        {
+            Kind = ProjectBriefingSelectionKind.IndividualProjects,
+            ProjectIds = new[] { 101, 107, 105 }
+        });
+
+        // 107 is cancelled, so it cannot be added.
+        Assert.Equal(new[] { 101, 105 }, result.ProjectIds.OrderBy(id => id));
+    }
+
     [Theory]
     [InlineData(2026, 3, 31, 2025)]
     [InlineData(2026, 4, 1, 2026)]

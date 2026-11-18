@@ -101,24 +101,22 @@ public sealed class IndexModel : PageModel
     // The open deck is a Project Officer's own (shown as theirs, not as shared).
     public bool SelectedDeckIsPersonal { get; private set; }
 
-    // How many projects this Project Officer leads, for the "My projects" quick add.
-    // The Add projects filter's choices, for its script (docs/ux/briefing-add-projects.md).
-    public string AddProjectsFilterOptionsJson => System.Text.Json.JsonSerializer.Serialize(
-        new
-        {
-            arppYears = SelectionOptions.ArppYears.Select(year => new { value = year.FinancialYearStart, label = year.Label, count = year.ProjectCount }),
-            projectCategories = SelectionOptions.ProjectCategories.Select(category => new { value = category.Id, label = category.Name, count = category.MatchCount, parentId = category.ParentId }),
-            technicalCategories = SelectionOptions.TechnicalCategories.Select(category => new { value = category.Id, label = category.Name, count = category.MatchCount, parentId = category.ParentId }),
-            ongoingCount = SelectionOptions.OngoingCount,
-            completedCount = SelectionOptions.CompletedCount,
-            proliferationCount = SelectionOptions.ProliferationAvailableCount,
-            completionFinancialYears = SelectionOptions.MaximumCompletionFinancialYear < SelectionOptions.MinimumCompletionFinancialYear
-                ? Array.Empty<object>()
-                : Enumerable.Range(SelectionOptions.MinimumCompletionFinancialYear, SelectionOptions.MaximumCompletionFinancialYear - SelectionOptions.MinimumCompletionFinancialYear + 1)
-                    .Reverse()
-                    .Select(year => (object)new { value = year, label = ProjectBriefingSelectionService.FinancialYearLabel(year) })
-                    .ToArray()
-        });
+    // The Add projects filter's choices with their counts, in the shape its script reads.
+    internal static object FilterOptionsPayload(ProjectBriefingSelectionOptionsVm options) => new
+    {
+        arppYears = options.ArppYears.Select(year => new { value = year.FinancialYearStart, label = year.Label, count = year.ProjectCount }),
+        projectCategories = options.ProjectCategories.Select(category => new { value = category.Id, label = category.Name, count = category.MatchCount, parentId = category.ParentId, depth = category.Depth }),
+        technicalCategories = options.TechnicalCategories.Select(category => new { value = category.Id, label = category.Name, count = category.MatchCount, parentId = category.ParentId, depth = category.Depth }),
+        ongoingCount = options.OngoingCount,
+        completedCount = options.CompletedCount,
+        proliferationCount = options.ProliferationAvailableCount,
+        completionFinancialYears = options.MaximumCompletionFinancialYear < options.MinimumCompletionFinancialYear
+            ? Array.Empty<object>()
+            : Enumerable.Range(options.MinimumCompletionFinancialYear, options.MaximumCompletionFinancialYear - options.MinimumCompletionFinancialYear + 1)
+                .Reverse()
+                .Select(year => (object)new { value = year, label = ProjectBriefingSelectionService.FinancialYearLabel(year) })
+                .ToArray()
+    };
 
     public async Task<IActionResult> OnGetAsync(long? deckId, string? start, CancellationToken cancellationToken)
     {
@@ -980,45 +978,23 @@ public sealed class IndexModel : PageModel
         }
     }
 
-    public async Task<IActionResult> OnGetSearchProjectsAsync(
-        long deckId,
-        string? query,
-        CancellationToken cancellationToken)
+    // The Add projects filter's choices and counts (docs/ux/briefing-add-projects.md), asked for
+    // when the dialog opens. Like the list, only for a deck this person may change.
+    public async Task<IActionResult> OnGetFilterOptionsAsync(long deckId, CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
-        if (deckId <= 0)
-        {
-            return BadRequest(new { message = "Select a deck before searching projects." });
-        }
-
-        var deck = await _deckService.GetEntityAsync(deckId, userId, includeItems: true, cancellationToken);
-        if (deck is null)
+        if (deckId <= 0 || await _deckService.GetEntityAsync(deckId, userId, includeItems: false, cancellationToken) is null)
         {
             return NotFound(new { message = ProjectBriefingDeckService.NotFoundMessage });
         }
 
-        // Only after the deck is known to be editable (review 2 fixes, Low 6).
-        var projects = await _selectionService.SearchAsync(query, 40, cancellationToken);
-
-        var membership = deck.Items.ToDictionary(item => item.ProjectId, item => item.SortOrder);
-        var rows = projects.Select(project => new ProjectBriefingManageSearchResultVm(
-            project.ProjectId,
-            project.ProjectName,
-            project.Lifecycle,
-            project.PresentStage,
-            project.ProjectCategory,
-            project.TechnicalCategory,
-            project.ProjectOfficer,
-            project.CaseFileNumber,
-            membership.ContainsKey(project.ProjectId),
-            membership.TryGetValue(project.ProjectId, out var sortOrder) ? sortOrder : null))
-            .ToArray();
-        return new JsonResult(rows);
+        return new JsonResult(FilterOptionsPayload(await _selectionService.GetOptionsAsync(cancellationToken)));
     }
 
     // The Add projects filter (docs/ux/briefing-add-projects.md): the projects matching the chips,
-    // each marked when it is already in the deck. Read-only, so a deck this person can open is
-    // enough; adding and removing go through AddSelection and UpdateMembership, which need Edit.
+    // each marked when it is already in the deck. Only for a deck this person may change
+    // (GetEntityAsync checks Edit); adding and removing go through AddSelection and
+    // UpdateMembership, which check it again.
     public async Task<IActionResult> OnGetFilterProjectsAsync(
         [FromQuery] FilterProjectsInput input,
         CancellationToken cancellationToken)
@@ -1316,7 +1292,8 @@ public sealed class IndexModel : PageModel
         }
         else
         {
-            SelectionOptions = await _selectionService.GetOptionsAsync(cancellationToken);
+            // The filter's counts load when Add projects opens (FilterOptions, cold review M4).
+            SelectionOptions = await _selectionService.GetCategoryOptionsAsync(cancellationToken);
             FfcFootprintPreviewSummary = SelectedDeck.FfcFootprintPreviewSummary;
         }
 

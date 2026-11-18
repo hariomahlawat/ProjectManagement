@@ -2031,8 +2031,31 @@ if (root) {
   const filterTickedLabel = root.querySelector('[data-pbd-filter-ticked]');
   const filterClear = root.querySelector('[data-pbd-filter-clear]');
   const filterAdd = root.querySelector('[data-pbd-filter-add]');
+  // The choices and their counts come from the server the first time the dialog opens, not with
+  // the page (cold review, M4).
   let filterOptions = {};
-  try { filterOptions = JSON.parse(filterRoot?.querySelector('[data-pbd-filter-options]')?.textContent || '{}'); } catch { filterOptions = {}; }
+  let filterOptionsLoad = null;
+  const loadFilterOptions = () => {
+    if (filterOptionsLoad || !filterRoot || deckId <= 0) return filterOptionsLoad;
+    const url = new URL(root.dataset.filterOptionsUrl, window.location.origin);
+    url.searchParams.set('deckId', String(deckId));
+    filterOptionsLoad = fetch(url, {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(async (response) => {
+        checkReply(response, { read: true });
+        if (!response.ok) throw new Error('The filters could not be loaded.');
+        filterOptions = (await response.json()) || {};
+        renderFilterChips();
+        renderFilterPanel();
+      })
+      .catch(() => {
+        // Tried again the next time the dialog opens.
+        filterOptionsLoad = null;
+      });
+    return filterOptionsLoad;
+  };
 
   const FILTERS = [
     { key: 'arpp', label: 'ARPP', options: () => filterOptions.arppYears || [] },
@@ -2158,15 +2181,27 @@ if (root) {
     if (!options.length) {
       const empty = document.createElement('small');
       empty.className = 'pbd-filter__note';
-      empty.textContent = filter.key === 'arpp' ? 'No ARPP has been published yet.' : 'Nothing to choose from yet.';
+      empty.textContent = !filterOptionsLoad && !Object.keys(filterOptions).length
+        ? 'Loading the choices…'
+        : filter.key === 'arpp' ? 'No ARPP has been published yet.' : 'Nothing to choose from yet.';
       filterPanel.append(empty);
       return;
     }
     const list = document.createElement('div');
     list.className = 'pbd-chips';
+    // A category and its sub-categories sit together, the sub-categories after it (cold review,
+    // M3); the server lists them in that order with their depth.
+    let group = list;
     options.forEach((option) => {
+      if (Number.isFinite(option.depth)) {
+        if (option.depth === 0) {
+          group = document.createElement('span');
+          group.className = 'pbd-filter__group';
+          list.append(group);
+        }
+      }
       const label = document.createElement('label');
-      label.className = `pbd-chip${option.parentId ? ' is-child' : ''}`;
+      label.className = `pbd-chip${option.depth > 0 ? ' is-child' : ''}`;
       const input = document.createElement('input');
       input.type = 'checkbox';
       input.value = String(option.value);
@@ -2175,7 +2210,8 @@ if (root) {
       const text = document.createElement('span');
       text.textContent = Number.isFinite(option.count) ? `${option.label} · ${option.count}` : option.label;
       label.append(input, text);
-      list.append(label);
+      group.append(label);
+      if (option.depth > 0) group.classList.add('has-children');
     });
     filterPanel.append(list);
     const note = document.createElement('small');
@@ -2509,8 +2545,11 @@ if (root) {
   renderFilterChips();
   updateTickedFooter();
   // The list loads when the dialog first opens, then follows every change to the deck.
-  addProjectsModalElement?.addEventListener('show.bs.modal', () => { if (!filterRows.length) reloadFilterRows(); });
-  if (root.querySelector('[data-pbd-studio][data-pbd-start="projects"]')) reloadFilterRows();
+  addProjectsModalElement?.addEventListener('show.bs.modal', () => {
+    loadFilterOptions();
+    if (!filterRows.length) reloadFilterRows();
+  });
+  if (root.querySelector('[data-pbd-studio][data-pbd-start="projects"]')) { loadFilterOptions(); reloadFilterRows(); }
 
   // Briefing-specific project description editor (delegated for dynamically refreshed rows).
   const descriptionModalElement = document.getElementById('pbd-description-modal');

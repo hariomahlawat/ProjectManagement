@@ -254,8 +254,8 @@ public sealed class AdminDeckRestoreAuditTests : IAsyncLifetime
         public Task<ProjectBriefingSelectionResult> ResolveAsync(ProjectBriefingSelectionRequest request, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task<IReadOnlyList<ProjectBriefingSearchResultVm>> SearchAsync(string? query, int take = 25, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+        public Task<ProjectBriefingSelectionOptionsVm> GetCategoryOptionsAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new ProjectBriefingSelectionOptionsVm());
 
         public Task<IReadOnlyList<ProjectBriefingSearchResultVm>> FilterAsync(ProjectBriefingProjectFilter filter, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();

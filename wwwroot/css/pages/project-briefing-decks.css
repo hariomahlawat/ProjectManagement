@@ -3996,8 +3996,24 @@ html.pm-no-has.pm-has-pbd-viewer-open {
     display: none;
 }
 
-.pbd-filter__panel .pbd-chip.is-child span {
-    border-style: dashed;
+/* A category with its sub-categories: one group, the sub-categories shown as such. */
+.pbd-filter__group {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .3rem;
+    padding: .15rem;
+    border-radius: 999px;
+}
+
+.pbd-filter__group.has-children {
+    padding-right: .5rem;
+    border: 1px solid var(--pbd-border);
+}
+
+.pbd-filter__panel .pbd-chip.is-child span::before {
+    content: "\21B3\00a0";
+    color: var(--pbd-muted);
 }
 
 .pbd-filter__range {
