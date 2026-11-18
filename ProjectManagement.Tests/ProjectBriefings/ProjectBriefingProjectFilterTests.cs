@@ -135,6 +135,40 @@ public sealed class ProjectBriefingProjectFilterTests
         Assert.Equal(2025, options.MaximumCompletionFinancialYear);
     }
 
+    [Fact]
+    public async Task Options_CountOnlyProjectsTheFilterCanReturn()
+    {
+        await using var db = await SeedAsync();
+        // A project the FY 2026-27 ARPP lists is then cancelled (Codex review).
+        db.Projects.Single(project => project.Id == 101).LifecycleStatus = ProjectLifecycleStatus.Cancelled;
+        await db.SaveChangesAsync();
+        var service = Service(db);
+
+        var options = await service.GetOptionsAsync();
+        var rows = await service.FilterAsync(new ProjectBriefingProjectFilter { ArppFinancialYears = new[] { 2026 } });
+
+        Assert.Equal(1, options.ArppYears.Single(year => year.FinancialYearStart == 2026).ProjectCount);
+        Assert.Equal(new[] { 102 }, rows.Select(row => row.ProjectId));
+    }
+
+    [Fact]
+    public async Task Filter_ListsEveryMatch_WithNoLimit()
+    {
+        await using var db = await SeedAsync();
+        db.Projects.AddRange(Enumerable.Range(1000, 1100).Select(id => new Project
+        {
+            Id = id,
+            Name = $"Bulk {id}",
+            CreatedByUserId = "u",
+            LifecycleStatus = ProjectLifecycleStatus.Active
+        }));
+        await db.SaveChangesAsync();
+
+        var rows = await Service(db).FilterAsync(new ProjectBriefingProjectFilter());
+
+        Assert.Equal(1106, rows.Count);
+    }
+
     [Theory]
     [InlineData(2026, 3, 31, 2025)]
     [InlineData(2026, 4, 1, 2026)]

@@ -95,7 +95,11 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
             .CountAsync(project => _db.ProjectTechStatuses.Any(status =>
                 status.ProjectId == project.Id && status.AvailableForProliferation == true), cancellationToken);
 
+        // Counted over the projects the filter can return (Codex review): a listed project since
+        // archived, deleted or cancelled is not counted.
+        var eligibleIds = (await baseQuery.Select(project => project.Id).ToListAsync(cancellationToken)).ToHashSet();
         var arppYears = (await ArppListingsAsync(Array.Empty<int>(), cancellationToken))
+            .Where(listing => eligibleIds.Contains(listing.ProjectId))
             .GroupBy(listing => listing.FinancialYearStart)
             .OrderByDescending(group => group.Key)
             .Select(group => new ProjectBriefingArppYearOptionVm(
@@ -191,8 +195,9 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
                 status.ProjectId == project.Id && status.AvailableForProliferation == true));
         }
 
-        // Every eligible project at most (a few hundred): the dialog lists them all.
-        return await BuildResultsAsync(query, take: 1000, cancellationToken);
+        // Every match, with no limit (Codex review): the dialog lists them all and its totals are
+        // the real ones.
+        return await BuildResultsAsync(query, take: null, cancellationToken);
     }
 
     // The projects each published ARPP of these financial years lists (all years when none are
@@ -406,12 +411,11 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
     // The result rows (stage, categories, officer) for the projects a query selects, by name.
     private async Task<IReadOnlyList<ProjectBriefingSearchResultVm>> BuildResultsAsync(
         IQueryable<Project> query,
-        int take,
+        int? take,
         CancellationToken cancellationToken)
     {
-        var projectRows = await query
-            .OrderBy(project => project.Name)
-            .Take(take)
+        IQueryable<Project> ordered = query.OrderBy(project => project.Name);
+        var projectRows = await (take.HasValue ? ordered.Take(take.Value) : ordered)
             .Select(project => new SearchProjectBaseRow(
                 project.Id,
                 project.Name,
