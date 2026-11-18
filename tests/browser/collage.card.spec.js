@@ -293,5 +293,19 @@ test('a second logo can be changed: the choices change the logo picked above the
   // First logo picked: the name shown is the first's.
   await page.locator('[data-card-logo-target="logo"]').click();
   await expect(page.locator('[data-card-logo-name]')).toHaveText('SDD');
+  // Remove takes the logo picked: the second, then the one left.
+  await page.locator('[data-card-logo-target="logo2"]').click();
+  await page.locator('[data-card-logo="remove"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.some((item) => item.role === 'logo2')).toBe(false);
+  expect((await newestDraft(page)).model.items.find((item) => item.role === 'logo').sticker).toBe('logo:sdd');
+  await expect(page.locator('[data-card-logo-target]')).toHaveCount(0);
+  // With two again, removing the first leaves the second as the card's logo, still removable.
+  await page.locator('[data-card-logo="second"]').click();
+  await page.locator('[data-card-logo-file]').setInputFiles({ name: 'second.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'logo2')?.kind).toBe('photo');
+  await page.locator('[data-card-logo-target="logo"]').click();
+  await page.locator('[data-card-logo="remove"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'logo')?.kind).toBe('photo');
+  await expect(page.locator('[data-card-logo="remove"]')).toHaveText(/Remove logo/);
   expect(errors).toEqual([]);
 });

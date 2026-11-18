@@ -286,7 +286,7 @@
           <div class="clg-stack">
             <button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="own"><i class="bi bi-upload" aria-hidden="true"></i> Your own logo…</button>
             ${first && !second ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="second"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add a second logo</button>' : ''}
-            ${first ? '<button type="button" class="btn btn-outline-danger btn-sm" data-card-logo="remove"><i class="bi bi-x-lg" aria-hidden="true"></i> Remove logo</button>' : ''}
+            ${current ? `<button type="button" class="btn btn-outline-danger btn-sm" data-card-logo="remove"><i class="bi bi-x-lg" aria-hidden="true"></i> ${!second ? 'Remove logo' : role === 'logo2' ? 'Remove second logo' : 'Remove first logo'}</button>` : ''}
           </div>
           <p class="clg-hint">Your own logo stays in this browser, like your photos. A PNG keeps its clear background.</p>
         </div>`;
@@ -383,16 +383,27 @@
       messages.announce('A second logo is on the card. The choices below now change it; First logo goes back to the first.');
     }
 
+    /**
+     * Removes the logo picked above the choices. The second goes on its own; the first, with a
+     * second on the card, leaves the second as the card's logo, so the card keeps a logo to
+     * change or remove.
+     */
     function removeLogo() {
-      if (!logoOf(state.collage)) return;
+      const role = targetRole();
+      if (!state.collage.items.some((item) => item.role === role)) return;
+      const promoting = role === 'logo' && state.collage.items.some((item) => item.role === 'logo2');
       selection.select(null);
       doc.edit((draft) => {
-        draft.items = draft.items.filter((item) => item.role !== 'logo');
+        draft.items = draft.items.filter((item) => item.role !== role);
+        if (promoting) draft.items = draft.items.map((item) => (item.role === 'logo2' ? { ...item, role: 'logo' } : item));
       }, 'none');
+      logoTarget = 'logo';
       history.commit();
       surface.syncAll();
       renderPanel();
-      messages.offerUndo('Logo removed. It stays off when you change the design.');
+      messages.offerUndo(role === 'logo2' ? 'Second logo removed.'
+        : promoting ? "First logo removed. The second is now the card's logo."
+        : 'Logo removed. It stays off when you change the design.');
     }
 
     /** The unit's three colours, for a design with a band in them (Regimental). */
