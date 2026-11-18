@@ -198,8 +198,10 @@ A draft keeps the parts it does not understand
 ([ux/invitations-posters.md](ux/invitations-posters.md), PR 2). An item of a kind this page
 does not draw (a newer PRISM's shape, for example), a sticker it does not know, and any field of
 the collage it does not use (a card's back page) are held aside by `core.readDraftModel` in
-`kept`. They're never drawn, and `core.draftModel` writes them back into the draft in their
-places, unchanged, whenever the draft is saved here. A text item's font that this page doesn't
+`kept`. They're never drawn, and `core.draftModel` writes them back into the draft unchanged
+whenever the draft is saved here. Each goes back just under the first item that was above it and
+is still there (on top when none is), so deleting items here never moves it in front of what it
+sat behind. A text item's font that this page doesn't
 ship keeps its name and draws in the clean font. On opening, the toast says how many parts were
 "made by a newer PRISM" and are kept but not shown. A photo named only inside a kept part stays in
 the draft. The model version stays 1 for such additions; a draft whose version is higher is still

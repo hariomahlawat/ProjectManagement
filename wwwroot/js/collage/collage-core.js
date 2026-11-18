@@ -1441,6 +1441,9 @@
     const items = [];
     const seen = new Set();
     const keptItems = [];
+    // Where the drawn items were among all the draft's items, so a kept part goes back under
+    // the same items however many of the others are deleted here (see draftModel).
+    const drawnOrder = [];
     let keptChars = 0;
     // Holds a part aside, with its place among the draft's items, while the limits allow.
     const keep = (item, at) => {
@@ -1523,6 +1526,7 @@
         };
       }
       items.push(clean);
+      drawnOrder.push({ id: clean.id, at });
     }
     const layout = raw.layout && LAYOUTS[raw.layout.key]
       ? {
@@ -1542,7 +1546,7 @@
       keptChars += copy.json.length;
       fields[key] = copy.value;
     }
-    if (keptItems.length || Object.keys(fields).length) model.kept = { items: keptItems, fields };
+    if (keptItems.length || Object.keys(fields).length) model.kept = { items: keptItems, fields, order: keptItems.length ? drawnOrder : [] };
     return model;
   }
 
@@ -1553,16 +1557,26 @@
   }
 
   /**
-   * The collage as the draft stores it: parts held aside by readDraftModel() go back in their
-   * places among the items, and the fields back on the collage, exactly as they were read.
-   * A collage with nothing kept is returned as it is.
+   * The collage as the draft stores it: parts held aside by readDraftModel() go back among the
+   * items, and the fields back on the collage, exactly as they were read. Each kept part goes
+   * just under the first item that was above it when the draft was read and is still there, so
+   * it keeps its place in the stacking order when items around it are deleted here; with none
+   * of those left it goes on top. A collage with nothing kept is returned as it is.
    */
   function draftModel(collage) {
     if (!collage || !collage.kept) return collage;
     const { kept, ...model } = collage;
     const items = [...model.items];
+    const order = kept.order || [];
     for (const { at, item } of [...(kept.items || [])].sort((a, b) => a.at - b.at)) {
-      items.splice(Math.min(at, items.length), 0, item);
+      let index = -1;
+      for (const above of order) {
+        if (above.at < at) continue;
+        index = items.findIndex((each) => each.id === above.id);
+        if (index >= 0) break;
+      }
+      if (index < 0) items.push(item);
+      else items.splice(index, 0, item);
     }
     return { ...(kept.fields || {}), ...model, items };
   }

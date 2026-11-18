@@ -1148,3 +1148,26 @@ test('kept parts are only ones a PRISM could have written, within limits, and a 
 
   assert.equal(collage.readDraftModel({ version: 2, items: [{ ...base, id: 'c', kind: 'shape' }] }, []), null);
 });
+
+test('a kept part keeps its place in the stacking order when items around it are deleted here', () => {
+  const a = collage.photoItem('a', 'p1', 1.5, { x: 100, y: 100, width: 200 });
+  const shape = { id: 'b', kind: 'shape', shape: 'rect', x: 10, y: 10, width: 980, aspect: 0.7 };
+  const c = collage.textItem('c', 'On top of the shape', { x: 500, y: 300 });
+  const d = collage.textItem('d', 'Also on top', { x: 500, y: 400 });
+  const read = collage.readDraftModel({ version: 1, size: 'a4p', items: [a, shape, c, d] }, ['p1']);
+  const ids = (collage) => collage.items.map((item) => item.id);
+  const without = (model, id) => ({ ...model, items: model.items.filter((item) => item.id !== id) });
+
+  // The item under it deleted: still under the words that were above it.
+  assert.deepEqual(ids(collage.draftModel(without(read, 'a'))), ['b', 'c', 'd']);
+  // The item just above it deleted: under the next one that was above it.
+  assert.deepEqual(ids(collage.draftModel(without(read, 'c'))), ['a', 'b', 'd']);
+  // Everything above it deleted: on top.
+  assert.deepEqual(ids(collage.draftModel(without(without(read, 'c'), 'd'))), ['a', 'b']);
+  // A new item added here goes on top, above the kept part.
+  const added = { ...read, items: [...read.items, collage.textItem('n', 'New', { x: 1, y: 1 })] };
+  assert.deepEqual(ids(collage.draftModel(added)), ['a', 'b', 'c', 'd', 'n']);
+  // Two kept parts in a row stay in their order.
+  const two = collage.readDraftModel({ version: 1, size: 'a4p', items: [a, shape, { ...shape, id: 'e' }, c] }, ['p1']);
+  assert.deepEqual(ids(collage.draftModel(without(two, 'a'))), ['b', 'e', 'c']);
+});
