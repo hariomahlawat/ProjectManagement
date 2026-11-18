@@ -1401,6 +1401,588 @@
     }
 }
 
+/* ---------- Drag and drop, paste and the image viewer (chat/files.js) ---------- */
+.pm-chat__window {
+    position: relative; /* holds the drop overlay */
+}
+
+.pm-chat__drop {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--pm-primary);
+    border-radius: inherit;
+    background: var(--pm-primary-soft);
+    color: var(--pm-primary-strong);
+    font-weight: 600;
+    pointer-events: none; /* the drop lands on the window underneath */
+}
+
+.pm-chat__drop[hidden] {
+    display: none;
+}
+
+.pm-chat__drop .bi {
+    font-size: 1.75rem;
+}
+
+.pm-chat__contact.is-drop-target {
+    outline: 2px dashed var(--pm-primary);
+    outline-offset: -2px;
+    background: var(--pm-primary-soft);
+}
+
+.pm-chat__pending-thumb {
+    flex: none;
+    width: 2rem;
+    height: 2rem;
+    border-radius: .3rem;
+    object-fit: cover;
+}
+
+.pm-chat__thumb {
+    cursor: zoom-in;
+}
+
+.pm-chat-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 1060; /* above the chat dock and Bootstrap modals */
+    display: flex;
+    flex-direction: column;
+    /* Dark in Light and Dark alike, like a photo viewer (the library's hero tokens). */
+    background: var(--pm-library-hero);
+    color: var(--pm-library-hero-ink);
+}
+
+.pm-chat-viewer__bar {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    padding: .5rem .75rem;
+}
+
+.pm-chat-viewer__caption {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .9rem;
+}
+
+.pm-chat-viewer__action,
+.pm-chat-viewer .pm-chat__icon-btn {
+    display: inline-flex;
+    gap: .35rem;
+    align-items: center;
+    padding: .35rem .6rem;
+    border: 1px solid currentColor;
+    border-radius: .4rem;
+    background: transparent;
+    color: inherit;
+    font-size: .85rem;
+    text-decoration: none;
+}
+
+.pm-chat-viewer__action:hover,
+.pm-chat-viewer__action:focus-visible,
+.pm-chat-viewer .pm-chat__icon-btn:hover,
+.pm-chat-viewer .pm-chat__icon-btn:focus-visible {
+    background: var(--pm-library-hero-2);
+    color: inherit;
+}
+
+.pm-chat-viewer__stage {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    padding: 0 3.5rem 1rem;
+}
+
+.pm-chat-viewer__image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: .25rem;
+    background: var(--pm-library-hero-ink); /* transparent images on white, as in the chat */
+}
+
+.pm-chat-viewer__image[hidden],
+.pm-chat-viewer__missing[hidden],
+.pm-chat-viewer__nav[hidden] {
+    display: none;
+}
+
+.pm-chat-viewer__nav {
+    position: absolute;
+    top: 50%;
+    font-size: 1.25rem;
+    transform: translateY(-50%);
+}
+
+.pm-chat-viewer__nav.is-previous {
+    left: .75rem;
+}
+
+.pm-chat-viewer__nav.is-next {
+    right: .75rem;
+}
+
+@media (max-width: 575.98px) {
+    .pm-chat-viewer__action span {
+        display: none; /* icons only on a phone; each keeps its aria-label */
+    }
+
+    .pm-chat-viewer__stage {
+        padding: 0 .5rem 1rem;
+    }
+
+    .pm-chat-viewer__nav {
+        top: auto;
+        bottom: 1rem;
+        transform: none;
+    }
+}
+
+/* ---------- Reading the conversation (chat/conversation.js, chat/windows.js) ---------- */
+/* A run of messages from one person sits closer together. */
+.pm-chat__msg.is-continued {
+    margin-top: -.15rem;
+}
+
+.pm-chat__msg {
+    position: relative; /* holds the Copy action */
+}
+
+/* Within a run of their messages the time shows once, under the last (each bubble's title has it). */
+.pm-chat__msg.has-next > .pm-chat__time {
+    display: none;
+}
+
+.pm-chat__unread-divider {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    margin: .35rem 0 .1rem;
+    color: var(--pm-danger);
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+}
+
+.pm-chat__unread-divider::before,
+.pm-chat__unread-divider::after {
+    content: "";
+    flex: 1;
+    border-top: 1px solid var(--pm-danger);
+}
+
+/* The message toolbar (chat/actions.js): over the top corner of the message, shown while
+   pointing at the message or using the keyboard in it. */
+.pm-chat__actions {
+    position: absolute;
+    top: -.85rem;
+    z-index: 2;
+    display: flex;
+    gap: .1rem;
+    padding: .1rem;
+    border: 1px solid var(--pm-border);
+    border-radius: .45rem;
+    background: var(--pm-card);
+    box-shadow: var(--pm-chat-shadow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .12s ease;
+}
+
+.pm-chat__msg.is-theirs .pm-chat__actions {
+    right: -.25rem;
+}
+
+.pm-chat__msg.is-mine .pm-chat__actions {
+    left: -.25rem;
+}
+
+.pm-chat__msg:hover .pm-chat__actions,
+.pm-chat__msg:focus-within .pm-chat__actions {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.pm-chat__action {
+    padding: .05rem .35rem;
+    border: 0;
+    border-radius: .3rem;
+    background: transparent;
+    color: var(--pm-text-muted);
+    font-size: .7rem;
+    white-space: nowrap;
+}
+
+.pm-chat__action:hover,
+.pm-chat__action:focus-visible {
+    background: var(--pm-surface-subtle);
+    color: var(--pm-primary-strong);
+}
+
+.pm-chat__action.is-icon {
+    padding: .05rem .3rem;
+    font-size: .78rem;
+}
+
+.pm-chat__action.is-done {
+    color: var(--pm-success);
+}
+
+.pm-chat__action[aria-pressed="true"] {
+    background: var(--pm-primary-soft);
+    color: var(--pm-primary-strong);
+}
+
+@media (hover: none) {
+    /* Touch: the toolbar shows for the message last tapped (focus-within). */
+    .pm-chat__msg:hover:not(:focus-within) .pm-chat__actions {
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
+/* Reply quote above the bubble. */
+.pm-chat__quote {
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    margin-bottom: .1rem;
+    padding: .2rem .5rem;
+    border: 0;
+    border-left: 3px solid var(--pm-primary);
+    border-radius: .35rem;
+    background: var(--pm-surface-subtle);
+    color: var(--pm-text-muted);
+    font-size: .72rem;
+    text-align: left;
+}
+
+.pm-chat__quote:hover,
+.pm-chat__quote:focus-visible {
+    background: var(--pm-primary-soft);
+}
+
+.pm-chat__quote-who {
+    color: var(--pm-primary-strong);
+    font-weight: 600;
+}
+
+.pm-chat__quote-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Reaction chips under the bubble. */
+.pm-chat__reactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .2rem;
+    margin-top: .15rem;
+}
+
+.pm-chat__reaction {
+    display: inline-flex;
+    gap: .25rem;
+    align-items: center;
+    padding: .02rem .45rem;
+    border: 1px solid var(--pm-border);
+    border-radius: 999px;
+    background: var(--pm-card);
+    color: var(--pm-text);
+    font-size: .7rem;
+}
+
+.pm-chat__reaction.is-mine {
+    border-color: var(--pm-primary);
+    background: var(--pm-primary-soft);
+    color: var(--pm-primary-strong);
+}
+
+.pm-chat__reaction-count {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* "Remind me" (chat/actions.js): when, above the message box. */
+.pm-chat__reminder {
+    position: relative;
+    padding: .4rem .6rem .45rem;
+    border-top: 1px solid var(--pm-border);
+    background: var(--pm-surface-subtle);
+    font-size: .75rem;
+}
+
+.pm-chat__reminder-title {
+    margin: 0 1.6rem .3rem 0;
+    font-weight: 600;
+}
+
+.pm-chat__reminder-close {
+    position: absolute;
+    top: .15rem;
+    right: .2rem;
+}
+
+.pm-chat__reminder-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem;
+    margin-bottom: .3rem;
+}
+
+.pm-chat__reminder-presets .btn,
+.pm-chat__reminder-custom .btn {
+    padding: .1rem .45rem;
+    font-size: .72rem;
+}
+
+.pm-chat__reminder-custom {
+    display: flex;
+    gap: .25rem;
+}
+
+.pm-chat__reminder-custom .form-control {
+    min-width: 0;
+    font-size: .74rem;
+}
+
+.pm-chat__reminder-note {
+    margin: .3rem 0 0;
+    color: var(--pm-success-strong);
+}
+
+.pm-chat__reminder-note.is-error {
+    color: var(--pm-danger);
+}
+
+.pm-chat__reminder-note[hidden] {
+    display: none;
+}
+
+.pm-chat__reminder.is-done .pm-chat__reminder-presets,
+.pm-chat__reminder.is-done .pm-chat__reminder-custom {
+    display: none;
+}
+
+/* Do not disturb (chat/dock.js, chat/app.js). */
+.pm-chat__icon-btn.is-on {
+    color: var(--pm-warning);
+}
+
+.pm-chat__dnd {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem;
+    padding: .45rem .75rem .55rem;
+    border-bottom: 1px solid var(--pm-border);
+    background: var(--pm-surface-subtle);
+}
+
+.pm-chat__dnd[hidden],
+.pm-chat__dnd-note[hidden] {
+    display: none;
+}
+
+.pm-chat__dnd .btn {
+    padding: .1rem .5rem;
+    font-size: .74rem;
+}
+
+.pm-chat__dnd-intro {
+    flex-basis: 100%;
+    margin: 0 0 .15rem;
+    color: var(--pm-text-muted);
+    font-size: .74rem;
+}
+
+.pm-chat__dnd-note {
+    margin: 0;
+    padding: .3rem .75rem;
+    border-bottom: 1px solid var(--pm-border);
+    background: var(--pm-warning-soft-bg);
+    color: var(--pm-text);
+    font-size: .74rem;
+}
+
+/* @mentions. */
+.pm-chat__mention {
+    color: var(--pm-primary-strong);
+    font-weight: 600;
+}
+
+.pm-chat__mention.is-me {
+    padding: 0 .15rem;
+    border-radius: .2rem;
+    background: var(--pm-warning-soft-bg);
+    color: var(--pm-text);
+}
+
+.pm-chat__msg.is-mentioned .pm-chat__bubble {
+    border-color: var(--pm-warning);
+}
+
+.pm-chat__edited {
+    font-style: italic;
+}
+
+/* "Replying to …" / "Editing your message" above the message box. */
+.pm-chat__composing {
+    display: flex;
+    gap: .35rem;
+    align-items: center;
+    padding: .25rem .5rem .25rem .75rem;
+    border-top: 1px solid var(--pm-border);
+    background: var(--pm-surface-subtle);
+    font-size: .74rem;
+}
+
+.pm-chat__composing[hidden] {
+    display: none;
+}
+
+.pm-chat__composing-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--pm-text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pm-chat__composing-text strong {
+    color: var(--pm-text);
+}
+
+.pm-chat__window.is-editing .pm-chat__input {
+    border-color: var(--pm-warning);
+}
+
+/* @mention suggestions, over the message box. */
+.pm-chat__compose {
+    position: relative;
+}
+
+.pm-chat__mention-list {
+    position: absolute;
+    right: .5rem;
+    bottom: 100%;
+    left: .5rem;
+    z-index: 4;
+    margin: 0 0 .25rem;
+    padding: .2rem;
+    border: 1px solid var(--pm-border);
+    border-radius: .5rem;
+    background: var(--pm-card);
+    box-shadow: var(--pm-chat-shadow);
+    list-style: none;
+}
+
+.pm-chat__mention-list[hidden] {
+    display: none;
+}
+
+.pm-chat__mention-option {
+    padding: .25rem .5rem;
+    border-radius: .35rem;
+    font-size: .8rem;
+    cursor: pointer;
+}
+
+.pm-chat__suggest-label,
+.pm-chat__suggest-detail {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pm-chat__suggest-detail {
+    color: var(--pm-text-muted);
+    font-size: .7rem;
+}
+
+.pm-chat__mention-option.is-active,
+.pm-chat__mention-option:hover {
+    background: var(--pm-primary-soft);
+    color: var(--pm-primary-strong);
+}
+
+/* "↓ 3 new messages" over the bottom of the conversation. */
+.pm-chat__jump {
+    position: absolute;
+    bottom: .5rem;
+    left: 50%;
+    z-index: 3;
+    display: inline-flex;
+    gap: .25rem;
+    align-items: center;
+    padding: .25rem .7rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--pm-primary);
+    color: var(--pm-text-inverted);
+    font-size: .75rem;
+    font-weight: 600;
+    box-shadow: var(--pm-chat-shadow);
+    transform: translateX(-50%);
+}
+
+.pm-chat__jump[hidden] {
+    display: none;
+}
+
+.pm-chat__jump:hover,
+.pm-chat__jump:focus-visible {
+    background: var(--pm-primary-strong);
+}
+
+/* "Reconnecting…" in the contact list and each window. */
+.pm-chat__offline {
+    margin: 0;
+    padding: .3rem .75rem;
+    border-bottom: 1px solid var(--pm-border);
+    background: var(--pm-warning-soft-bg);
+    color: var(--pm-text);
+    font-size: .74rem;
+}
+
+.pm-chat__offline[hidden] {
+    display: none;
+}
+
+.pm-chat__counter {
+    align-self: center;
+    color: var(--pm-text-muted);
+    font-size: .7rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.pm-chat__counter.is-low {
+    color: var(--pm-danger);
+    font-weight: 600;
+}
+
+.pm-chat__counter[hidden] {
+    display: none;
+}
+
 /* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
 /* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
    Each value here is what the color-mix() in the rule above it produces, worked out for Light

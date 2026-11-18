@@ -5,6 +5,7 @@
     var options = Model.Options;
     var attachments = options.Attachments;
     var unsend = options.UnsendWindowMinutes;
+    var edit = options.EditWindowMinutes;
 }
 
 <article class="pm-chat-guide">
@@ -37,7 +38,15 @@
                 {
                     <li>Sent too soon? <strong>Unsend</strong> it within @unsend @(unsend == 1 ? "minute" : "minutes").</li>
                 }
+                @if (edit > 0)
+                {
+                    <li>Spotted a mistake? <strong>Edit</strong> it within @edit @(edit == 1 ? "minute" : "minutes") (or press <kbd>&uarr;</kbd> in an empty box).</li>
+                }
                 <li>One tick: sent. Two blue ticks: read.</li>
+                <li>Point at a message to <strong>Reply</strong> to it, react with <strong>&#x2713; Noted</strong>, &#x1F44D; or &#x1F440;, or <strong>Copy</strong> it.</li>
+                <li>In a group, type <kbd>@@</kbd> to mention someone. They are alerted even if they muted the group.</li>
+                <li>Type <kbd>#</kbd> and a few letters to link a project, document or task; it shows as a card.</li>
+                <li>The <i class="bi bi-alarm" aria-label="alarm"></i> button on a message saves a <strong>reminder in your Notebook</strong>.</li>
             </ul>
         </section>
 
@@ -66,6 +75,7 @@
             <ul>
                 <li>A new message opens its chat, plays a short chime and flashes the tab title when PRISM is in the background.</li>
                 <li>Prefer quiet? Use the speaker button in the contact list.</li>
+                <li>Busy? The <i class="bi bi-bell" aria-label="bell"></i> in the contact list turns on <strong>do not disturb</strong> for an hour, until 17:00 or until tomorrow.</li>
             </ul>
         </section>
 

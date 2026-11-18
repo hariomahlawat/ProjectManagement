@@ -9,8 +9,11 @@
   const document = global.document;
   const {
     POLL_MS, IDLE_MS, IDLE_CHECK_MS, UNSENT_RETRY_MS, SERVER_TIMEOUT_MS, UNSENT_LOOKBACK_MS,
-    TitleFlasher, groupIdOf, Chime,
+    TitleFlasher, groupIdOf, Chime, icon, mergeMessages,
   } = global.PMChatParts;
+
+  const OFFLINE_NOTICE_MS = 4000; // a drop shorter than this shows no "Reconnecting…"
+  const dndTimeFormat = new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
 
   // ---------------------------------------------------------------------------
   // Controller
@@ -25,6 +28,13 @@
     this.guideUrl = root.dataset.guideUrl || '';
     this.maxLength = Number(root.dataset.maxLength) || 4000;
     this.unsendMs = (Number(root.dataset.unsendMinutes) || 0) * 60000;
+    // Missing (a page from an older server): no Edit offered.
+    this.editMs = (Number(root.dataset.editMinutes) || 0) * 60000;
+    // PRISM's search suggestions, for #records in the message box (absent: not offered).
+    this.recordSearchUrl = root.dataset.recordSearchUrl || '';
+    // The person's own Notebook, for "Remind me" (absent: not offered).
+    this.notebookApi = root.dataset.notebookApi || '';
+    this.notebookUrl = root.dataset.notebookUrl || '';
     // File attachments (chat/files.js), when switched on for this server.
     this.attachments = {
       enabled: root.dataset.attachments === 'on',
@@ -38,6 +48,11 @@
     // never overrides it (attachment id -> the event's number).
     this.fileEventSeq = 0;
     this.fileEventAt = new Map();
+    // Live edits and reaction changes, numbered, per message and part ({ text, reactions }) with
+    // their content: any answer from the server asked for before one of them keeps that part
+    // live and takes the rest (settleFetched in chat/actions.js).
+    this.messageEventSeq = 0;
+    this.messageEventAt = new Map();
     // When live events stopped arriving (or, until the first connection, when this page started
     // loading history), so unsends in between can be caught up on once connected.
     this.offlineSince = new Date();
@@ -47,8 +62,15 @@
     this.soundKey = `prism.chat.sound.${this.me}`;
     this.dingKey = `prism.chat.ding.${this.me}`;
     this.muteKey = `prism.chat.muted.${this.me}`;
+    this.dndKey = `prism.chat.dnd.${this.me}`;
     this.contacts = new Map();
     this.groups = new Map(); // groupId -> { id, title, managerUserId, memberCount, unreadCount, lastMessageUtc }
+    // Live unread changes (a message pushed, a conversation read) by conversation key, numbered.
+    // A contacts or groups list requested before such a change answers with an older count, so
+    // the refresh keeps this tab's count for that conversation instead (touchUnread).
+    this.unreadSeq = 0;
+    this.unsending = new Set(); // message ids with an unsend request in flight
+    this.unreadTouched = new Map();
     this.windows = new Map(); // conversation key -> window state (docked, or embedded in the Messages page)
     this.order = []; // docked peer ids, most recently opened first
     // Drafts and failed messages of closed windows, until the conversation is opened again. In
@@ -68,6 +90,7 @@
     this.chime = new Chime();
     this.soundOn = this.readSoundPreference();
     this.muted = this.readMuted();
+    this.dnd = this.readDnd();
     this.title = new TitleFlasher(document, global.setInterval.bind(global), global.clearInterval.bind(global));
     this.page = null;
     this.launchers = Array.from(document.querySelectorAll('[data-chat-launcher]'));
@@ -75,11 +98,27 @@
 
   ChatApp.prototype.start = function () {
     this.buildDock();
-    this.launchers.forEach((button) => button.addEventListener('click', () => this.toggleBuddy()));
+    this.applyDnd(this.dnd); // set on an earlier page: shown, and ended when its time comes
+    this.launchers.forEach((button) => {
+      button.addEventListener('click', () => this.toggleBuddy());
+      button.setAttribute('aria-keyshortcuts', 'Alt+C');
+    });
+    // Alt+C from anywhere: the contact list, with the cursor in its search (a quick switcher:
+    // type a name, Enter). Ctrl+K is PRISM's search palette, so chat does not take it.
+    document.addEventListener('keydown', (event) => {
+      if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      // The key must say "c": Option+C on a Mac types "ç", which must still type.
+      if (String(event.key).toLowerCase() !== 'c') return;
+      if (this.stopped) return;
+      event.preventDefault();
+      if (this.buddyOpen) this.search.focus();
+      else this.toggleBuddy(true);
+    });
     global.addEventListener('resize', () => this.enforceCapacity());
     // Muting a group in another tab of this user applies here too.
     global.addEventListener('storage', (event) => {
       if (event.key === this.muteKey) this.applyMutedChange(this.readMuted());
+      if (event.key === this.dndKey) this.applyDnd(this.readDnd());
     });
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
@@ -93,8 +132,9 @@
     this.attachPersonButtons(document);
     if (typeof global.MutationObserver === 'function' && document.body) {
       let pending = null;
-      new global.MutationObserver(() => {
-        if (pending) return;
+      new global.MutationObserver((mutations) => {
+        // Chat's own redraws (contacts, messages, presence) never add names to mark.
+        if (pending || mutations.every((m) => this.root.contains(m.target))) return;
         pending = global.setTimeout(() => { pending = null; this.attachPersonButtons(document); }, 200);
       }).observe(document.body, { childList: true, subtree: true });
     }
@@ -199,6 +239,98 @@
     this.renderContacts();
   };
 
+  // ----- do not disturb -------------------------------------------------------------
+
+  /**
+   * Do not disturb, in this browser (like sound and mute) and shared by its tabs: until a time,
+   * no chime, title flash, pop-up window or announcement for arriving messages; they still count
+   * as unread. { until: ms, status: the status message it set, or null }.
+   */
+  ChatApp.prototype.readDnd = function () {
+    try {
+      const stored = JSON.parse(global.localStorage.getItem(this.dndKey) || 'null');
+      if (stored && Number.isFinite(stored.until) && stored.until > Date.now()) {
+        return { until: stored.until, status: typeof stored.status === 'string' ? stored.status : null };
+      }
+    } catch (_) { /* nothing stored */ }
+    return null;
+  };
+
+  /**
+   * Do not disturb that ended while no PRISM tab was open: nothing was there to clear the
+   * status message it set. Once the person's status has loaded, that status goes if it is
+   * still the one do not disturb set (one they changed meanwhile stays), and the record goes.
+   */
+  ChatApp.prototype.clearExpiredDndStatus = function () {
+    let stored = null;
+    try {
+      stored = JSON.parse(global.localStorage.getItem(this.dndKey) || 'null');
+    } catch (_) {
+      return;
+    }
+    if (!stored || !Number.isFinite(stored.until) || stored.until > Date.now()) return;
+    try {
+      global.localStorage.removeItem(this.dndKey);
+    } catch (_) { /* nothing more to do */ }
+    if (typeof stored.status === 'string' && stored.status && this.myStatus === stored.status) {
+      this.setStatusText('');
+    }
+  };
+
+  ChatApp.prototype.isQuiet = function () {
+    return !!this.dnd && this.dnd.until > Date.now();
+  };
+
+  /** Starts (until: a Date) or ends (null) do not disturb, in every tab of this browser. */
+  ChatApp.prototype.setDnd = async function (until) {
+    const previous = this.readDnd();
+    let next = null;
+    if (until) {
+      // Others learn of it through the status message, unless the person has one of their own.
+      const label = `Do not disturb until ${dndTimeFormat.format(until)}`;
+      const ownStatus = this.myStatus && (!previous || this.myStatus !== previous.status);
+      next = { until: until.getTime(), status: ownStatus ? null : label };
+    }
+    try {
+      if (next) global.localStorage.setItem(this.dndKey, JSON.stringify(next));
+      else global.localStorage.removeItem(this.dndKey);
+    } catch (_) { /* this page only */ }
+    this.applyDnd(next);
+    if (next && next.status) {
+      await this.setStatusText(next.status);
+    } else if (previous && previous.status && this.myStatus === previous.status) {
+      await this.setStatusText('');
+    }
+    this.announce(next ? `Do not disturb until ${dndTimeFormat.format(until)}. Messages still arrive, quietly.` : 'Do not disturb is off.');
+  };
+
+  /** Shows a do-not-disturb state, and ends it when its time comes (in each tab). */
+  ChatApp.prototype.applyDnd = function (dnd) {
+    this.dnd = dnd;
+    if (this.dndTimer) global.clearTimeout(this.dndTimer);
+    this.dndTimer = null;
+    if (dnd) {
+      // Long waits are re-armed: a browser timer cannot wait much beyond 24 days.
+      const wait = Math.min(dnd.until - Date.now(), 6 * 3600000);
+      this.dndTimer = global.setTimeout(() => {
+        if (this.dnd && this.dnd.until <= Date.now()) this.endDnd();
+        else this.applyDnd(this.readDnd());
+      }, Math.max(0, wait) + 500);
+    }
+    this.renderDnd();
+  };
+
+  /** Its time came: off, and the status message it set goes too (if still the one shown). */
+  ChatApp.prototype.endDnd = function () {
+    const ended = this.dnd;
+    try {
+      const stored = JSON.parse(global.localStorage.getItem(this.dndKey) || 'null');
+      if (stored && stored.until === (ended && ended.until)) global.localStorage.removeItem(this.dndKey);
+    } catch (_) { /* nothing stored */ }
+    this.applyDnd(null);
+    if (ended && ended.status && this.myStatus === ended.status) this.setStatusText('');
+  };
+
   // ----- HTTP ------------------------------------------------------------------
 
   ChatApp.prototype.request = async function (method, path, body) {
@@ -209,12 +341,18 @@
       if (token) headers['X-CSRF-TOKEN'] = token;
     }
 
-    const response = await fetch(this.api + path, {
-      method,
-      headers,
-      credentials: 'same-origin',
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    let response;
+    try {
+      response = await fetch(this.api + path, {
+        method,
+        headers,
+        credentials: 'same-origin',
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch (_) {
+      // The browser's own text ("Failed to fetch") means nothing to people.
+      throw new Error('PRISM could not be reached. Check the connection and try again.');
+    }
 
     if (response.status === 401 || (response.status === 404 && response.headers && response.headers.get('X-Chat-Disabled'))) {
       // Signed out, or chat switched off on the server: stand down quietly. Any other 404 (a
@@ -226,7 +364,7 @@
     if (!response.ok) {
       let detail = response.status === 429
         ? 'You are sending messages too quickly. Wait a moment and retry.'
-        : 'The message could not be sent.';
+        : (method === 'GET' ? 'This could not be loaded. Try again.' : 'The message could not be sent.');
       try {
         const problem = await response.json();
         if (problem && problem.detail) detail = problem.detail;
@@ -246,6 +384,7 @@
     if (this.unsentRetry) global.clearTimeout(this.unsentRetry);
     if (this.connection) this.connection.stop().catch(() => {});
     this.title.stop();
+    if (this.closeViewer) this.closeViewer();
     document.querySelectorAll('.pm-chat-person').forEach((button) => button.remove());
     this.root.hidden = true;
     this.launchers.forEach((b) => { b.hidden = true; });
@@ -291,15 +430,21 @@
     connection.on('GroupTyping', (typing) => this.onGroupTyping(typing));
     connection.on('AttachmentRemoved', (removed) => this.onAttachmentRemoved(removed));
     connection.on('AttachmentRestored', (restored) => this.onAttachmentRestored(restored));
+    // Phase 3 (chat/actions.js): edits and reactions.
+    connection.on('MessageEdited', (message) => this.onEdited(message));
+    connection.on('GroupMessageEdited', (message) => this.onEdited(message));
+    connection.on('ReactionsChanged', (reactions) => this.onReactions(reactions));
     connection.onreconnecting(() => {
       this.markOffline();
       this.startPolling();
+      this.setLive(false);
     });
     connection.onreconnected(() => this.resync());
     connection.onclose(() => {
       if (this.stopped) return;
       this.markOffline();
       this.startPolling();
+      this.setLive(false);
       global.setTimeout(() => this.startConnection(), 30000);
     });
     this.connection = connection;
@@ -314,6 +459,7 @@
       .then(() => this.resync())
       .catch(() => {
         this.startPolling();
+        this.setLive(false);
         global.setTimeout(() => this.startConnection(), 30000);
       });
   };
@@ -396,6 +542,10 @@
         this.windows.forEach((w) => this.renderMessages(w, { stickToBottom: false }));
         if (this.page) this.page.refreshResults();
       }
+      // Edits and reactions missed on messages already on screen (history catch-up only fetches
+      // newer messages): on every poll while the live connection is down, and once more when it
+      // is back. A failure retries with the next poll, or with the rest of the final catch-up.
+      await this.refreshLoaded();
       // Live again: events cover the rest, unless the connection dropped again while this ran
       // (that outage still needs its own catch-up).
       const stillLive = !this.connection || this.isConnected();
@@ -406,6 +556,47 @@
       if (done && !this.stopped) {
         this.unsentRetry = global.setTimeout(() => this.syncUnsent(true), UNSENT_RETRY_MS);
       }
+    }
+  };
+
+  /**
+   * Asks the server for the current state of every message this page has loaded and shows any
+   * that changed (edited, reactions, mentions, unsent). An older server without the endpoint
+   * answers 404: nothing to do.
+   */
+  ChatApp.prototype.refreshLoaded = async function () {
+    const ids = new Set();
+    this.windows.forEach((win) => {
+      win.messages.concat(win.heldLive || []).forEach((m) => {
+        if (m.id && !m.eventKind && !m.isUnsent) ids.add(m.id);
+      });
+    });
+    const all = Array.from(ids);
+    for (let start = 0; start < all.length; start += 500) {
+      let current;
+      const eventsBefore = this.messageEventSeq;
+      try {
+        current = await this.request('GET', `/messages/current?ids=${all.slice(start, start + 500).join(',')}`);
+      } catch (error) {
+        if (error && (error.status === 404 || error.status === 405)) return;
+        throw error;
+      }
+      const fresh = new Map();
+      // A part that changed live while this answer was on its way keeps its live content.
+      for (const message of this.settleFetched(Array.isArray(current) ? current : [], eventsBefore)) {
+        if (message.isUnsent) this.unsentIds.add(message.id); // applied on the redraw below
+        else if (!this.unsentIds.has(message.id)) fresh.set(message.id, message);
+      }
+      // One redraw per window that holds any of them.
+      this.windows.forEach((win) => {
+        const held = win.messages.filter((m) => fresh.has(m.id)).map((m) => fresh.get(m.id));
+        const live = (win.heldLive || []).some((m) => fresh.has(m.id));
+        const unsent = win.messages.some((m) => m.id && this.unsentIds.has(m.id) && !m.isUnsent);
+        if (!held.length && !live && !unsent) return;
+        if (held.length) win.messages = mergeMessages(win.messages, held);
+        if (live) win.heldLive = win.heldLive.map((m) => fresh.get(m.id) || m);
+        this.renderMessages(win, { stickToBottom: false });
+      });
     }
   };
 
@@ -423,7 +614,45 @@
     return files;
   };
 
+  /**
+   * The live connection dropped (false) or is back (true). A drop shows "Reconnecting…" in the
+   * contact list and every window once it has lasted a few seconds (a blip shows nothing);
+   * messages keep coming every 30 seconds meanwhile.
+   */
+  ChatApp.prototype.setLive = function (live) {
+    if (live) {
+      if (this.offlineTimer) global.clearTimeout(this.offlineTimer);
+      this.offlineTimer = null;
+      const wasShown = this.offlineShown;
+      this.offlineShown = false;
+      this.renderConnection();
+      if (wasShown) this.announce('Chat is connected again.');
+      return;
+    }
+    if (this.offlineShown || this.offlineTimer) return;
+    this.offlineTimer = global.setTimeout(() => {
+      this.offlineTimer = null;
+      if (this.stopped || this.isConnected()) return;
+      this.offlineShown = true;
+      this.renderConnection();
+      this.announce('Chat lost its connection. Trying again; new messages will still arrive.');
+    }, OFFLINE_NOTICE_MS);
+  };
+
+  /** `extra`: a window being built, not yet among this.windows. */
+  ChatApp.prototype.renderConnection = function (extra) {
+    const text = 'Reconnecting… New messages may take up to 30 seconds to appear.';
+    const notes = [this.offlineNote].concat(Array.from(this.windows.values(), (w) => w.offline), extra ? [extra.offline] : []);
+    notes.filter(Boolean).forEach((note) => {
+      note.hidden = !this.offlineShown;
+      if (this.offlineShown && note.textContent !== text) {
+        note.replaceChildren(icon('wifi-off'), global.document.createTextNode(` ${text}`));
+      }
+    });
+  };
+
   ChatApp.prototype.resync = function () {
+    this.setLive(true);
     if (this.pollTimer) {
       global.clearInterval(this.pollTimer);
       this.pollTimer = null;

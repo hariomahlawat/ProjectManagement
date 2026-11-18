@@ -388,7 +388,7 @@ public sealed class ChatGroupService
         var all = _db.ChatMessages.AsNoTracking().Where(m => m.ConversationId == group.Id && m.SentUtc >= joined.Value);
         var (page, hasMore, hasNewer) = await ChatService.PageAsync(all, beforeMessageId, afterMessageId, limit, cancellationToken);
         var dto = await BuildGroupDtoAsync(group, cancellationToken);
-        var messages = await ChatAttachmentService.WithAttachmentsAsync(_db, page.Select(m => ToDto(m, group.Id)).ToList(), cancellationToken);
+        var messages = await ChatMessageDetails.WithDetailsAsync(_db, page.Select(m => ToDto(m, group.Id)).ToList(), cancellationToken);
         return new ChatGroupHistoryDto(group.Id, messages, hasMore, hasNewer, dto.Members);
     }
 
@@ -461,9 +461,25 @@ public sealed class ChatGroupService
         if (existing is not null)
         {
             return existing.ConversationId == group.Id
-                ? new ChatGroupSendResult(ChatSendStatus.Sent, await ChatAttachmentService.WithAttachmentsAsync(_db, ToDto(existing, group.Id), cancellationToken), null, await MembersWhoCanSeeAsync(group.Id, existing.SentUtc, cancellationToken))
+                ? new ChatGroupSendResult(ChatSendStatus.Sent, await ChatMessageDetails.WithDetailsAsync(_db, ToDto(existing, group.Id), cancellationToken), null, await MembersWhoCanSeeAsync(group.Id, existing.SentUtc, cancellationToken))
                 : Invalid("This message identifier was already used for a different conversation.");
         }
+
+        // A reply quotes a message of this group that the sender can see (sent since they joined).
+        if (request.ReplyToMessageId is { } replyTo)
+        {
+            var joined = await _db.ChatParticipants
+                .Where(p => p.ConversationId == group.Id && p.UserId == userId)
+                .Select(p => p.JoinedUtc)
+                .SingleAsync(cancellationToken);
+            if (!await ChatService.CanReplyToAsync(_db, group.Id, replyTo, joined, cancellationToken))
+            {
+                return Invalid(ChatService.ReplyGoneError);
+            }
+        }
+
+        // Members only (someone removed meanwhile is simply not mentioned), never the sender.
+        var mentions = await ChatService.ValidMentionsAsync(_db, group.Id, userId, request.MentionedUserIds, cancellationToken);
 
         var now = _clock.UtcNow;
         var message = new ChatMessage
@@ -473,6 +489,7 @@ public sealed class ChatGroupService
             ClientMessageId = request.ClientMessageId,
             Body = body,
             SentUtc = now,
+            ReplyToMessageId = request.ReplyToMessageId,
         };
         _db.ChatMessages.Add(message);
         group.LastMessageUtc = now;
@@ -500,7 +517,7 @@ public sealed class ChatGroupService
                 throw;
             }
 
-            return new ChatGroupSendResult(ChatSendStatus.Sent, await ChatAttachmentService.WithAttachmentsAsync(_db, ToDto(existing, group.Id), cancellationToken), null, await MembersWhoCanSeeAsync(group.Id, existing.SentUtc, cancellationToken));
+            return new ChatGroupSendResult(ChatSendStatus.Sent, await ChatMessageDetails.WithDetailsAsync(_db, ToDto(existing, group.Id), cancellationToken), null, await MembersWhoCanSeeAsync(group.Id, existing.SentUtc, cancellationToken));
         }
 
         fileError = await ChatAttachmentService.ClaimAsync(_db, userId, fileIds, message.Id, cancellationToken);
@@ -509,7 +526,13 @@ public sealed class ChatGroupService
             return Invalid(fileError);
         }
 
-        return new ChatGroupSendResult(ChatSendStatus.Sent, await ChatAttachmentService.WithAttachmentsAsync(_db, ToDto(message, group.Id), cancellationToken), null, members);
+        if (mentions.Count > 0)
+        {
+            ChatService.AddMentions(_db, message.Id, mentions);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        return new ChatGroupSendResult(ChatSendStatus.Sent, await ChatMessageDetails.WithDetailsAsync(_db, ToDto(message, group.Id), cancellationToken), null, members);
     }
 
     /// <returns>The stored marker, or null when the caller is not in the group.</returns>

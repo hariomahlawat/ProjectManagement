@@ -38,6 +38,12 @@ public sealed class ChatOptions
     /// <summary>How long after sending a message its sender may still unsend it.</summary>
     public int UnsendWindowMinutes { get; set; } = 5;
 
+    /// <summary>
+    /// How long after sending a message its sender may still edit it (owner default, 2026-11-18).
+    /// 0 turns editing off. The edited message says "Edited"; earlier text is not kept.
+    /// </summary>
+    public int EditWindowMinutes { get; set; } = 15;
+
     /// <summary>File attachments (docs/chat-attachments.md). Off until switched on.</summary>
     public ChatAttachmentOptions Attachments { get; set; } = new();
 }

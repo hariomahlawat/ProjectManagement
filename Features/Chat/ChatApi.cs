@@ -67,6 +67,9 @@ public static class ChatApi
         group.MapPost("/status", SetStatusAsync).RequireRateLimiting(ChangeRateLimitPolicy);
         group.MapPost("/messages/{messageId:long}/unsend", UnsendAsync).RequireRateLimiting(ChangeRateLimitPolicy);
         group.MapGet("/unsent", GetUnsentSinceAsync);
+        group.MapGet("/messages/current", GetCurrentMessagesAsync);
+        group.MapPost("/messages/{messageId:long}/edit", EditAsync).RequireRateLimiting(SendRateLimitPolicy);
+        group.MapPost("/messages/{messageId:long}/react", ReactAsync).RequireRateLimiting(SendRateLimitPolicy);
 
         group.MapGet("/groups", ListGroupsAsync);
         group.MapPost("/groups", CreateGroupAsync).RequireRateLimiting(ChangeRateLimitPolicy);
@@ -236,6 +239,32 @@ public static class ChatApi
         return Results.Ok(await chat.ListUnsentSinceAsync(userId, since.Value, beforeMessageId, cancellationToken));
     }
 
+    /// <summary>The current state of messages a page has loaded (<c>?ids=1,2,3</c>), after an outage.</summary>
+    private static async Task<IResult> GetCurrentMessagesAsync(
+        [FromQuery(Name = "ids")] string? ids,
+        HttpContext httpContext,
+        ChatService chat,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(httpContext.User, out var userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var parsed = (ids ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(id => long.TryParse(id, out var value) ? value : 0)
+            .Where(id => id > 0)
+            .ToList();
+        if (parsed.Count > ChatService.MaxStateCheck)
+        {
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid request", detail: $"Ask about at most {ChatService.MaxStateCheck} messages at once.");
+        }
+
+        SetNoStoreHeaders(httpContext.Response);
+        return Results.Ok(await chat.ListCurrentAsync(userId, parsed, cancellationToken));
+    }
+
     private static async Task<IResult> UnsendAsync(
         long messageId,
         HttpContext httpContext,
@@ -276,6 +305,77 @@ public static class ChatApi
                     title: "Cannot unsend",
                     detail: "Only your own messages can be unsent.");
         }
+    }
+
+    /// <summary>
+    /// Edits one of the caller's messages within the edit window; everyone who can see it gets
+    /// the new text (MessageEdited, or GroupMessageEdited in a group).
+    /// </summary>
+    private static async Task<IResult> EditAsync(
+        long messageId,
+        ChatEditRequest? request,
+        HttpContext httpContext,
+        ChatService chat,
+        IHubContext<ChatHub, IChatClient> hub,
+        IAntiforgery antiforgery,
+        CancellationToken cancellationToken)
+    {
+        var failure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (failure is not null || !TryGetUserId(httpContext.User, out var userId))
+        {
+            return failure ?? Results.Unauthorized();
+        }
+
+        var result = await chat.EditAsync(userId, messageId, request ?? new ChatEditRequest(null), cancellationToken);
+        switch (result.Status)
+        {
+            case ChatChangeStatus.Done:
+                var message = result.Message!;
+                var clients = hub.Clients.Users(result.NotifyUserIds);
+                await (message.GroupId is null ? clients.MessageEdited(message) : clients.GroupMessageEdited(message));
+                return Results.Ok(message);
+            case ChatChangeStatus.TooLate:
+                var minutes = (int)Math.Round(chat.EditWindow.TotalMinutes);
+                return Results.Problem(
+                    statusCode: StatusCodes.Status409Conflict,
+                    title: "Too late to edit",
+                    detail: $"A message can only be edited within {minutes} minute{(minutes == 1 ? string.Empty : "s")} of sending it.");
+            case ChatChangeStatus.Invalid:
+                return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Not edited", detail: result.Error);
+            default:
+                // Not 404: the browser reads 404 from /api/chat as "chat is switched off".
+                return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Not edited", detail: "Only your own messages can be edited.");
+        }
+    }
+
+    /// <summary>Turns one of the caller's reactions on or off; everyone who can see the message gets ReactionsChanged.</summary>
+    private static async Task<IResult> ReactAsync(
+        long messageId,
+        ChatReactRequest? request,
+        HttpContext httpContext,
+        ChatService chat,
+        IHubContext<ChatHub, IChatClient> hub,
+        IAntiforgery antiforgery,
+        CancellationToken cancellationToken)
+    {
+        var failure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (failure is not null || !TryGetUserId(httpContext.User, out var userId))
+        {
+            return failure ?? Results.Unauthorized();
+        }
+
+        var result = await chat.ReactAsync(userId, messageId, request?.Kind, request?.On ?? false, cancellationToken);
+        if (result.Status != ChatChangeStatus.Done)
+        {
+            // Someone else's conversation and a missing message are the same answer (not 404, see above).
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Reaction not saved",
+                detail: result.Error ?? "This message cannot be reacted to.");
+        }
+
+        await hub.Clients.Users(result.NotifyUserIds).ReactionsChanged(result.Reactions!);
+        return Results.Ok(result.Reactions);
     }
 
     /// <summary>

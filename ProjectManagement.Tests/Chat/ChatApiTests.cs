@@ -24,6 +24,7 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Contracts.Chat;
 using ProjectManagement.Data;
 using ProjectManagement.Hubs;
+using ProjectManagement.Models.Chat;
 using ProjectManagement.Services.Chat;
 using ProjectManagement.Models;
 using ProjectManagement.Tests.Infrastructure;
@@ -55,10 +56,14 @@ public sealed class ChatApiTests
         Assert.True(chatCard >= 0 && themeCard > chatCard, "the Chat card comes before the theme card");
         Assert.Contains("data-whats-new-skip-if-stored=\"prism.chat.dock.", html);
         Assert.Contains("data-guide-url=\"/Chat/Guide\"", html);
+        // #records use PRISM's own search suggestions; editing follows its setting.
+        Assert.Contains("data-record-search-url=\"/Common/Search?handler=Suggestions\"", html);
+        Assert.Contains("data-edit-minutes=\"15\"", html);
 
         var guide = await client.GetStringAsync("/Chat/Guide");
         Assert.Contains("Chat quick guide", guide);
         Assert.Contains("within 5 minutes", guide);
+        Assert.Contains("<strong>Edit</strong> it within 15 minutes", guide);
         Assert.Contains("Share files", guide);
         Assert.Contains("1 GB", guide);
     }
@@ -91,7 +96,7 @@ public sealed class ChatApiTests
             .ToList();
 
         Assert.Equal(
-            new[] { "core", "app", "events", "dock", "windows", "conversation", "files", "page" }.Select(n => $"/js/chat/{n}.js"),
+            new[] { "core", "app", "events", "dock", "windows", "conversation", "actions", "files", "page" }.Select(n => $"/js/chat/{n}.js"),
             scripts);
         Assert.DoesNotContain("/js/chat.js", html);
         foreach (var src in scripts)
@@ -292,6 +297,8 @@ public sealed class ChatApiTests
     [InlineData("/api/chat/status")]
     [InlineData("/api/chat/groups")]
     [InlineData("/api/chat/with/bob/read")]
+    [InlineData("/api/chat/messages/1/edit")]
+    [InlineData("/api/chat/messages/1/react")]
     public async Task Writes_WithoutTheAntiforgeryToken_AreRefused(string path)
     {
         await using var host = await ChatHost.CreateAsync();
@@ -316,6 +323,102 @@ public sealed class ChatApiTests
         var push = Assert.Single(host.Hub.Pushes);
         Assert.Equal(nameof(IChatClient.ReceiveMessage), push.Method);
         Assert.Equal(new[] { "alice", "bob" }, push.Targets.OrderBy(t => t));
+    }
+
+    [Fact]
+    public async Task EditAndReact_OverHttp_PushToBothPeople_AndAStrangerGetsNoHint()
+    {
+        await using var host = await ChatHost.CreateAsync();
+        using var alice = host.ClientFor("alice");
+        var aliceToken = await host.TokenAsync(alice);
+        var sent = await host.PostAsync(alice, aliceToken, "/api/chat/messages", new ChatSendRequest("bob", Guid.NewGuid(), "Report by 1500"));
+        var message = await sent.Content.ReadFromJsonAsync<ChatMessageDto>();
+        host.Hub.Pushes.Clear();
+
+        var edited = await host.PostAsync(alice, aliceToken, $"/api/chat/messages/{message!.Id}/edit", new ChatEditRequest("Report by 1600"));
+        Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+        Assert.Equal("Report by 1600", (await edited.Content.ReadFromJsonAsync<ChatMessageDto>())!.Body);
+        var editPush = Assert.Single(host.Hub.Pushes);
+        Assert.Equal(nameof(IChatClient.MessageEdited), editPush.Method);
+        Assert.Equal(new[] { "alice", "bob" }, editPush.Targets.OrderBy(t => t));
+
+        using var bob = host.ClientFor("bob");
+        var bobToken = await host.TokenAsync(bob);
+        host.Hub.Pushes.Clear();
+        var reacted = await host.PostAsync(bob, bobToken, $"/api/chat/messages/{message.Id}/react", new ChatReactRequest(ChatReactionKind.Noted, true));
+        Assert.Equal(HttpStatusCode.OK, reacted.StatusCode);
+        var reactPush = Assert.Single(host.Hub.Pushes);
+        Assert.Equal(nameof(IChatClient.ReactionsChanged), reactPush.Method);
+        Assert.Equal(new[] { "alice", "bob" }, reactPush.Targets.OrderBy(t => t));
+
+        // Bob cannot edit Alice's message; Carol cannot react to a conversation she is not in.
+        // Both are 400, never 404 (which the browser reads as "chat is off").
+        Assert.Equal(HttpStatusCode.BadRequest, (await host.PostAsync(bob, bobToken, $"/api/chat/messages/{message.Id}/edit", new ChatEditRequest("mine now"))).StatusCode);
+        using var carol = host.ClientFor("carol");
+        var carolToken = await host.TokenAsync(carol);
+        host.Hub.Pushes.Clear();
+        Assert.Equal(HttpStatusCode.BadRequest, (await host.PostAsync(carol, carolToken, $"/api/chat/messages/{message.Id}/react", new ChatReactRequest(ChatReactionKind.Like, true))).StatusCode);
+        Assert.Empty(host.Hub.Pushes);
+    }
+
+    /// <summary>
+    /// "Remind me" (wwwroot/js/chat/actions.js) posts this exact body to the Notebook's own API:
+    /// the Notebook accepts it and keeps it as the person's reminder, and it is only theirs.
+    /// </summary>
+    [Fact]
+    public async Task RemindMe_TheBodyChatSends_IsANotebookReminderForThePersonOnly()
+    {
+        await using var host = await ChatHost.CreateAsync();
+        using var alice = host.ClientFor("alice");
+        var token = await host.TokenAsync(alice);
+        var due = DateTimeOffset.UtcNow.AddDays(1);
+
+        var response = await host.PostAsync(alice, token, "/api/notebook/items", new
+        {
+            title = "Chat: Bob Bhatia: Board meeting moved to 1500",
+            body = "Board meeting moved to 1500\n\nOpen the message in chat: https://prism.local/Chat?with=bob&at=1",
+            type = "Reminder",
+            priority = "Normal",
+            reminderAtUtc = due.ToString("O"),
+            isPinned = false,
+            checklistRows = Array.Empty<object>(),
+            labels = Array.Empty<string>(),
+            clientRequestId = Guid.NewGuid(),
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        using var scope = host.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var item = await db.NotebookItems.AsNoTracking().SingleAsync();
+        Assert.Equal("alice", item.OwnerId);
+        // The Notebook keeps a reminder as a note with a reminder time (NotebookRules normalises
+        // the "Reminder" type its own create editor also sends, which makes the time required).
+        Assert.Equal(NotebookItemType.Note, item.Type);
+        Assert.NotNull(item.ReminderAtUtc);
+        Assert.Equal("Chat: Bob Bhatia: Board meeting moved to 1500", item.Title);
+        Assert.Equal(due.ToUnixTimeSeconds(), item.ReminderAtUtc!.Value.ToUnixTimeSeconds());
+
+        // Without the antiforgery token the Notebook refuses it, as for any other write.
+        var forged = await alice.PostAsJsonAsync("/api/notebook/items", new { title = "x", type = "Note", checklistRows = Array.Empty<object>(), labels = Array.Empty<string>(), clientRequestId = Guid.NewGuid() });
+        Assert.Equal(HttpStatusCode.BadRequest, forged.StatusCode);
+    }
+
+    [Fact]
+    public async Task CurrentMessages_OverHttp_AnswerForReadableMessages_AndAreBounded()
+    {
+        await using var host = await ChatHost.CreateAsync();
+        using var alice = host.ClientFor("alice");
+        var token = await host.TokenAsync(alice);
+        var sent = await (await host.PostAsync(alice, token, "/api/chat/messages", new ChatSendRequest("bob", Guid.NewGuid(), "Hello"))).Content.ReadFromJsonAsync<ChatMessageDto>();
+
+        var mine = await alice.GetFromJsonAsync<List<ChatMessageDto>>($"/api/chat/messages/current?ids={sent!.Id},x,-3");
+        Assert.Equal("Hello", Assert.Single(mine!).Body);
+
+        using var carol = host.ClientFor("carol");
+        Assert.Empty((await carol.GetFromJsonAsync<List<ChatMessageDto>>($"/api/chat/messages/current?ids={sent.Id}"))!);
+
+        var tooMany = string.Join(',', Enumerable.Range(1, ChatService.MaxStateCheck + 1));
+        Assert.Equal(HttpStatusCode.BadRequest, (await alice.GetAsync($"/api/chat/messages/current?ids={tooMany}")).StatusCode);
     }
 
     [Fact]
@@ -424,6 +527,8 @@ public sealed class ChatApiTests
         }
 
         public RecordingHubContext Hub { get; }
+
+        public IServiceProvider Services => _factory.Services;
 
         public static async Task<ChatHost> CreateAsync(IDictionary<string, string?>? settings = null)
         {

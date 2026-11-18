@@ -95,6 +95,12 @@ public sealed class RecordingHubContext : IHubContext<ChatHub, IChatClient>, IHu
         public Task AttachmentRemoved(ChatAttachmentRemovedDto removed) => Push(nameof(AttachmentRemoved), removed);
 
         public Task AttachmentRestored(ChatAttachmentRestoredDto restored) => Push(nameof(AttachmentRestored), restored);
+
+        public Task MessageEdited(ChatMessageDto message) => Push(nameof(MessageEdited), message);
+
+        public Task GroupMessageEdited(ChatMessageDto message) => Push(nameof(GroupMessageEdited), message);
+
+        public Task ReactionsChanged(ChatReactionsDto reactions) => Push(nameof(ReactionsChanged), reactions);
     }
 
     private sealed class NoGroups : IGroupManager

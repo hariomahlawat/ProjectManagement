@@ -42,7 +42,10 @@
     }
     const counter = group || contact;
 
-    const muted = this.isMuted(message.groupId);
+    // A mention of this person gets through a muted group: it pops open, chimes and is announced.
+    const mentioned = incoming && Array.isArray(message.mentionedUserIds) && message.mentionedUserIds.includes(this.me);
+    // Do not disturb quiets everything, mentions included (they still count as unread).
+    const muted = (this.isMuted(message.groupId) && !mentioned) || this.isQuiet();
     let win = this.windows.get(key);
     if (!win && countable && !muted) {
       // Classic behaviour: a new message pops its conversation open (not for a muted group).
@@ -58,17 +61,32 @@
         win.typingUntil = 0;
         win.typers.delete(message.senderUserId);
       }
+      // Read back through the conversation when it arrived: it lands out of sight, so count it
+      // for "↓ new messages" (and the person's own messages from another tab do not count).
+      const readingBack = !win.hasNewer && win.historyLoaded && !this.atBottom(win);
+      // Arriving while the person is elsewhere: "New messages" marks where they start.
+      if (fresh && !this.isAttended(win) && !win.unreadFromId) win.unreadFromId = message.id;
       // A conversation opened at an old message (from search) shows a slice of history; the
       // newest message is reached with "Show newer messages", so don't paste it below a gap.
-      this.acceptSaved(win, [message]);
+      // A message is pushed when it is saved (again on a retried send). Edits and reactions come
+      // as their own events, so a pushed copy never carries newer ones: recorded live parts win.
+      this.acceptSaved(win, this.settleFetched([message], 0));
+      if (fresh && readingBack) {
+        win.newBelow += 1;
+        this.renderJump(win);
+      }
       if (fresh && !this.isAttended(win)) {
         win.attention = true;
       }
       this.renderWindowState(win);
-      if (fresh && counter) counter.unreadCount += 1;
+      if (fresh && counter) {
+        counter.unreadCount += 1;
+        this.touchUnread(key);
+      }
       this.maybeMarkRead(win);
     } else if (countable && counter) {
       counter.unreadCount += 1;
+      this.touchUnread(key);
     }
 
     if (fresh && !muted && !(win && this.isAttended(win))) {
@@ -147,6 +165,7 @@
       contact.unreadCount = win
         ? win.messages.filter((m) => m.id && m.senderUserId !== this.me && m.id > win.lastReadId).length
         : 0;
+      this.touchUnread(read.peerUserId);
     }
     this.renderContacts();
     // Read in another tab: nothing left to call attention to here.
@@ -256,8 +275,10 @@
   ChatApp.prototype.loadGroups = async function () {
     if (this.stopped) return;
     try {
+      const since = this.unreadSeq;
       const groups = await this.request('GET', '/groups');
-      this.groups = new Map(groups.map((g) => [g.id, g]));
+      const previous = this.groups;
+      this.groups = new Map(groups.map((g) => [g.id, this.keepLiveUnread(g, groupKey(g.id), previous.get(g.id), since)]));
       this.windows.forEach((w) => {
         if (!w.groupId) return;
         const g = this.groups.get(w.groupId);
@@ -327,6 +348,7 @@
         group.unreadCount = win
           ? win.messages.filter((m) => m.id && m.senderUserId !== this.me && !m.eventKind && m.id > win.lastReadId).length
           : 0;
+        this.touchUnread(groupKey(read.groupId));
       }
       this.renderContacts();
       if (this.unreadTotal() === 0) this.title.stop();

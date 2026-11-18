@@ -77,6 +77,7 @@ The `MaxAge` exemption means an unread action-required notification can outlive 
 | `Chat:SendPermitLimit` | `20` | Messages one user may send per `Chat:SendWindowSeconds` (HTTP 429 beyond that). |
 | `Chat:SendWindowSeconds` | `10` | Length of the chat send window in seconds. |
 | `Chat:UnsendWindowMinutes` | `5` | How long after sending a chat message its sender may unsend it; `0` turns unsend off. |
+| `Chat:EditWindowMinutes` | `15` | How long after sending a chat message its sender may edit it; `0` turns editing off. Earlier text is not kept. |
 
 ## Uploads (photos & documents)
 

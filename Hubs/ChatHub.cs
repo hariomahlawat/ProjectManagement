@@ -220,4 +220,16 @@ public interface IChatClient
 
     /// <summary>A removed file was restored within the undo window.</summary>
     Task AttachmentRestored(ChatAttachmentRestoredDto restored);
+
+    /// <summary>
+    /// A direct message was edited. New events, so a page from before edits simply never hears of
+    /// them (it shows the new text on its next load).
+    /// </summary>
+    Task MessageEdited(ChatMessageDto message);
+
+    /// <summary>A group message was edited (separate from MessageEdited, like the other group events).</summary>
+    Task GroupMessageEdited(ChatMessageDto message);
+
+    /// <summary>A message's reactions changed.</summary>
+    Task ReactionsChanged(ChatReactionsDto reactions);
 }

@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using SkiaSharp;
 
 namespace ProjectManagement.Services.Chat;
@@ -26,6 +27,13 @@ public static class ChatAttachmentInspector
     public const int MaxImageSide = 12_000;
     public const long MaxImagePixels = 60_000_000;
     public const int ThumbnailSide = 640;
+
+    /// <summary>
+    /// Thumbnails made at once, across all uploads. Formats Skia cannot decode at a reduced size
+    /// (PNG) are decoded in full, up to <see cref="MaxImagePixels"/> × 4 bytes each, so a burst
+    /// of large images from several people must not all be held in memory together.
+    /// </summary>
+    internal static readonly SemaphoreSlim ThumbnailGate = new(2, 2);
 
     private const string Pdf = "application/pdf";
     private const string Docx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -217,7 +225,10 @@ public static class ChatAttachmentInspector
             return null;
         }
 
-        using var upright = Orient(decoded, codec.EncodedOrigin);
+        // Rotated only when the photo asks for it: a copy of a large decoded image is as big as
+        // the image itself (a 60-megapixel PNG is about 240 MB), so an upright one is used as is.
+        using var rotated = codec.EncodedOrigin == SKEncodedOrigin.TopLeft ? null : Orient(decoded, codec.EncodedOrigin);
+        var upright = rotated ?? decoded;
         var scale = Math.Min(1d, (double)ThumbnailSide / Math.Max(upright.Width, upright.Height));
         var size = new SKImageInfo(Math.Max(1, (int)Math.Round(upright.Width * scale)), Math.Max(1, (int)Math.Round(upright.Height * scale)));
         using var thumbnail = scale < 1 ? upright.Resize(size, SKFilterQuality.Medium) : upright.Copy();
@@ -259,11 +270,6 @@ public static class ChatAttachmentInspector
     // Same transforms as MediaDerivativeService (EXIF orientation applied to the pixels).
     private static SKBitmap Orient(SKBitmap source, SKEncodedOrigin origin)
     {
-        if (origin == SKEncodedOrigin.TopLeft)
-        {
-            return source.Copy();
-        }
-
         var swap = SwapsAxes(origin);
         var destination = new SKBitmap(swap ? source.Height : source.Width, swap ? source.Width : source.Height, source.ColorType, source.AlphaType);
         using var canvas = new SKCanvas(destination);

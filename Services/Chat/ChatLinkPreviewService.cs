@@ -15,6 +15,7 @@ using ProjectManagement.Contracts.Chat;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services.ActionTasks;
+using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.ProjectIdeas;
 using ProjectManagement.Services.Projects;
 
@@ -276,8 +277,9 @@ public sealed class ChatLinkPreviewService
     }
 
     // Document repository: /DocumentRepository/Documents/Reader/{id} (or View?id=). The
-    // repository view policy, and not deleted. Read directly, never through the reader page,
-    // which records a view for AOTS documents.
+    // repository view policy, then the same readable rule as those pages (DocRepoAccess): not
+    // deleted, and inactive documents only for those who may view inactive ones. Read directly,
+    // never through the reader page, which records a view for AOTS documents.
     private async Task<ChatLinkPreviewDto?> RepositoryDocumentAsync(ClaimsPrincipal viewer, Guid id, CancellationToken cancellationToken)
     {
         if (!(await _authorization.AuthorizeAsync(viewer, Policies.Documents.View)).Succeeded)
@@ -285,9 +287,9 @@ public sealed class ChatLinkPreviewService
             return null;
         }
 
-        var document = await _db.Documents
-            .AsNoTracking()
-            .Where(d => d.Id == id && !d.IsDeleted)
+        var canViewInactive = (await _authorization.AuthorizeAsync(viewer, Policies.Documents.ViewInactive)).Succeeded;
+        var document = await DocRepoAccess.ReadableFilter(_db.Documents.AsNoTracking(), canViewInactive)
+            .Where(d => d.Id == id)
             .Select(d => new { d.Subject, Office = d.OfficeCategory.Name, Category = d.DocumentCategory.Name })
             .SingleOrDefaultAsync(cancellationToken);
 

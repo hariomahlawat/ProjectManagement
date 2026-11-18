@@ -190,7 +190,17 @@ public sealed class ChatAttachmentService
             string? thumbnailKey = null;
             if (inspection.ContentType.StartsWith("image/", StringComparison.Ordinal))
             {
-                var thumbnail = ChatAttachmentInspector.CreateThumbnail(storedPath);
+                byte[]? thumbnail;
+                await ChatAttachmentInspector.ThumbnailGate.WaitAsync(cancellationToken);
+                try
+                {
+                    thumbnail = ChatAttachmentInspector.CreateThumbnail(storedPath);
+                }
+                finally
+                {
+                    ChatAttachmentInspector.ThumbnailGate.Release();
+                }
+
                 if (thumbnail is null)
                 {
                     return ChatAttachmentUploadResult.Fail(ChatAttachmentUploadStatus.Invalid, "The image could not be read. It may be damaged.");

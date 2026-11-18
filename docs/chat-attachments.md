@@ -118,12 +118,14 @@ largest allowances in use by size (no file names, no conversations), to manage d
 ## D9. How files appear
 
 - **Images:** a thumbnail in the message (WebP, made on upload; location and camera data are
-  not carried into it), opening the full image in the browser.
+  not carried into it), opening the full image in the chat image viewer (Ctrl+click: a new
+  tab). The original is served as uploaded, so its own camera and location data remain.
 - **Everything else:** a file card with an icon, the name and the size, which downloads the
   file.
 - One message may carry **up to 5 files**, with optional text.
 - Upload progress in the window, with Cancel; a failed upload can be retried like a failed
-  message.
+  message. Files can also be dropped on a window or a contact, or pasted (screenshots); the
+  browser refuses unsupported types, empty files and files over the limit before uploading.
 
 ## Storage management (owner decisions, 2026-10-23)
 
@@ -156,6 +158,13 @@ The messages stay: a removed file shows "File removed", "File removed by an admi
 - **Clean-up:** `ChatAttachmentCleanupWorker` (every 15 minutes, while attachments are on)
   removes uploads not sent within an hour and deletes the files of removed attachments; each
   sweep only does what is still to do.
+- **Thumbnails** are made at most two at a time across all uploads
+  (`ChatAttachmentInspector.ThumbnailGate`): a PNG cannot be decoded at a reduced size, so one
+  at the 60-megapixel cap takes about 240 MB while it is made. An upright photo is used as
+  decoded; only one that needs turning (EXIF orientation) is copied.
+- **Request size:** the server's request-body ceiling (`UploadRequestLimitResolver`) is read
+  at start-up. Switching attachments on, or raising `MaxFileMb`, through a configuration reload
+  needs an application restart before larger files are accepted.
 - **Limits:** per-user `chat-upload` rate limit, the per-file limit (also counted in
   `UploadRequestLimitResolver` while attachments are on), the free-disk floor, the allowance.
 - **Switch:** `Chat:Attachments:Enabled`, **on** in `appsettings.json` (the options class defaults to off).

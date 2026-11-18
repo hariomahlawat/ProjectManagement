@@ -31,7 +31,23 @@ public sealed record ChatMessageDto(
     long? GroupId = null,
     string? EventKind = null,
     string? EventData = null,
-    IReadOnlyList<ChatAttachmentDto>? Attachments = null);
+    IReadOnlyList<ChatAttachmentDto>? Attachments = null,
+    long? ReplyToMessageId = null,
+    DateTimeOffset? EditedUtc = null,
+    IReadOnlyList<string>? MentionedUserIds = null,
+    IReadOnlyList<ChatReactionDto>? Reactions = null);
+
+/// <summary>Who gave one kind of reaction to a message, in the order they gave it.</summary>
+public sealed record ChatReactionDto(string Kind, IReadOnlyList<string> UserIds);
+
+/// <summary>A message's reactions changed (pushed as ReactionsChanged).</summary>
+public sealed record ChatReactionsDto(long MessageId, long? GroupId, IReadOnlyList<ChatReactionDto> Reactions);
+
+/// <summary>Turns one kind of reaction on or off for the caller.</summary>
+public sealed record ChatReactRequest(string? Kind, bool On);
+
+/// <summary>New text for one of the caller's messages; MentionedUserIds replaces the mentions (groups).</summary>
+public sealed record ChatEditRequest(string? Body, IReadOnlyList<string>? MentionedUserIds = null);
 
 /// <summary>
 /// A file sent with a message. IsRemoved: removed by its sender or unsent with its message; the
@@ -131,7 +147,7 @@ public sealed record ChatHistoryDto(
     long? PeerLastReadMessageId = null);
 
 /// <summary>AttachmentIds: files uploaded first (POST /api/chat/attachments), sent with this message.</summary>
-public sealed record ChatSendRequest(string? RecipientUserId, Guid ClientMessageId, string? Body, IReadOnlyList<long>? AttachmentIds = null);
+public sealed record ChatSendRequest(string? RecipientUserId, Guid ClientMessageId, string? Body, IReadOnlyList<long>? AttachmentIds = null, long? ReplyToMessageId = null);
 
 public sealed record ChatMarkReadRequest(long UpToMessageId);
 
@@ -212,7 +228,13 @@ public sealed record ChatGroupMembersRequest(IReadOnlyList<string>? UserIds);
 
 public sealed record ChatGroupRenameRequest(string? Title);
 
-public sealed record ChatGroupSendRequest(Guid ClientMessageId, string? Body, IReadOnlyList<long>? AttachmentIds = null);
+/// <summary>MentionedUserIds: members @mentioned in the text (others are refused).</summary>
+public sealed record ChatGroupSendRequest(
+    Guid ClientMessageId,
+    string? Body,
+    IReadOnlyList<long>? AttachmentIds = null,
+    long? ReplyToMessageId = null,
+    IReadOnlyList<string>? MentionedUserIds = null);
 
 /// <summary>Someone in a group read up to a message (for "Seen by").</summary>
 public sealed record ChatGroupReadDto(long GroupId, string UserId, long UpToMessageId);

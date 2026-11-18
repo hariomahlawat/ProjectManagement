@@ -135,6 +135,8 @@ namespace ProjectManagement.Data
         public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
         public DbSet<ChatAttachment> ChatAttachments => Set<ChatAttachment>();
         public DbSet<ChatUserStatus> ChatUserStatuses => Set<ChatUserStatus>();
+        public DbSet<ChatMessageReaction> ChatMessageReactions => Set<ChatMessageReaction>();
+        public DbSet<ChatMessageMention> ChatMessageMentions => Set<ChatMessageMention>();
         public DbSet<ProjectDocument> ProjectDocuments => Set<ProjectDocument>();
         public DbSet<ProjectDocumentRequest> ProjectDocumentRequests => Set<ProjectDocumentRequest>();
         public DbSet<ProjectDocumentText> ProjectDocumentTexts => Set<ProjectDocumentText>();
@@ -4569,6 +4571,30 @@ namespace ProjectManagement.Data
                 e.HasOne(x => x.Conversation)
                     .WithMany()
                     .HasForeignKey(x => x.ConversationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ChatMessageReaction>(e =>
+            {
+                e.HasKey(x => new { x.MessageId, x.UserId, x.Kind });
+                e.Property(x => x.UserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.Kind).HasMaxLength(ChatReactionKind.MaxLength).IsRequired();
+                e.ToTable(t => t.HasCheckConstraint(
+                    "CK_ChatMessageReactions_Kind",
+                    "\"Kind\" IN ('like','noted','looking')"));
+                e.HasOne(x => x.Message)
+                    .WithMany()
+                    .HasForeignKey(x => x.MessageId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ChatMessageMention>(e =>
+            {
+                e.HasKey(x => new { x.MessageId, x.UserId });
+                e.Property(x => x.UserId).HasMaxLength(450).IsRequired();
+                e.HasOne(x => x.Message)
+                    .WithMany()
+                    .HasForeignKey(x => x.MessageId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 

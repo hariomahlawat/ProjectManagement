@@ -335,6 +335,93 @@ public sealed class ChatGroupServiceTests
 
     private static ChatGroupSendRequest Send(string body) => new(Guid.NewGuid(), body);
 
+    [Fact]
+    public async Task Mentions_AreStoredForMembersOnly_AndCarriedWithTheMessage()
+    {
+        await using var scope = await GroupScope.CreateAsync();
+        var id = (await scope.Groups.CreateAsync("alice", "Desk", new[] { "bob", "carol" })).Group!.Id;
+
+        var sent = await scope.Groups.SendAsync("alice", id, new ChatGroupSendRequest(
+            Guid.NewGuid(), "@Bob Bhatia please check", MentionedUserIds: new[] { "bob", "alice", "dave", "nobody", "bob" }));
+
+        Assert.Equal(ChatSendStatus.Sent, sent.Status);
+        Assert.Equal(new[] { "bob" }, sent.Message!.MentionedUserIds);
+        var carolView = (await scope.Groups.GetHistoryAsync("carol", id, null, 40))!.Messages.Last();
+        Assert.Equal(new[] { "bob" }, carolView.MentionedUserIds);
+    }
+
+    [Fact]
+    public async Task Reply_InAGroup_OnlyToAMessageTheSenderCanSee()
+    {
+        await using var scope = await GroupScope.CreateAsync();
+        var id = (await scope.Groups.CreateAsync("alice", "Desk", new[] { "bob" })).Group!.Id;
+        var before = await scope.Groups.SendAsync("alice", id, Send("said before Carol joined"));
+        await scope.Groups.AddMembersAsync("alice", id, new[] { "carol" });
+        var after = await scope.Groups.SendAsync("bob", id, Send("said after"));
+
+        var hidden = await scope.Groups.SendAsync("carol", id, new ChatGroupSendRequest(Guid.NewGuid(), "quoting what I never saw", ReplyToMessageId: before.Message!.Id));
+        Assert.Equal(ChatSendStatus.Invalid, hidden.Status);
+
+        var visible = await scope.Groups.SendAsync("carol", id, new ChatGroupSendRequest(Guid.NewGuid(), "agreed", ReplyToMessageId: after.Message!.Id));
+        Assert.Equal(ChatSendStatus.Sent, visible.Status);
+        Assert.Equal(after.Message.Id, visible.Message!.ReplyToMessageId);
+    }
+
+    [Fact]
+    public async Task GroupReactions_AndEdits_ReachOnlyMembersWhoCanSeeTheMessage()
+    {
+        await using var scope = await GroupScope.CreateAsync();
+        var id = (await scope.Groups.CreateAsync("alice", "Desk", new[] { "bob" })).Group!.Id;
+        var early = await scope.Groups.SendAsync("alice", id, Send("Before Carol"));
+        await scope.Groups.AddMembersAsync("alice", id, new[] { "carol" });
+
+        // Carol joined later: she cannot react to it, and its changes are not pushed to her.
+        Assert.Equal(ChatChangeStatus.NotFound, (await scope.Chat.ReactAsync("carol", early.Message!.Id, ChatReactionKind.Like, true)).Status);
+        var reacted = await scope.Chat.ReactAsync("bob", early.Message.Id, ChatReactionKind.Noted, true);
+        Assert.Equal(new[] { "alice", "bob" }, reacted.NotifyUserIds.OrderBy(x => x));
+        Assert.Equal(id, reacted.Reactions!.GroupId);
+
+        var edit = await scope.Chat.EditAsync("alice", early.Message.Id, new ChatEditRequest("Before Carol (corrected) @Bob", new[] { "bob", "carol" }));
+        Assert.Equal(ChatChangeStatus.Done, edit.Status);
+        Assert.Equal(id, edit.Message!.GroupId);
+        Assert.Equal(new[] { "alice", "bob" }, edit.NotifyUserIds.OrderBy(x => x));
+        Assert.Equal(new[] { "bob" }, edit.Message.MentionedUserIds); // not Carol, who cannot see it
+        Assert.Equal(new[] { ChatReactionKind.Noted }, edit.Message.Reactions!.Select(r => r.Kind));
+    }
+
+    [Fact]
+    public async Task CurrentState_OfLoadedMessages_FollowsWhoMayReadThem()
+    {
+        await using var scope = await GroupScope.CreateAsync();
+        var groupId = (await scope.Groups.CreateAsync("alice", "Desk", new[] { "bob" })).Group!.Id;
+        var early = await scope.Groups.SendAsync("alice", groupId, Send("Before Carol"));
+        await scope.Groups.AddMembersAsync("alice", groupId, new[] { "carol" });
+        var late = await scope.Groups.SendAsync("bob", groupId, Send("After Carol"));
+        var direct = await scope.Chat.SendAsync("alice", new ChatSendRequest("bob", Guid.NewGuid(), "Just us"));
+        await scope.Chat.ReactAsync("bob", early.Message!.Id, ChatReactionKind.Noted, true);
+        await scope.Chat.EditAsync("alice", direct.Message!.Id, new ChatEditRequest("Just us two"));
+        var ids = new[] { early.Message.Id, late.Message!.Id, direct.Message.Id, 9999L };
+
+        var bob = await scope.Chat.ListCurrentAsync("bob", ids);
+        Assert.Equal(new[] { early.Message.Id, late.Message.Id, direct.Message.Id }, bob.Select(m => m.Id).OrderBy(id => id));
+        Assert.Equal(ChatReactionKind.Noted, Assert.Single(bob.Single(m => m.Id == early.Message.Id).Reactions!).Kind);
+        var edited = bob.Single(m => m.Id == direct.Message.Id);
+        Assert.Equal("Just us two", edited.Body);
+        Assert.NotNull(edited.EditedUtc);
+        Assert.Equal("bob", edited.RecipientUserId);
+        Assert.Equal(groupId, bob.Single(m => m.Id == late.Message.Id).GroupId);
+
+        // Carol joined after the first group message and is not in the direct chat.
+        var carol = await scope.Chat.ListCurrentAsync("carol", ids);
+        Assert.Equal(new[] { late.Message.Id }, carol.Select(m => m.Id));
+
+        // Unsent: reported as unsent, with no text.
+        await scope.Chat.UnsendAsync("alice", direct.Message.Id);
+        var gone = Assert.Single(await scope.Chat.ListCurrentAsync("bob", new[] { direct.Message.Id }));
+        Assert.True(gone.IsUnsent);
+        Assert.Equal(string.Empty, gone.Body);
+    }
+
     private sealed class GroupScope : IAsyncDisposable
     {
         private readonly SqliteConnection _connection;

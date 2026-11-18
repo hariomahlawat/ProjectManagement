@@ -2423,7 +2423,7 @@ function fakeUploads(window) {
   FakeXhr.prototype.setRequestHeader = function (name, value) { this.headers[name] = value; };
   FakeXhr.prototype.getResponseHeader = function () { return null; };
   FakeXhr.prototype.send = function (data) { this.data = data; };
-  FakeXhr.prototype.abort = function () { this.aborted = true; };
+  FakeXhr.prototype.abort = function () { this.aborted = true; if (this.onabort) this.onabort(); };
   FakeXhr.prototype.progress = function (loaded, total) { this.upload.onprogress({ lengthComputable: true, loaded, total }); };
   FakeXhr.prototype.answer = function (status, body) {
     this.status = status;
@@ -3027,6 +3027,1622 @@ test('tips leave out unsend and files when those are switched off', async () => 
     assert.doesNotMatch(text, /unsend/i);
     assert.doesNotMatch(text, /paperclip/);
     assert.equal(window.PMChat.tips.querySelector('a'), null, 'no guide link without a guide URL');
+  } finally {
+    window.close();
+  }
+});
+
+// ----- Unread counts, closed windows and catch-up (review fixes) -------------------------------
+
+test('a contacts refresh that answers with an older unread count keeps the live one', async () => {
+  const held = [];
+  let calls = 0;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) {
+      calls += 1;
+      if (calls === 1) return [{ ...contact, unreadCount: 0 }];
+      await new Promise((resolve) => { held.push(resolve); });
+      return [{ ...contact, unreadCount: 0 }]; // counted before the message below arrived
+    }
+    if (url.includes('/with/peer/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const refresh = app.refreshContacts();
+    await tick();
+    app.onMessage(directMessage(9, 'peer', 'are you there?'));
+    assert.equal(app.contacts.get('peer').unreadCount, 1);
+    held.splice(0).forEach((resolve) => resolve());
+    await refresh;
+    assert.equal(app.contacts.get('peer').unreadCount, 1, 'the stale list does not clear the badge');
+  } finally {
+    window.close();
+  }
+});
+
+test('a message still sending when its window closes comes back failed, with Retry, on reopening', async () => {
+  let answer;
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      await new Promise((resolve) => { answer = resolve; });
+      return { status: 500, body: { detail: 'The server is restarting.' } };
+    }
+    if (url.includes('/with/peer/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    let win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    win.input.value = 'Minutes attached';
+    app.send(win);
+    await tick();
+    app.closeWindow('peer');
+    answer();
+    await tick(); await tick(); await tick();
+
+    win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    assert.match(win.log.textContent, /Minutes attached/);
+    assert.match(win.log.textContent, /The server is restarting\./);
+    assert.ok(win.log.querySelector('.pm-chat__retry'), 'the text is not lost: it can be sent again');
+  } finally {
+    window.close();
+  }
+});
+
+test('catch-up after a drop fetches the gap even when a newer message was pushed meanwhile', async () => {
+  let loaded = false;
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/with/peer/messages')) {
+      asked.push(url);
+      if (!loaded) {
+        loaded = true;
+        return pageOf([1, 2, 3], false);
+      }
+      if (url.includes('before=11')) return pageOf([3, 4, 5, 6, 7, 8, 9, 10], true);
+      return pageOf(Array.from({ length: 40 }, (_, i) => i + 11), true); // 11..50
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    // Messages 4..49 were missed while the connection was down; 50 arrives live as it returns.
+    app.onMessage(directMessage(50, 'peer', 'back online'));
+    await app.loadLatest(win);
+    const ids = win.messages.map((m) => m.id);
+    for (let id = 1; id <= 50; id += 1) assert.ok(ids.includes(id), `message ${id} is shown`);
+    assert.ok(asked.some((url) => url.includes('before=11')), 'it paged back past the pushed message');
+  } finally {
+    window.close();
+  }
+});
+
+test('Unsend sends one request however often it is clicked', async () => {
+  let unsends = 0;
+  let answer;
+  const now = Date.now();
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.includes('/unsend') && init.method === 'POST') {
+      unsends += 1;
+      await new Promise((resolve) => { answer = resolve; });
+      return { status: 200, body: { id: 2, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-2', body: '', sentUtc: new Date(now).toISOString(), isUnsent: true } };
+    }
+    if (url.includes('/messages')) {
+      return { messages: [{ id: 2, senderUserId: 'me', recipientUserId: 'peer', clientMessageId: 'c-2', body: 'oops', sentUtc: new Date(now).toISOString() }], hasMore: false };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick();
+    const app = window.PMChat;
+    app.unsendMs = 5 * 60000;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const message = win.messages.find((m) => m.id === 2);
+    const first = app.unsend(win, message);
+    app.unsend(win, message);
+    await tick();
+    assert.equal(unsends, 1);
+    answer();
+    await first;
+    assert.equal(win.log.querySelector('.is-unsent .pm-chat__bubble').textContent, 'You unsent a message');
+  } finally {
+    window.close();
+  }
+});
+
+test('Enter in the status box saves once, not again when the box loses focus', async () => {
+  const posted = [];
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [contact];
+    if (url.endsWith('/status') && init.method === 'POST') {
+      posted.push(JSON.parse(init.body).message);
+      await tick();
+      return { userId: 'me', message: JSON.parse(init.body).message };
+    }
+    if (url.endsWith('/status')) return { userId: 'me', message: null };
+    return pageOf([], false);
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.statusInput.focus();
+    app.statusInput.value = 'In conference till 1600';
+    app.statusInput.form.dispatchEvent(new window.Event('submit', { cancelable: true }));
+    await tick(); await tick(); await tick();
+    assert.deepEqual(posted, ['In conference till 1600']);
+  } finally {
+    window.close();
+  }
+});
+
+test('an upload that stops making progress offers Retry instead of hanging', async () => {
+  const window = fileApp();
+  const uploads = fakeUploads(window);
+  const runTimers = manualTimers(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    pick(window, win, [new window.File(['%PDF-'], 'plan.pdf', { type: 'application/pdf' })]);
+    uploads[0].progress(10, 100);
+    runTimers(); // a minute with no progress
+    assert.equal(uploads[0].aborted, true);
+    assert.match(win.pendingList.textContent, /The upload stopped/);
+    assert.ok(Array.from(win.pendingList.querySelectorAll('button')).some((b) => b.textContent === 'Retry'));
+    assert.equal(app.readyFiles(win).busy, false, 'a stalled upload no longer holds up sending');
+  } finally {
+    window.close();
+  }
+});
+
+// ----- Drag and drop, paste, early checks and the image viewer ---------------------------------
+
+function fileDrag(window, type, files, extra) {
+  const event = new window.Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'dataTransfer', {
+    value: { types: ['Files'], files, dropEffect: 'none', ...extra },
+  });
+  return event;
+}
+
+test('files dropped on a chat window are attached; the overlay shows while dragging', async () => {
+  const window = fileApp();
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    const overlay = win.node.querySelector('.pm-chat__drop');
+    assert.equal(overlay.hidden, true);
+
+    const enter = fileDrag(window, 'dragenter', []);
+    win.log.dispatchEvent(enter);
+    assert.equal(enter.defaultPrevented, true);
+    assert.equal(overlay.hidden, false);
+    const over = fileDrag(window, 'dragover', []);
+    win.log.dispatchEvent(over);
+    assert.equal(over.defaultPrevented, true, 'or the browser would open the file instead');
+
+    const drop = fileDrag(window, 'drop', [new window.File(['%PDF-'], 'brief.pdf', { type: 'application/pdf' })]);
+    win.log.dispatchEvent(drop);
+    assert.equal(drop.defaultPrevented, true);
+    assert.equal(overlay.hidden, true);
+    assert.equal(uploads.length, 1);
+    assert.equal(uploads[0].data.get('file').name, 'brief.pdf');
+    assert.match(win.pendingList.textContent, /brief\.pdf/);
+
+    // Dragging text around the page is not a file drop.
+    const text = new window.Event('dragenter', { bubbles: true, cancelable: true });
+    Object.defineProperty(text, 'dataTransfer', { value: { types: ['text/plain'] } });
+    win.log.dispatchEvent(text);
+    assert.equal(text.defaultPrevented, false);
+    assert.equal(overlay.hidden, true);
+  } finally {
+    window.close();
+  }
+});
+
+test('a dropped folder is refused with a note; its files are not guessed at', async () => {
+  const window = fileApp();
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    const file = new window.File(['a'], 'a.txt', { type: 'text/plain' });
+    const items = [
+      { kind: 'file', webkitGetAsEntry: () => ({ isDirectory: true }), getAsFile: () => new window.File([''], 'Reports') },
+      { kind: 'file', webkitGetAsEntry: () => ({ isDirectory: false }), getAsFile: () => file },
+    ];
+    win.log.dispatchEvent(fileDrag(window, 'drop', [], { items }));
+    assert.equal(uploads.length, 1, 'only the file');
+    assert.match(win.pendingNote.textContent, /Folders cannot be sent/);
+  } finally {
+    window.close();
+  }
+});
+
+test('files of a type chat does not take are refused before uploading, without Retry', async () => {
+  const window = fileApp();
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    pick(window, win, [new window.File(['MZ'], 'setup.exe'), new window.File([], 'blank.txt')]);
+    assert.equal(uploads.length, 0);
+    assert.match(win.pendingList.textContent, /Only PDF, Word, Excel, PowerPoint, images/);
+    assert.match(win.pendingList.textContent, /The file is empty\./);
+    assert.equal(Array.from(win.pendingList.querySelectorAll('button')).some((b) => b.textContent === 'Retry'), false);
+  } finally {
+    window.close();
+  }
+});
+
+test('a pasted screenshot is attached with a name that says when it was taken; pasted text stays text', async () => {
+  const window = fileApp();
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+
+    const paste = (files, text) => {
+      const event = new window.Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'clipboardData', { value: { files, getData: () => text || '' } });
+      win.input.dispatchEvent(event);
+      return event;
+    };
+
+    const shot = paste([new window.File(['png'], 'image.png', { type: 'image/png' })]);
+    assert.equal(shot.defaultPrevented, true);
+    assert.equal(uploads.length, 1);
+    assert.match(uploads[0].data.get('file').name, /^Screenshot \d{1,2} \w{3} \d{4} \d{2}\.\d{2}\.png$/);
+
+    const fromWord = paste([new window.File(['png'], 'image.png', { type: 'image/png' })], 'Para 4 of the minutes');
+    assert.equal(fromWord.defaultPrevented, false, 'the text is pasted, not a picture of it');
+    assert.equal(uploads.length, 1);
+
+    const named = paste([new window.File(['%PDF-'], 'Agenda.pdf', { type: 'application/pdf' })]);
+    assert.equal(named.defaultPrevented, true);
+    assert.equal(uploads[1].data.get('file').name, 'Agenda.pdf');
+  } finally {
+    window.close();
+  }
+});
+
+test('files dropped on a person in the contact list open their chat with the files attached', async () => {
+  const window = fileApp();
+  const uploads = fakeUploads(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const button = app.list.querySelector('[data-focus-key="contact:peer"]');
+    const over = fileDrag(window, 'dragover', []);
+    button.dispatchEvent(over);
+    assert.equal(over.defaultPrevented, true);
+    assert.ok(button.classList.contains('is-drop-target'));
+
+    button.dispatchEvent(fileDrag(window, 'drop', [new window.File(['a'], 'notes.txt', { type: 'text/plain' })]));
+    assert.equal(button.classList.contains('is-drop-target'), false);
+    const win = app.windows.get('peer');
+    assert.ok(win, 'the conversation opened');
+    assert.equal(uploads.length, 1);
+    assert.match(win.pendingList.textContent, /notes\.txt/);
+  } finally {
+    window.close();
+  }
+});
+
+test('an image opens in the viewer, which steps through the conversation and gives focus back', async () => {
+  const image = (id, name) => ({ id, fileName: name, contentType: 'image/png', sizeBytes: 10, isImage: true, width: 100, height: 80 });
+  const window = fileApp(async (url) => {
+    if (url.includes('/with/peer/messages')) {
+      return {
+        messages: [
+          directMessage(1, 'peer', '', { attachments: [image(11, 'site.png')] }),
+          directMessage(2, 'me', 'and the plan', { attachments: [image(12, 'plan.png'), { id: 13, fileName: 'a.pdf', contentType: 'application/pdf', sizeBytes: 5, isImage: false }] }),
+        ],
+        hasMore: false,
+      };
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    const thumb = win.log.querySelector('[data-focus-key="thumb:11"]');
+    const click = new window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    thumb.dispatchEvent(click);
+    assert.equal(click.defaultPrevented, true);
+
+    const dialog = window.document.querySelector('.pm-chat-viewer');
+    assert.ok(dialog);
+    assert.equal(dialog.getAttribute('aria-modal'), 'true');
+    const img = dialog.querySelector('.pm-chat-viewer__image');
+    assert.equal(img.getAttribute('src'), '/api/chat/attachments/11');
+    assert.match(dialog.textContent, /site\.png · Peer Person · 1 of 2/);
+    assert.equal(dialog.querySelector('.is-previous').hidden, true);
+
+    dialog.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    assert.equal(img.getAttribute('src'), '/api/chat/attachments/12');
+    assert.match(dialog.textContent, /plan\.png · .* · 2 of 2/);
+    assert.equal(dialog.querySelector('.is-next').hidden, true);
+    assert.equal(dialog.querySelector('a[download]').getAttribute('download'), 'plan.png');
+
+    dialog.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(window.document.querySelector('.pm-chat-viewer'), null);
+    assert.equal(window.document.activeElement.dataset.focusKey, 'thumb:12', 'back on the image last shown');
+
+    // Ctrl+click keeps the browser's own behaviour (a new tab).
+    const ctrl = new window.MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ctrlKey: true });
+    win.log.querySelector('[data-focus-key="thumb:11"]').dispatchEvent(ctrl);
+    assert.equal(ctrl.defaultPrevented, false);
+    assert.equal(window.document.querySelector('.pm-chat-viewer'), null);
+  } finally {
+    window.close();
+  }
+});
+
+// ----- Phase 2: reading the conversation ------------------------------------------------------
+
+function said(app) {
+  const heard = [];
+  app.announce = (text) => heard.push(text);
+  return heard;
+}
+
+function scrolledUp(win) {
+  Object.defineProperty(win.body, 'scrollHeight', { value: 1000, configurable: true });
+  Object.defineProperty(win.body, 'clientHeight', { value: 200, configurable: true });
+  win.body.scrollTop = 0;
+}
+
+test('opening a conversation with unread messages marks where they start, until the person replies', async () => {
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 2 }];
+    if (url.includes('/with/peer/messages')) {
+      return {
+        messages: [directMessage(1, 'me', 'Can you send the draft?'), directMessage(2, 'peer', 'Sending now'), directMessage(3, 'peer', 'Here it is')],
+        hasMore: false,
+      };
+    }
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      return { status: 200, body: directMessage(4, 'me', body.body, { clientMessageId: body.clientMessageId }) };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const items = Array.from(win.log.children);
+    const divider = win.log.querySelector('.pm-chat__unread-divider');
+    assert.ok(divider, 'New messages is shown');
+    assert.equal(divider.textContent, 'New messages');
+    assert.match(items[items.indexOf(divider) + 1].textContent, /Sending now/);
+
+    win.input.value = 'Thanks';
+    app.send(win);
+    await tick(); await tick();
+    assert.equal(win.log.querySelector('.pm-chat__unread-divider'), null, 'gone once they reply');
+  } finally {
+    window.close();
+  }
+});
+
+test('a message arriving while the person reads back shows "↓ 1 new message", which goes to the latest', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Morning')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    assert.equal(win.jump.hidden, true);
+
+    scrolledUp(win);
+    app.onMessage(directMessage(2, 'peer', 'Have a look at para 4'));
+    assert.equal(win.jump.hidden, false);
+    assert.match(win.jump.textContent, /1 new message$/);
+    app.onMessage(directMessage(3, 'peer', 'and para 5'));
+    assert.match(win.jump.textContent, /2 new messages$/);
+    app.onMessage(directMessage(30, 'me', 'from my other tab'));
+    assert.match(win.jump.textContent, /2 new messages$/, 'my own messages are not news');
+
+    win.jump.click();
+    assert.equal(win.jump.hidden, true);
+    assert.equal(win.body.scrollTop, 1000);
+
+    // At the bottom already: nothing to point at.
+    Object.defineProperty(win.body, 'scrollTop', { value: 800, configurable: true, writable: true });
+    app.onMessage(directMessage(4, 'peer', 'ok'));
+    assert.equal(win.jump.hidden, true);
+  } finally {
+    window.close();
+  }
+});
+
+test('a run of messages from one person sits together, and each time shows the full date on hover', async () => {
+  const t0 = Date.parse('2026-11-18T05:00:00Z');
+  const at = (minutes) => new Date(t0 + minutes * 60000).toISOString();
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) {
+      return {
+        messages: [
+          directMessage(1, 'peer', 'one', { sentUtc: at(0) }),
+          directMessage(2, 'peer', 'two', { sentUtc: at(2) }),
+          directMessage(3, 'peer', 'three, much later', { sentUtc: at(30) }),
+          directMessage(4, 'me', 'mine', { sentUtc: at(31) }),
+        ],
+        hasMore: false,
+      };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const win = window.PMChat.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const runs = Array.from(win.log.querySelectorAll('.pm-chat__msg'), (m) => m.classList.contains('is-continued'));
+    assert.deepEqual(runs, [false, true, false, false]);
+    const nexts = Array.from(win.log.querySelectorAll('.pm-chat__msg'), (m) => m.classList.contains('has-next'));
+    assert.deepEqual(nexts, [true, false, false, false], 'their time shows once per run');
+    assert.equal(win.log.querySelector('.pm-chat__time').title, 'Wed, 18 Nov 2026, 10:30');
+  } finally {
+    window.close();
+  }
+});
+
+test('Copy puts a message on the clipboard, also on plain http where the Clipboard API is missing', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'File no. 12/4/2026')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const heard = said(app);
+    const copied = [];
+    window.document.execCommand = (command) => {
+      copied.push([command, window.document.activeElement.value]);
+      return true;
+    };
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const copy = win.log.querySelector('[data-focus-key="copy:1"]');
+    assert.equal(copy.getAttribute('aria-label'), 'Copy message from Peer Person');
+    copy.click();
+    await tick();
+    assert.deepEqual(copied, [['copy', 'File no. 12/4/2026']]);
+    assert.deepEqual(heard, ['Message copied.']);
+    assert.ok(copy.classList.contains('is-done'), 'the button shows it worked');
+    assert.equal(window.document.querySelectorAll('textarea[readonly]').length, 0, 'the helper box is gone');
+  } finally {
+    window.close();
+  }
+});
+
+test('the character counter appears near the limit and says when the limit is reached', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const heard = said(app);
+    const win = app.openWindow('peer', { focus: true });
+    const type = (length) => {
+      win.input.value = 'x'.repeat(length);
+      win.input.dispatchEvent(new window.Event('input'));
+    };
+    type(3000);
+    assert.equal(win.counter.hidden, true);
+    type(3800);
+    assert.equal(win.counter.hidden, false);
+    assert.equal(win.counter.textContent, '200');
+    assert.equal(win.counter.classList.contains('is-low'), false);
+    type(3980);
+    assert.equal(win.counter.classList.contains('is-low'), true);
+    type(4000);
+    type(4000);
+    assert.deepEqual(heard, ['The message is at the 4000-character limit.'], 'said once');
+  } finally {
+    window.close();
+  }
+});
+
+test('a docked window links to the same conversation on the Messages page, and its title says if it is open', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  }, '', 'data-messages-url="/Chat"');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    assert.equal(win.node.querySelector('.pm-chat__full').getAttribute('href'), '/Chat?with=peer');
+    assert.equal(win.toggle.getAttribute('aria-expanded'), 'true');
+    win.minimize.click();
+    assert.equal(win.toggle.getAttribute('aria-expanded'), 'false');
+  } finally {
+    window.close();
+  }
+});
+
+test('Alt+C opens the contact list in its search; Enter opens the first match and ↓ ↑ move through the list', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) {
+      return [contact, { ...contact, userId: 'sita', displayName: 'Sita Sharma', initials: 'SS' }];
+    }
+    if (url.includes('/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    assert.equal(app.buddy.hidden, true);
+    const press = (target, key, init) => {
+      const event = new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+      target.dispatchEvent(event);
+      return event;
+    };
+    const alt = press(window.document.body, 'c', { altKey: true, code: 'KeyC' });
+    assert.equal(alt.defaultPrevented, true);
+    assert.equal(app.buddy.hidden, false);
+    assert.equal(window.document.activeElement, app.search);
+    assert.equal(press(window.document.body, 'c', { ctrlKey: true, code: 'KeyC' }).defaultPrevented, false, 'Ctrl+C is copy');
+    assert.equal(press(app.search, 'ç', { altKey: true, code: 'KeyC' }).defaultPrevented, false, 'Option+C on a Mac types ç');
+
+    app.search.value = 'sit';
+    app.search.dispatchEvent(new window.Event('input'));
+    press(app.search, 'ArrowDown');
+    assert.equal(window.document.activeElement.dataset.focusKey, 'contact:sita');
+    press(window.document.activeElement, 'ArrowUp');
+    assert.equal(window.document.activeElement, app.search);
+    press(app.search, 'Enter');
+    assert.ok(app.windows.get('sita'), 'the first match opened');
+  } finally {
+    window.close();
+  }
+});
+
+test('a dropped connection shows "Reconnecting…" after a few seconds, and it clears when chat is live again', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  });
+  const runTimers = manualTimers(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const heard = said(app);
+    const win = app.openWindow('peer', { focus: false });
+    app.setLive(false);
+    assert.equal(app.offlineNote.hidden, true, 'a blip shows nothing');
+    runTimers();
+    assert.equal(app.offlineNote.hidden, false);
+    assert.equal(win.offline.hidden, false);
+    assert.match(win.offline.textContent, /Reconnecting…/);
+    const later = app.openWindow('peer2', { focus: false }) || app.createWindow('peer2');
+    assert.equal(later.offline.hidden, false, 'a window opened meanwhile says so too');
+
+    app.setLive(true);
+    assert.equal(app.offlineNote.hidden, true);
+    assert.equal(win.offline.hidden, true);
+    assert.deepEqual(heard, [
+      'Chat lost its connection. Trying again; new messages will still arrive.',
+      'Chat is connected again.',
+    ]);
+  } finally {
+    window.close();
+  }
+});
+
+// ----- Phase 3: reply, react, edit, @mention ------------------------------------------------
+
+function threeMessages(now) {
+  return {
+    messages: [
+      directMessage(1, 'peer', 'Can you share the trial report? It is needed for the review on Friday, with the annexes and the cost sheet', { sentUtc: new Date(now - 60000).toISOString() }),
+      directMessage(2, 'me', 'Sending it now', { sentUtc: new Date(now - 30000).toISOString() }),
+      directMessage(3, 'peer', 'Thanks', { sentUtc: new Date(now).toISOString(), replyToMessageId: 2 }),
+    ],
+    hasMore: false,
+  };
+}
+
+test('Reply quotes the message above the box, goes with the send, and the reply shows the quote', async () => {
+  const now = Date.now();
+  const posts = [];
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return threeMessages(now);
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      posts.push(body);
+      return { status: 200, body: directMessage(4, 'me', body.body, { clientMessageId: body.clientMessageId, replyToMessageId: body.replyToMessageId }) };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+
+    // A loaded reply quotes its original by name and opening words.
+    const quote = win.log.querySelector('[data-message-id="3"] .pm-chat__quote');
+    assert.equal(quote.textContent, 'Me MyselfSending it now'.replace('Me Myself', app.nameOf('me', win)));
+
+    win.log.querySelector('[data-focus-key="reply:1"]').click();
+    assert.equal(win.composing.hidden, false);
+    assert.match(win.composing.textContent, /Replying to Peer Person: Can you share the trial report\? It is needed/);
+    assert.match(win.composing.textContent, /…$/, 'a long message is shortened');
+
+    // Esc cancels the reply without minimising the window.
+    win.input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    assert.equal(win.composing.hidden, true);
+    assert.equal(win.minimized, false);
+
+    win.log.querySelector('[data-focus-key="reply:1"]').click();
+    win.input.value = 'Attached';
+    app.send(win);
+    await tick(); await tick();
+    assert.equal(posts[0].replyToMessageId, 1);
+    assert.equal(win.composing.hidden, true);
+    assert.match(win.log.querySelector('[data-message-id="4"] .pm-chat__quote').textContent, /Peer PersonCan you share/);
+  } finally {
+    window.close();
+  }
+});
+
+test('a reply to a message not loaded says "An earlier message" and opens the conversation there', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) {
+      asked.push(url);
+      return { messages: [directMessage(50, 'peer', 'As I said', { replyToMessageId: 7 })], hasMore: true };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const win = window.PMChat.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const quote = win.log.querySelector('.pm-chat__quote');
+    assert.equal(quote.textContent, 'An earlier message');
+    quote.click();
+    await tick();
+    assert.ok(asked.some((url) => url.includes('before=8')), 'opened around message 7');
+  } finally {
+    window.close();
+  }
+});
+
+test('reactions: the toolbar adds one at once, chips show who, and live changes from others arrive', async () => {
+  const reacts = [];
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Submit the DPR by Friday')], hasMore: false };
+    if (url.endsWith('/react')) {
+      const body = JSON.parse(init.body);
+      reacts.push(body);
+      return { status: 200, body: { messageId: 1, groupId: null, reactions: body.on ? [{ kind: body.kind, userIds: ['me'] }] : [] } };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const noted = win.log.querySelector('[data-focus-key="react-noted:1"]');
+    assert.equal(noted.textContent, '✓ Noted');
+    assert.equal(noted.getAttribute('aria-pressed'), 'false');
+    noted.click();
+    // Shown before the server answers.
+    let chip = win.log.querySelector('.pm-chat__reaction');
+    assert.ok(chip);
+    assert.equal(chip.getAttribute('aria-pressed'), 'true');
+    await tick(); await tick();
+    assert.deepEqual(reacts, [{ kind: 'noted', on: true }]);
+
+    app.onReactions({ messageId: 1, groupId: null, reactions: [{ kind: 'noted', userIds: ['me', 'peer'] }, { kind: 'like', userIds: ['peer'] }] });
+    const chips = Array.from(win.log.querySelectorAll('.pm-chat__reaction'));
+    assert.deepEqual(chips.map((c) => c.textContent), ['✓ Noted2', '👍1']);
+    assert.equal(chips[0].title, 'Noted: you and Peer Person');
+    assert.equal(chips[1].getAttribute('aria-pressed'), 'false');
+
+    // The chip takes it back.
+    chips[0].click();
+    await tick(); await tick();
+    assert.deepEqual(reacts[1], { kind: 'noted', on: false });
+  } finally {
+    window.close();
+  }
+});
+
+test('a refused reaction is taken back off the screen and the reason shown', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'hello')], hasMore: false };
+    if (url.endsWith('/react')) return { status: 400, body: { detail: 'This message cannot be reacted to.' } };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const heard = said(app);
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    win.log.querySelector('[data-focus-key="react-like:1"]').click();
+    await tick(); await tick(); await tick();
+    assert.equal(win.log.querySelector('.pm-chat__reaction'), null);
+    assert.ok(heard.includes('This message cannot be reacted to.'));
+  } finally {
+    window.close();
+  }
+});
+
+test('Edit puts my message in the box, Send saves it as edited, and Esc gives back what I was typing', async () => {
+  const now = Date.now();
+  const edits = [];
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return threeMessages(now);
+    if (url.endsWith('/edit')) {
+      const body = JSON.parse(init.body);
+      edits.push(body);
+      return { status: 200, body: directMessage(2, 'me', body.body, { clientMessageId: 'c-2', sentUtc: new Date(now - 30000).toISOString(), editedUtc: new Date().toISOString() }) };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.editMs = 15 * 60000;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    assert.equal(win.log.querySelector('[data-focus-key="edit:1"]'), null, 'not on their messages');
+
+    win.input.value = 'half-typed reply';
+    win.log.querySelector('[data-focus-key="edit:2"]').click();
+    assert.equal(win.input.value, 'Sending it now');
+    assert.match(win.composing.textContent, /Editing your message/);
+    win.input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    assert.equal(win.input.value, 'half-typed reply', 'the draft comes back');
+
+    // ↑ in an empty box edits my last message.
+    win.input.value = '';
+    win.input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+    assert.equal(win.input.value, 'Sending it now');
+    win.input.value = 'Sent it, see the attachment';
+    app.send(win);
+    await tick(); await tick(); await tick();
+    assert.deepEqual(edits, [{ body: 'Sent it, see the attachment', mentionedUserIds: [] }]);
+    const mine = win.log.querySelector('[data-message-id="2"]');
+    assert.match(mine.querySelector('.pm-chat__bubble').textContent, /Sent it, see the attachment/);
+    assert.ok(mine.querySelector('.pm-chat__edited'));
+    assert.equal(win.input.value, '', 'the box is free again');
+
+    // Someone else's edit arrives live; one this window never loaded is ignored.
+    app.onEdited(directMessage(1, 'peer', 'Can you share the report?', { editedUtc: new Date().toISOString() }));
+    assert.match(win.log.querySelector('[data-message-id="1"] .pm-chat__bubble').textContent, /^Can you share the report\?$/);
+    app.onEdited(directMessage(99, 'peer', 'never loaded', { editedUtc: new Date().toISOString() }));
+    assert.equal(win.log.querySelector('[data-message-id="99"]'), null);
+  } finally {
+    window.close();
+  }
+});
+
+test('the message toolbar is one tab stop; ← → move inside it', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'hello')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const win = window.PMChat.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const bar = win.log.querySelector('.pm-chat__actions');
+    assert.equal(bar.getAttribute('role'), 'toolbar');
+    const buttons = Array.from(bar.querySelectorAll('button'));
+    assert.deepEqual(buttons.map((b) => b.tabIndex), [0, -1, -1, -1, -1]);
+    assert.deepEqual(buttons.map((b) => b.textContent || b.getAttribute('aria-label')), ['✓ Noted', '👍', '👀', 'Reply to the message from Peer Person', 'Copy message from Peer Person']);
+    buttons[0].focus();
+    bar.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    assert.equal(window.document.activeElement, buttons[1]);
+    bar.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    bar.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    assert.equal(window.document.activeElement, buttons[4], 'wraps around');
+  } finally {
+    window.close();
+  }
+});
+
+test('@ in a group suggests members; choosing one mentions them, and the mention is marked', async () => {
+  const posts = [];
+  const window = groupApp(async (url, init) => {
+    if (url.endsWith('/groups/5/messages') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      posts.push(body);
+      return { status: 200, body: groupMessage(70, 'me', body.body, { clientMessageId: body.clientMessageId, mentionedUserIds: body.mentionedUserIds }) };
+    }
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('g:5', { focus: true });
+    await tick(); await tick();
+    const type = (text) => {
+      win.input.value = text;
+      win.input.setSelectionRange(text.length, text.length);
+      win.input.dispatchEvent(new window.Event('input'));
+    };
+    const key = (k) => {
+      const event = new window.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true });
+      win.input.dispatchEvent(event);
+      return event;
+    };
+
+    type('Please check @');
+    assert.equal(win.mentionList.hidden, false);
+    assert.equal(win.input.getAttribute('aria-expanded'), 'true');
+    assert.deepEqual(Array.from(win.mentionList.children, (o) => o.textContent), ['Peer Person', 'Third Officer'], 'never myself');
+    key('ArrowDown');
+    assert.equal(win.input.getAttribute('aria-activedescendant'), win.mentionList.children[1].id);
+    type('Please check @th');
+    assert.deepEqual(Array.from(win.mentionList.children, (o) => o.textContent), ['Third Officer']);
+    const enter = key('Enter');
+    assert.equal(enter.defaultPrevented, true);
+    assert.equal(posts.length, 0, 'Enter chose the person; it did not send');
+    assert.equal(win.input.value, 'Please check @Third Officer ');
+    assert.equal(win.mentionList.hidden, true);
+
+    win.input.value += 'and @Nobody';
+    app.send(win);
+    await tick(); await tick();
+    assert.deepEqual(posts[0].mentionedUserIds, ['third']);
+    const mention = win.log.querySelector('[data-message-id="70"] .pm-chat__mention');
+    assert.equal(mention.textContent, '@Third Officer');
+  } finally {
+    window.close();
+  }
+});
+
+test('a mention of me gets through a muted group, and stands out', async () => {
+  const window = groupApp();
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    let alerts = 0;
+    app.alert = () => { alerts += 1; };
+    app.setMuted(5, true);
+    app.onMessage(groupMessage(80, 'peer', 'Nothing for you'));
+    assert.equal(alerts, 0);
+    app.onMessage(groupMessage(81, 'peer', '@Me Myself your view?', { mentionedUserIds: ['me'] }));
+    assert.equal(alerts, 1);
+    const win = app.windows.get('g:5');
+    assert.ok(win, 'it popped open');
+    await tick(); await tick();
+    const item = win.log.querySelector('[data-message-id="81"]');
+    assert.ok(item.classList.contains('is-mentioned'));
+    assert.ok(item.querySelector('.pm-chat__mention.is-me'));
+  } finally {
+    window.close();
+  }
+});
+
+// ----- Phase 5: #records ---------------------------------------------------------------------
+
+test('# offers PRISM records from the search suggestions; choosing one inserts its link', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.startsWith('/Common/Search')) {
+      asked.push(url);
+      return [
+        { title: 'Simulator Upgrade', url: '/Projects/Overview/12', category: 'Project', identifier: 'PRJ-12' },
+        { title: 'Somewhere else', url: 'https://other.example/x', category: 'Link' },
+      ];
+    }
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  }, '', 'data-record-search-url="/Common/Search?handler=Suggestions"');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    const type = (text) => {
+      win.input.value = text;
+      win.input.setSelectionRange(text.length, text.length);
+      win.input.dispatchEvent(new window.Event('input'));
+    };
+    type('See #s');
+    await wait(300);
+    assert.equal(asked.length, 0, 'one character after # asks nothing');
+
+    type('See #simu');
+    type('See #simul');
+    await wait(300);
+    assert.deepEqual(asked, ['/Common/Search?handler=Suggestions&q=simul'], 'one request after typing pauses');
+    const options = Array.from(win.mentionList.children);
+    assert.equal(options.length, 1, 'a link off this server is left out');
+    assert.equal(options[0].textContent, 'Simulator UpgradeProject · PRJ-12');
+    assert.equal(win.mentionList.getAttribute('aria-label'), 'PRISM records to link');
+
+    win.input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    assert.equal(win.input.value, 'See https://prism.local/Projects/Overview/12 ');
+    assert.equal(win.mentionList.hidden, true);
+
+    // The same words again come from what the page remembers.
+    type('Also #simul');
+    await tick();
+    assert.equal(asked.length, 1);
+    assert.equal(win.mentionList.hidden, false);
+  } finally {
+    window.close();
+  }
+});
+
+// ----- Phase 5: Remind me (a reminder in the person's own Notebook) ---------------------------
+
+test('Remind me saves a Notebook reminder with the message and a link back to it', async () => {
+  const saved = [];
+  let refuse = false;
+  const window = bootApp(async (url, init) => {
+    if (url === '/api/notebook/items' && init.method === 'POST') {
+      saved.push({ body: JSON.parse(init.body), token: init.headers['X-CSRF-TOKEN'] });
+      if (refuse) return { status: 400, body: { code: 'notebook_validation_failed', message: 'The reminder time is invalid.', errors: { reminderAtUtc: ['Choose a future reminder date and time.'] } } };
+      return { status: 201, body: { id: 'x' } };
+    }
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Board meeting moved to 1500, Room 3')], hasMore: false };
+    return { status: 204, body: null };
+  }, '', 'data-notebook-api="/api/notebook/items" data-notebook-url="/Notebook" data-messages-url="/Chat"');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const heard = said(app);
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+
+    const remind = win.log.querySelector('[data-focus-key="remind:1"]');
+    assert.equal(remind.getAttribute('aria-label'), 'Remind me about this message (saved in your Notebook)');
+    remind.click();
+    const panel = win.node.querySelector('.pm-chat__reminder');
+    assert.ok(panel);
+    assert.equal(window.document.activeElement.dataset.reminderPreset, 'hour', 'focus on the first choice');
+
+    const before = Date.now();
+    panel.querySelector('[data-reminder-preset="tomorrow"]').click();
+    await tick(); await tick();
+    const sent = saved[0].body;
+    assert.equal(saved[0].token, 't');
+    assert.equal(sent.type, 'Reminder');
+    assert.equal(sent.title, 'Chat: Peer Person: Board meeting moved to 1500, Room 3');
+    assert.match(sent.body, /^Board meeting moved to 1500, Room 3\n\nOpen the message in chat: https:\/\/prism\.local\/Chat\?with=peer&at=1$/);
+    const when = new Date(sent.reminderAtUtc);
+    assert.ok(when.getTime() > before);
+    assert.equal(when.getHours(), 9);
+    assert.match(sent.clientRequestId, /^[0-9a-f-]{36}$/);
+    assert.match(panel.textContent, /Reminder saved in your Notebook for/);
+    assert.equal(panel.querySelector('a').getAttribute('href'), '/Notebook');
+    assert.ok(heard.some((t) => t.startsWith('Reminder saved in your Notebook')));
+
+    // A refusal from the Notebook is shown as it gives it; Esc closes and goes back to the message.
+    refuse = true;
+    win.log.querySelector('[data-focus-key="remind:1"]').click();
+    const again = win.node.querySelector('.pm-chat__reminder');
+    again.querySelector('[data-reminder-preset="hour"]').click();
+    await tick(); await tick();
+    assert.match(again.querySelector('.pm-chat__reminder-note').textContent, /Choose a future reminder date and time\./);
+    again.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    assert.equal(win.node.querySelector('.pm-chat__reminder'), null);
+    assert.equal(win.minimized, false);
+    assert.equal(window.document.activeElement.dataset.focusKey, 'remind:1');
+  } finally {
+    window.close();
+  }
+});
+
+test('reminder presets fit the time of day', () => {
+  const { PMChatParts } = load();
+  const morning = PMChatParts.reminderPresets(new Date(2026, 10, 18, 10, 0)); // a Wednesday
+  assert.deepEqual(Array.from(morning, (p) => p.key), ['hour', 'evening', 'tomorrow', 'monday']);
+  assert.equal(morning[3].when.getDay(), 1);
+  const late = PMChatParts.reminderPresets(new Date(2026, 10, 22, 18, 0)); // a Sunday evening
+  assert.deepEqual(Array.from(late, (p) => p.key), ['hour', 'tomorrow'], 'no "this evening" late in the day; tomorrow is Monday');
+});
+
+// ----- Phase 5: do not disturb ------------------------------------------------------------------
+
+test('do not disturb quiets arriving messages (mentions too), tells others, and ends on time', async () => {
+  const statuses = [];
+  const window = groupApp(async (url, init) => {
+    if (url.endsWith('/status') && init.method === 'POST') {
+      const message = JSON.parse(init.body).message;
+      statuses.push(message);
+      return { userId: 'me', message: message || null };
+    }
+    if (url.endsWith('/status')) return { userId: 'me', message: null };
+    return undefined;
+  });
+  const runTimers = manualTimers(window);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const heard = said(app);
+    let alerts = 0;
+    app.alert = () => { alerts += 1; };
+
+    app.dndToggle.click();
+    assert.equal(app.dndMenu.hidden, false);
+    assert.equal(app.dndToggle.getAttribute('aria-expanded'), 'true');
+    app.dndMenu.querySelector('[data-dnd="hour"]').click();
+    await tick(); await tick();
+    assert.equal(app.isQuiet(), true);
+    assert.equal(app.dndNote.hidden, false);
+    assert.match(app.dndNote.textContent, /Do not disturb until \d\d:\d\d/);
+    assert.match(statuses[0], /^Do not disturb until \d\d:\d\d$/, 'others see it as the status');
+    assert.match(app.launchers[0].getAttribute('aria-label'), /do not disturb is on/);
+    assert.ok(JSON.parse(window.localStorage.getItem('prism.chat.dnd.me')).until > Date.now());
+
+    app.onMessage(directMessage(90, 'peer', 'quick question'));
+    app.onMessage(groupMessage(91, 'peer', '@Me Myself urgent', { mentionedUserIds: ['me'] }));
+    assert.equal(alerts, 0);
+    assert.equal(app.windows.size, 0, 'nothing pops open');
+    assert.equal(app.contacts.get('peer').unreadCount, 1, 'still counted');
+    assert.ok(heard.some((t) => t.startsWith('Do not disturb until')));
+
+    // Its time comes: off again, and the status it set is cleared.
+    const stored = JSON.parse(window.localStorage.getItem('prism.chat.dnd.me'));
+    stored.until = Date.now() - 1;
+    window.localStorage.setItem('prism.chat.dnd.me', JSON.stringify(stored));
+    app.dnd.until = stored.until;
+    runTimers();
+    await tick(); await tick();
+    assert.equal(app.isQuiet(), false);
+    assert.equal(app.dndNote.hidden, true);
+    assert.equal(statuses[1], '');
+    assert.equal(window.localStorage.getItem('prism.chat.dnd.me'), null);
+    app.onMessage(directMessage(92, 'peer', 'back?'));
+    assert.equal(alerts, 1);
+  } finally {
+    window.close();
+  }
+});
+
+test('do not disturb keeps a status message the person set themselves, and follows other tabs', async () => {
+  const statuses = [];
+  const window = groupApp(async (url, init) => {
+    if (url.endsWith('/status') && init.method === 'POST') {
+      statuses.push(JSON.parse(init.body).message);
+      return { userId: 'me', message: JSON.parse(init.body).message || null };
+    }
+    if (url.endsWith('/status')) return { userId: 'me', message: 'On tour till Friday' };
+    return undefined;
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    await app.setDnd(new Date(Date.now() + 3600000));
+    await app.setDnd(null);
+    assert.deepEqual(statuses, [], 'their own status is left alone');
+
+    // Another tab turns it on.
+    window.localStorage.setItem('prism.chat.dnd.me', JSON.stringify({ until: Date.now() + 600000, status: null }));
+    window.dispatchEvent(new window.StorageEvent('storage', { key: 'prism.chat.dnd.me' }));
+    assert.equal(app.isQuiet(), true);
+    assert.equal(app.dndNote.hidden, false);
+  } finally {
+    window.close();
+  }
+});
+
+test('closing a window in the middle of an edit cancels the edit and keeps the earlier draft', async () => {
+  const now = Date.now();
+  const posts = [];
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return threeMessages(now);
+    if (init.method === 'POST' && (url.endsWith('/messages') || url.endsWith('/edit'))) {
+      posts.push(url);
+      const body = JSON.parse(init.body);
+      return { status: 200, body: directMessage(5, 'me', body.body, { clientMessageId: body.clientMessageId }) };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.editMs = 15 * 60000;
+    let win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    win.input.value = 'half-typed reply';
+    win.log.querySelector('[data-focus-key="edit:2"]').click();
+    win.input.value = 'Sending it now (corrected)';
+    app.closeWindow('peer');
+
+    win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    assert.equal(win.input.value, 'half-typed reply', 'the draft from before the edit, not the edited text');
+    assert.equal(win.editing, null);
+    app.send(win);
+    await tick(); await tick();
+    assert.deepEqual(posts, ['/api/chat/messages'], 'a new message, never a duplicate of the edited one');
+  } finally {
+    window.close();
+  }
+});
+
+test('after a reconnect, edits and reactions missed on older loaded messages are brought in', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/messages/current')) {
+      asked.push(url);
+      return [
+        directMessage(1, 'peer', 'Corrected while you were away', { editedUtc: new Date().toISOString(), reactions: [{ kind: 'noted', userIds: ['peer'] }] }),
+        directMessage(2, 'me', 'unchanged'),
+      ];
+    }
+    if (url.includes('/with/peer/messages')) {
+      return { messages: [directMessage(1, 'peer', 'Original text'), directMessage(2, 'me', 'unchanged')], hasMore: false };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    await app.syncUnsent(true);
+    assert.equal(asked.length, 1);
+    assert.match(asked[0], /\/messages\/current\?ids=1,2$/);
+    const first = win.log.querySelector('[data-message-id="1"]');
+    assert.match(first.querySelector('.pm-chat__bubble').textContent, /Corrected while you were away/);
+    assert.ok(first.querySelector('.pm-chat__edited'));
+    assert.ok(first.querySelector('.pm-chat__reaction'));
+    assert.equal(app.offlineSince, null, 'the catch-up is done');
+  } finally {
+    window.close();
+  }
+});
+
+test('an older server without the state check is fine: the reconnect catch-up still completes', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/messages/current')) return { status: 404, body: null };
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'hi')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    await app.syncUnsent(true);
+    assert.ok(!app.unsentRetry, 'no retry is scheduled');
+    assert.equal(app.offlineSince, null);
+    assert.equal(app.stopped, false, 'a plain 404 does not switch chat off');
+  } finally {
+    window.close();
+  }
+});
+
+test('do not disturb that ended while PRISM was closed clears its status on the next visit', async () => {
+  for (const [serverStatus, expectCleared] of [['Do not disturb until 17:00', true], ['Back at 18:00', false]]) {
+    const posted = [];
+    const window = bootApp(async (url, init) => {
+      if (url.endsWith('/status') && init.method === 'POST') {
+        posted.push(JSON.parse(init.body).message);
+        return { userId: 'me', message: null };
+      }
+      if (url.endsWith('/status')) return { userId: 'me', message: serverStatus };
+      if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+      return { status: 204, body: null };
+    });
+    // Set on an earlier visit, ended an hour ago.
+    window.localStorage.setItem('prism.chat.dnd.me', JSON.stringify({ until: Date.now() - 3600000, status: 'Do not disturb until 17:00' }));
+    try {
+      await tick(); await tick(); await tick();
+      const app = window.PMChat;
+      assert.equal(app.isQuiet(), false);
+      assert.deepEqual(posted, expectCleared ? [''] : [], expectCleared ? 'its own status is cleared' : 'a status changed since is kept');
+      assert.equal(window.localStorage.getItem('prism.chat.dnd.me'), null);
+    } finally {
+      window.close();
+    }
+  }
+});
+
+test('moving a conversation to the Messages page mid-edit hands over the earlier draft, not the edit', async () => {
+  const now = Date.now();
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0, lastMessageUtc: '2026-10-22T09:00:00Z' }];
+    if (url.includes('/with/peer/messages')) return threeMessages(now);
+    return { status: 204, body: null };
+  }, '<section data-chat-page></section>');
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.editMs = 15 * 60000;
+    const docked = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    docked.input.value = 'started in the dock';
+    docked.log.querySelector('[data-focus-key="edit:2"]').click();
+    docked.input.value = 'Sending it now (corrected)';
+    app.page.open('peer', 0);
+    const view = app.page.current;
+    assert.equal(view.embedded, true);
+    assert.equal(view.input.value, 'started in the dock');
+    assert.equal(view.editing, null);
+  } finally {
+    window.close();
+  }
+});
+
+test('a live edit that arrives while the reconnect refresh is on its way is not undone by it', async () => {
+  let answer;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/messages/current')) {
+      await new Promise((resolve) => { answer = resolve; });
+      // Read before the live edit below: older than what the page then shows.
+      return [directMessage(1, 'peer', 'Draft one', { reactions: [] }), directMessage(2, 'me', 'unchanged', { reactions: [{ kind: 'like', userIds: ['peer'] }] })];
+    }
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Draft one'), directMessage(2, 'me', 'unchanged')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    const catchUp = app.syncUnsent(true);
+    await tick(); await tick();
+    app.onEdited(directMessage(1, 'peer', 'Draft two', { editedUtc: new Date().toISOString() }));
+    answer();
+    await catchUp;
+    assert.match(win.log.querySelector('[data-message-id="1"] .pm-chat__bubble').textContent, /Draft two/, 'the live edit stays');
+    assert.ok(win.log.querySelector('[data-message-id="2"] .pm-chat__reaction'), 'messages not changed live are still brought up to date');
+  } finally {
+    window.close();
+  }
+});
+
+test('a live reaction during the reconnect refresh keeps the reaction and still brings in a missed edit', async () => {
+  let answer;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/messages/current')) {
+      await new Promise((resolve) => { answer = resolve; });
+      // Edited while the page was offline; read before the reaction below.
+      return [directMessage(1, 'peer', 'Corrected while offline', { editedUtc: new Date().toISOString(), reactions: [] })];
+    }
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Original')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    const catchUp = app.syncUnsent(true);
+    await tick(); await tick();
+    app.onReactions({ messageId: 1, groupId: null, reactions: [{ kind: 'like', userIds: ['peer'] }] });
+    answer();
+    await catchUp;
+    const item = win.log.querySelector('[data-message-id="1"]');
+    assert.match(item.querySelector('.pm-chat__bubble').textContent, /Corrected while offline/, 'the missed edit is brought in');
+    assert.ok(item.querySelector('.pm-chat__edited'));
+    assert.equal(item.querySelector('.pm-chat__reaction').textContent, '👍1', 'the live reaction stays');
+  } finally {
+    window.close();
+  }
+});
+
+test('a live edit during a history load is not undone by its older answer, even for a message not yet shown', async () => {
+  let releaseLatest;
+  let releaseEarlier;
+  let loads = 0;
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) {
+      loads += 1;
+      if (url.includes('before=5')) {
+        await new Promise((resolve) => { releaseEarlier = resolve; });
+        return { messages: [directMessage(4, 'peer', 'Older, before the edit')], hasMore: false };
+      }
+      if (loads === 1) return { messages: [directMessage(5, 'peer', 'Five'), directMessage(6, 'peer', 'Six')], hasMore: true };
+      await new Promise((resolve) => { releaseLatest = resolve; });
+      return { messages: [directMessage(5, 'peer', 'Five'), directMessage(6, 'peer', 'Six, before the edit')], hasMore: true };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+
+    // A refresh of the latest page is on its way when message 6 is edited live.
+    const refresh = app.loadLatest(win);
+    await tick();
+    app.onEdited(directMessage(6, 'peer', 'Six, edited', { editedUtc: new Date().toISOString() }));
+    releaseLatest();
+    await refresh;
+    assert.match(win.log.querySelector('[data-message-id="6"] .pm-chat__bubble').textContent, /Six, edited/);
+
+    // An earlier page is on its way when message 4, not yet shown, is edited live.
+    const earlier = app.loadEarlier(win);
+    await tick();
+    app.onEdited(directMessage(4, 'peer', 'Four, edited', { editedUtc: new Date().toISOString() }));
+    releaseEarlier();
+    await earlier;
+    assert.match(win.log.querySelector('[data-message-id="4"] .pm-chat__bubble').textContent, /Four, edited/);
+  } finally {
+    window.close();
+  }
+});
+
+test('a reaction from someone else arriving before my own reaction is answered is not undone by that answer', async () => {
+  let answer;
+  let mode = 'ok';
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Submit the DPR by Friday')], hasMore: false };
+    if (url.endsWith('/react')) {
+      await new Promise((resolve) => { answer = resolve; });
+      if (mode === 'fail') return { status: 500, body: { detail: 'Try again.' } };
+      // Read when only my reaction was stored.
+      return { status: 200, body: { messageId: 1, groupId: null, reactions: [{ kind: 'noted', userIds: ['me'] }] } };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const chips = () => Array.from(win.log.querySelectorAll('.pm-chat__reaction'), (c) => c.textContent);
+
+    win.log.querySelector('[data-focus-key="react-noted:1"]').click();
+    await tick();
+    // The server pushes the list after the peer's reaction too, before my answer arrives.
+    app.onReactions({ messageId: 1, groupId: null, reactions: [{ kind: 'noted', userIds: ['me'] }, { kind: 'like', userIds: ['peer'] }] });
+    answer();
+    await tick(); await tick(); await tick();
+    assert.deepEqual(chips(), ['✓ Noted1', '👍1'], "the peer's reaction stays");
+
+    // A failed request does not wipe a list the server has sent since.
+    mode = 'fail';
+    win.log.querySelector('[data-focus-key="react-looking:1"]').click();
+    await tick();
+    app.onReactions({ messageId: 1, groupId: null, reactions: [{ kind: 'noted', userIds: ['me', 'peer'] }, { kind: 'like', userIds: ['peer'] }] });
+    answer();
+    await tick(); await tick(); await tick();
+    assert.deepEqual(chips(), ['✓ Noted2', '👍1']);
+  } finally {
+    window.close();
+  }
+});
+
+test("someone's reaction arriving while my edit is saved is kept, and the saved text is shown", async () => {
+  const now = Date.now();
+  let answer;
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return threeMessages(now);
+    if (url.endsWith('/edit')) {
+      const body = JSON.parse(init.body);
+      await new Promise((resolve) => { answer = resolve; });
+      // Read before the peer reacted: no reactions yet.
+      return { status: 200, body: directMessage(2, 'me', body.body, { clientMessageId: 'c-2', sentUtc: new Date(now - 30000).toISOString(), editedUtc: new Date().toISOString(), reactions: [] }) };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.editMs = 15 * 60000;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    win.log.querySelector('[data-focus-key="edit:2"]').click();
+    win.input.value = 'Sending it now, with the annex';
+    app.send(win);
+    await tick();
+    app.onReactions({ messageId: 2, groupId: null, reactions: [{ kind: 'noted', userIds: ['peer'] }] });
+    answer();
+    await tick(); await tick(); await tick();
+    const item = win.log.querySelector('[data-message-id="2"]');
+    assert.match(item.querySelector('.pm-chat__bubble').textContent, /with the annex/, 'the saved text');
+    assert.equal(item.querySelector('.pm-chat__reaction').textContent, '✓ Noted1', "the peer's reaction stays");
+    assert.equal(app.messageEventAt.get(2).reactions.list.length, 1, 'the stale empty list is not recorded as newest');
+  } finally {
+    window.close();
+  }
+});
+
+test('a reaction to my new message arriving before my own send is answered is not undone by that answer', async () => {
+  let answer;
+  let sent;
+  const window = bootApp(async (url, init) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [], hasMore: false };
+    if (url.endsWith('/messages') && init.method === 'POST') {
+      const body = JSON.parse(init.body);
+      sent = directMessage(7, 'me', body.body, { clientMessageId: body.clientMessageId });
+      await new Promise((resolve) => { answer = resolve; });
+      return { status: 200, body: sent };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    win.input.value = 'Board meeting moved to 1500';
+    app.send(win);
+    await tick();
+    // The push arrives first, then the peer's reaction, then my answer.
+    app.onMessage(sent);
+    app.onReactions({ messageId: 7, groupId: null, reactions: [{ kind: 'noted', userIds: ['peer'] }] });
+    answer();
+    await tick(); await tick(); await tick();
+    const item = win.log.querySelector('[data-message-id="7"]');
+    assert.equal(item.querySelector('.pm-chat__reaction').textContent, '✓ Noted1');
+    assert.equal(win.log.querySelectorAll('.pm-chat__msg').length, 1, 'one message, no duplicate');
+  } finally {
+    window.close();
+  }
+});
+
+test('a repeated push of a message (a retried send) does not undo reactions already shown', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: true });
+    await tick(); await tick();
+    const pushed = directMessage(8, 'peer', 'Sending the annex');
+    app.onMessage(pushed);
+    app.onReactions({ messageId: 8, groupId: null, reactions: [{ kind: 'like', userIds: ['me'] }] });
+    app.onMessage({ ...pushed }); // the same message again, read before the reaction
+    assert.equal(win.log.querySelector('[data-message-id="8"] .pm-chat__reaction').textContent, '👍1');
+  } finally {
+    window.close();
+  }
+});
+
+test('an edit missed offline and brought in by the refresh is not reverted by a later repeated push', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/messages/current')) {
+      return [directMessage(1, 'peer', 'Second edit, missed offline', { editedUtc: new Date().toISOString(), reactions: [{ kind: 'like', userIds: ['peer'] }] })];
+    }
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Original')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    // A first edit and a reaction arrive live, then the connection drops and more happens.
+    app.onEdited(directMessage(1, 'peer', 'First edit', { editedUtc: new Date().toISOString(), reactions: [] }));
+    app.markOffline();
+    await app.syncUnsent(true);
+    const bubble = () => win.log.querySelector('[data-message-id="1"] .pm-chat__bubble').textContent;
+    assert.match(bubble(), /Second edit, missed offline/);
+
+    // The same message pushed again (a retried send) with the current server text.
+    app.onMessage(directMessage(1, 'peer', 'Second edit, missed offline', { reactions: [{ kind: 'like', userIds: ['peer'] }] }));
+    assert.match(bubble(), /Second edit, missed offline/, 'not the earlier live edit');
+    assert.equal(win.log.querySelector('[data-message-id="1"] .pm-chat__reaction').textContent, '👍1');
+  } finally {
+    window.close();
+  }
+});
+
+test('a pushed edit changes the text only: a reaction pushed just before it stays', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Meeting at 1500')], hasMore: false };
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.onReactions({ messageId: 1, groupId: null, reactions: [{ kind: 'noted', userIds: ['me'] }] });
+    // The edit was saved, and its reactions read, before that reaction.
+    app.onEdited(directMessage(1, 'peer', 'Meeting at 1600', { editedUtc: new Date().toISOString(), reactions: [] }));
+    const item = win.log.querySelector('[data-message-id="1"]');
+    assert.match(item.querySelector('.pm-chat__bubble').textContent, /Meeting at 1600/);
+    assert.ok(item.querySelector('.pm-chat__edited'));
+    assert.equal(item.querySelector('.pm-chat__reaction').textContent, '✓ Noted1');
+    assert.equal(app.messageEventAt.get(1).reactions.list.length, 1, 'the stale list is not remembered');
+  } finally {
+    window.close();
+  }
+});
+
+test('while polling without a live connection, edits to older loaded messages are brought in', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/unsent?since=')) return { ids: [], hasMore: false };
+    if (url.includes('/messages/current')) {
+      asked.push(url);
+      return [directMessage(1, 'peer', 'Corrected during the outage', { editedUtc: new Date().toISOString() })];
+    }
+    if (url.includes('/with/peer/messages')) {
+      return { messages: [directMessage(1, 'peer', 'Original text'), directMessage(2, 'me', 'unchanged')], hasMore: false };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    await app.syncUnsent(); // what each poll does
+    assert.equal(asked.length, 1);
+    assert.match(win.log.querySelector('[data-message-id="1"] .pm-chat__bubble').textContent, /Corrected during the outage/);
+    assert.ok(app.offlineSince, 'still offline: the final catch-up runs on reconnect');
   } finally {
     window.close();
   }

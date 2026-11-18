@@ -41,6 +41,7 @@ The following documents contain useful subsystem detail. Some predate the curren
 | [Search: sixth review fixes](ux/search-review-6-fixes.md) | The sixth review of 16 Nov 2026 (UX 8, code 8): basic-engine source names and the minus, related-chip counts, officer renames, suggestion order, and the 5-PR fix plan. |
 | [Configuration reference](configuration-reference.md) | Configuration keys and environment overrides. |
 | [Chat](chat.md) | Person-to-person chat: buddy list, docked windows, API/hub contract, privacy position and configuration. |
+| [Chat Files area (proposal)](chat-files-design.md) | Proposed Drive-style view over chat attachments: screens, endpoints, access rule, owner decisions. Not built. |
 | [Projects module](projects-module.md) | Project workspace behavior and lifecycle narrative. |
 | [Projects repository](ux/projects-register.md) | The `/Projects` list today (tabs, live search, filters, view choice) and the approved register redesign with its PR plan. |
 | [Administration](ux/admin-module.md) | The Administration redesign: findable pages and settings (search, every-page index), a task-based Home and sidebar, plain wording, and the PR plan. |

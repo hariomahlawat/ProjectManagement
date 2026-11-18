@@ -10,10 +10,11 @@
   const {
     ChatApp, TYPING_SEND_MS, GROUP_LIMIT, ARM_MS, windowCapacity, groupIdOf,
     peopleCount, typingLine, el, focusKeyIn, refocus, setText,
-    iconButton, avatar, groupAvatar, setPresence, statusText,
+    icon, iconButton, avatar, groupAvatar, setPresence, statusText,
   } = global.PMChatParts;
 
   let panelSerial = 0; // ids for aria-controls
+  const COUNTER_FROM = 300; // characters left when the counter appears
 
   // ----- chat windows --------------------------------------------------------------
 
@@ -72,17 +73,30 @@
     win.node.remove();
     if (win.typingTimer) global.clearTimeout(win.typingTimer);
     if (win.unsendTimer) global.clearTimeout(win.unsendTimer);
-    // Failed messages are kept with the draft; ones still sending are stored on the server and
-    // come back with the history. Files waiting to be sent (chat/files.js) are kept too: they
-    // are uploaded already and count against the sender's allowance.
-    const unsent = win.messages.filter((m) => !m.id && m.failed);
+    // Messages not yet stored are kept with the draft: failed ones for Retry, and ones still
+    // sending, whose result reaches the same object (a failure then shows with Retry when the
+    // conversation is reopened; a success merges away with the stored copy on reload). Files
+    // waiting to be sent (chat/files.js) are kept too: they are uploaded already and count
+    // against the sender's allowance.
+    const unsent = win.messages.filter((m) => !m.id);
     const pending = win.pending || [];
-    if (win.input.value.trim() || unsent.length || pending.length) {
-      this.kept.set(peerId, { draft: win.input.value, unsent, pending });
+    const draft = this.draftOf(win);
+    if (draft.trim() || unsent.length || pending.length) {
+      this.kept.set(peerId, { draft, unsent, pending });
     }
     this.windows.delete(peerId);
     this.order = this.order.filter((id) => id !== peerId);
     this.saveState();
+  };
+
+  /**
+   * What a window's message box holds as a draft for a new message. During an edit the box holds
+   * the edited text, which must never come back as a new message (Send would post a duplicate):
+   * the edit is dropped and what was typed before it is the draft. Used when a window closes and
+   * when its conversation moves to the Messages page.
+   */
+  ChatApp.prototype.draftOf = function (win) {
+    return win.editing ? ((win.draftBeforeEdit && win.draftBeforeEdit.text) || '') : win.input.value;
   };
 
   /** The person is in the middle of something in this window: typing, sending, or in it. */
@@ -140,6 +154,15 @@
     const people = iconButton('people', 'People in this group');
     head.append(toggle);
     if (groupId) head.append(people);
+    if (!embedded && this.messagesUrl) {
+      // The same conversation on the Messages page: a larger view, search and My files.
+      const full = el('a', 'pm-chat__icon-btn pm-chat__full');
+      full.href = `${this.messagesUrl}?with=${encodeURIComponent(peerId)}`;
+      full.title = 'Open in Messages';
+      full.setAttribute('aria-label', 'Open this conversation on the Messages page');
+      full.append(icon('arrows-angle-expand'));
+      head.append(full);
+    }
     if (!embedded) head.append(minimize, close);
 
     const body = el('div', 'pm-chat__window-body');
@@ -155,6 +178,13 @@
     newer.type = 'button';
     newer.hidden = true;
     body.append(earlier, log, newer);
+    // Shown while the person reads back and new messages arrive below (renderJump).
+    const jump = el('button', 'pm-chat__jump');
+    jump.type = 'button';
+    jump.hidden = true;
+    // Shown while the live connection is down (renderConnection).
+    const offline = el('p', 'pm-chat__offline');
+    offline.hidden = true;
 
     const notice = el('p', 'pm-chat__notice');
     notice.hidden = true;
@@ -168,7 +198,7 @@
     people.setAttribute('aria-controls', panel.id);
     people.setAttribute('aria-expanded', 'false');
     const stage = el('div', 'pm-chat__window-stage');
-    stage.append(body, panel);
+    stage.append(body, jump, panel);
 
     const form = el('form', 'pm-chat__compose');
     const input = el('textarea', 'form-control form-control-sm pm-chat__input');
@@ -178,9 +208,12 @@
     input.setAttribute('aria-label', `Message ${group ? group.title : (contact ? contact.displayName : '')}`.trim());
     const send = iconButton('send', 'Send', 'pm-chat__send');
     send.type = 'submit';
-    form.append(input, send);
+    // How much room is left, near the limit only (renderCounter).
+    const counter = el('span', 'pm-chat__counter');
+    counter.hidden = true;
+    form.append(input, counter, send);
 
-    node.append(head, stage, notice, form);
+    node.append(head, offline, stage, notice, form);
 
     const win = {
       peerId, node, face, name, status, body, log, earlier, newer, notice, input, form, minimize, embedded, toggle,
@@ -188,8 +221,10 @@
       loading: false, minimized: false, attention: false, lastReadId: 0, readSending: 0, peerReadId: 0,
       typingUntil: 0, typingTimer: null, typingSentAt: 0, highlightId: 0, heldLive: [], loadSeq: 0, unsendTimer: null,
       groupId, members: [], removed: false, typers: new Map(), panel, panelOpen: false, people,
+      jump, offline, counter, newBelow: 0, unreadFromId: 0,
     };
     this.buildAttach(win); // chat/files.js: attach button and waiting files, when attachments are on
+    this.bindComposer(win); // chat/actions.js: replies, edits and (groups) @mentions
 
     people.addEventListener('click', () => {
       if (win.panelOpen) {
@@ -242,6 +277,8 @@
       this.maybeMarkRead(win);
     });
     input.addEventListener('keydown', (event) => {
+      // chat/actions.js first: the @mention list, and Esc to stop replying or editing.
+      if (this.composerKey(win, event)) return;
       if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
         event.preventDefault();
         form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));
@@ -250,12 +287,27 @@
     input.addEventListener('input', () => {
       input.style.height = 'auto';
       input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+      this.renderCounter(win);
       this.sendTyping(win);
+    });
+    body.addEventListener('scroll', () => {
+      if (win.newBelow && this.atBottom(win)) {
+        win.newBelow = 0;
+        this.renderJump(win);
+      }
+    }, { passive: true });
+    jump.addEventListener('click', () => {
+      win.newBelow = 0;
+      this.renderJump(win);
+      body.scrollTop = body.scrollHeight;
+      if (!win.form.hidden) input.focus({ preventScroll: true });
     });
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       this.send(win);
     });
+
+    if (this.offlineShown) this.renderConnection(win);
 
     // Reopened after it was closed (or closed to make room): what the person had typed, and any
     // message that failed to send, are back where they left them.
@@ -263,6 +315,7 @@
     if (kept) {
       this.kept.delete(peerId);
       input.value = kept.draft;
+      this.renderCounter(win);
       win.messages = kept.unsent;
       if (kept.pending && kept.pending.length && win.pendingList) {
         win.pending = kept.pending;
@@ -284,6 +337,7 @@
 
   ChatApp.prototype.renderWindowState = function (win) {
     win.node.classList.toggle('is-minimized', win.minimized);
+    if (!win.embedded) win.toggle.setAttribute('aria-expanded', String(!win.minimized));
     win.node.classList.toggle('needs-attention', win.attention);
     win.minimize.hidden = win.minimized;
     if (win.groupId) {
@@ -555,4 +609,37 @@
       }
     }
   };
+  /** Whether the log is scrolled to (or near) its newest message. */
+  ChatApp.prototype.atBottom = function (win) {
+    const body = win.body;
+    return body.scrollHeight - body.scrollTop - body.clientHeight < 48;
+  };
+
+  /** "↓ 3 new messages" while the person reads back through the conversation. */
+  ChatApp.prototype.renderJump = function (win) {
+    const count = win.newBelow || 0;
+    win.jump.hidden = count === 0;
+    if (!count) return;
+    win.jump.replaceChildren(icon('arrow-down'), document.createTextNode(` ${count === 1 ? '1 new message' : `${count} new messages`}`));
+    win.jump.setAttribute('aria-label', `${count === 1 ? '1 new message' : `${count} new messages`} below. Go to the latest.`);
+  };
+
+  /** Characters left, shown once fewer than COUNTER_FROM remain (the box stops at the limit). */
+  ChatApp.prototype.renderCounter = function (win) {
+    const left = this.maxLength - win.input.value.length;
+    const show = left < COUNTER_FROM;
+    win.counter.hidden = !show;
+    if (!show) return;
+    win.counter.textContent = String(left);
+    win.counter.title = `${left} characters left`;
+    win.counter.classList.toggle('is-low', left < 50);
+    // Said once at the limit; a number changing on every keystroke would be noise.
+    if (left === 0 && !win.counterAnnounced) {
+      win.counterAnnounced = true;
+      this.announce(`The message is at the ${this.maxLength}-character limit.`);
+    } else if (left > 0) {
+      win.counterAnnounced = false;
+    }
+  };
+
 })(window);

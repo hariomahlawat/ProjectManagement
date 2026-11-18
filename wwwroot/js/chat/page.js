@@ -174,12 +174,13 @@
       // handing over its draft and unsent messages.
       const docked = app.windows.get(peerId);
       const carry = docked && !docked.embedded
-        ? { draft: docked.input.value, unsent: docked.messages.filter((m) => !m.id) }
+        ? { draft: app.draftOf(docked), unsent: docked.messages.filter((m) => !m.id) }
         : null;
       if (docked) app.closeWindow(peerId);
       win = app.createWindow(peerId, { embedded: true });
       if (carry) {
         win.input.value = carry.draft;
+        app.renderCounter(win);
         win.messages = carry.unsent;
       }
       app.windows.set(peerId, win);
