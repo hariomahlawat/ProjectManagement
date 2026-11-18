@@ -23,8 +23,13 @@
     ['venue', 'Venue'],
     ['dress', 'Dress'],
     ['rsvp', 'R.S.V.P.'],
-    ['note', 'Note at the bottom']
+    ['note', 'Note at the bottom'],
+    // The Bilingual design's Hindi wording (PR 6).
+    ['occasionHi', 'Occasion in Hindi'],
+    ['hostHi', 'Host in Hindi', true],
+    ['inviteHi', 'Invitation line in Hindi']
   ]);
+  const COLOUR_NAMES = Object.freeze(['Top', 'Middle', 'Bottom']);
   const OCCASIONS = Object.freeze(['Raising Day Dinner', 'Regimental Dinner', 'Change of Command', 'Farewell', 'Barakhana', 'At Home', 'Ladies’ Night', 'Passing Out Parade']);
   const DRESSES = Object.freeze(['Dress: Lounge Suit', 'Dress: Mess Dress', 'Dress: Smart Casuals', 'Dress: Ceremonial']);
   const DEFAULT_CARD_SIZE = 'a5p';
@@ -89,7 +94,26 @@
         const collage = designs.applyDesign(core.newCollage(size), key, designs.DEFAULT_DETAILS, { measure: surface.measureText, newId: (() => { let n = 0; return () => `t${++n}`; })() });
         const drawn = await renderer.drawCollage(collage, new Map(), canvas.width, canvas.height);
         if (round !== thumbs) return;
-        canvas.getContext('2d').drawImage(drawn.canvas, 0, 0);
+        const context = canvas.getContext('2d');
+        context.drawImage(drawn.canvas, 0, 0);
+        // A design's photo frame shows where the user's photo goes; Save leaves empty frames out.
+        const scale = canvas.width / core.PAGE_WIDTH;
+        for (const slot of collage.items.filter((item) => item.kind === 'slot')) {
+          const w = slot.width * scale;
+          const h = core.itemHeight(slot) * scale;
+          const x = slot.x * scale - w / 2;
+          const y = slot.y * scale - h / 2;
+          const shade = context.createLinearGradient(0, y, 0, y + h);
+          shade.addColorStop(0, '#c9d6e3');
+          shade.addColorStop(1, '#8796a8');
+          context.fillStyle = shade;
+          context.fillRect(x, y, w, h);
+          context.fillStyle = '#ffffff';
+          context.font = `600 ${Math.max(10, Math.round(w / 12))}px Mulish, sans-serif`;
+          context.textAlign = 'center';
+          context.textBaseline = 'middle';
+          context.fillText('Your photo', x + w / 2, y + h / 2);
+        }
       } catch {
         // A picture that cannot be drawn leaves the card's name; the design still opens.
       }
@@ -204,7 +228,11 @@
 
     function renderPanel() {
       const details = designs.detailsOf(state.collage);
-      form.innerHTML = FORM.map(([field, label, long]) => {
+      // Only the fields this design shows words for (the Hindi ones only for Bilingual).
+      const design = state.collage?.card?.design;
+      const shown = new Set(designs.fieldsOf(design, state.collage.size));
+      const colours = designs.usesColours(design) ? colourFields(details.colours) : '';
+      form.innerHTML = colours + FORM.filter(([field]) => shown.has(field)).map(([field, label, long]) => {
         const id = `clgCard-${field}`;
         const value = escapeHtml(details[field] || '');
         const input = long
@@ -221,6 +249,32 @@
      * The design buttons, made once and then only marked: a held edit written when a button is
      * pressed redraws the panel, and a button replaced under the pointer would lose its click.
      */
+    /** The unit's three colours, for a design with a band in them (Regimental). */
+    function colourFields(text) {
+      const colours = designs.colourList(text);
+      return `<div class="clg-section clg-card-colours"><p class="clg-section__title">Unit colours</p><div class="clg-card-colours__row">${colours.map((colour, i) => `<label class="clg-card-colour"><input type="color" value="${colour}" data-card-colour="${i + 1}" aria-label="${COLOUR_NAMES[i]} colour of the band"><span>${COLOUR_NAMES[i]}</span></label>`).join('')}</div></div>`;
+    }
+
+    /**
+     * One of the unit's colours: every part that follows it (the band, the host's words, the
+     * rules) takes it, and the card keeps it for the next design. Held like a slider.
+     */
+    function setColour(index, value) {
+      if (!/^#[0-9a-f]{6}$/i.test(value)) return;
+      const colours = designs.colourList(designs.detailsOf(state.collage).colours);
+      colours[index - 1] = value.toLowerCase();
+      doc.edit((draft) => {
+        draft.card = { ...draft.card, design: draft.card?.design || 'regimental', details: { ...designs.detailsOf(draft), colours: colours.join(' ') } };
+        for (const item of draft.items) {
+          for (const [prop, which] of Object.entries(item.tint || {})) {
+            if (which === index) item[prop] = value.toLowerCase();
+          }
+        }
+      }, 'none');
+      surface.syncPage();
+      history.holdEdit();
+    }
+
     function renderStrip() {
       if (!strip) return;
       const current = state.collage?.card?.design;
@@ -305,9 +359,10 @@
       const field = event.target.dataset.cardField;
       if (field) typedIn = event.target;
       if (field) setField(field, event.target.value);
+      if (event.target.dataset.cardColour) setColour(Number(event.target.dataset.cardColour), event.target.value);
     });
     form?.addEventListener('change', (event) => {
-      if (event.target.dataset.cardField) history.flushNudge();
+      if (event.target.dataset.cardField || event.target.dataset.cardColour) history.flushNudge();
     });
     form?.addEventListener('click', (event) => {
       const pick = event.target.closest('[data-card-pick]');

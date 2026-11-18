@@ -164,3 +164,45 @@ test('a field the design never placed keeps its words when the page is turned', 
   assert.ok(read.card.placed.includes('at'));
   assert.deepEqual(core.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: {}, placed: ['at', '<x>', 7] } }, []).card.placed, ['at']);
 });
+
+test('a draft keeps the Hindi wording and the unit colours of a card', () => {
+  const card = designs.applyDesign(core.newCollage('a5p'), 'bilingual', { occasionHi: 'विदाई समारोह', colours: '#1f5b3a #c9a54a #111111' }, { measure, newId });
+  const read = core.readDraftModel(JSON.parse(JSON.stringify(card)), []);
+  assert.equal(read.card.details.occasionHi, 'विदाई समारोह');
+  assert.equal(read.card.details.colours, '#1f5b3a #c9a54a #111111');
+});
+
+test('a photo in the Ceremonial frame moves to the next design\'s frame, or stays as the user\'s own', () => {
+  const ceremonial = designs.applyDesign(core.newCollage('a5p'), 'ceremonial', {}, { measure, newId });
+  const slot = ceremonial.items.find((item) => item.role === 'photo');
+  assert.equal(slot.kind, 'slot');
+  // The user fills the frame.
+  const filled = { ...ceremonial, items: ceremonial.items.map((item) => (item === slot ? { ...core.fillSlot(item, 'p1'), crop: { zoom: 1.5, x: 0.4, y: 0.5 } } : item)) };
+  // Classic has no frame: the photo stays, now the user's own.
+  const classic = designs.applyDesign(filled, 'classic', designs.detailsOf(filled), { measure, newId });
+  const kept = classic.items.find((item) => item.kind === 'photo');
+  assert.equal(kept.photo, 'p1');
+  assert.equal(kept.role, undefined);
+  // Ceremonial again from a filled frame: the photo goes into the new frame, crop and all.
+  const again = designs.applyDesign(filled, 'ceremonial', designs.detailsOf(filled), { measure, newId });
+  const moved = again.items.find((item) => item.role === 'photo');
+  assert.deepEqual([moved.kind, moved.photo, moved.crop.zoom], ['photo', 'p1', 1.5]);
+  assert.equal(again.items.filter((item) => item.kind === 'photo').length, 1);
+  // A frame emptied stays the design's.
+  assert.equal(core.emptyFrame(moved).role, 'photo');
+});
+
+test('the Regimental band takes the unit\'s colours, and the parts that follow them say which', () => {
+  const card = designs.applyDesign(core.newCollage('a5p'), 'regimental', { colours: '#1f5b3a #C9A54A bad' }, { measure, newId });
+  const band = (role) => card.items.find((item) => item.role === role);
+  assert.equal(band('band1').fill, '#1f5b3a');
+  assert.equal(band('band2').fill, '#c9a54a');
+  assert.equal(band('band3').fill, '#1d2c55', 'a bad colour falls back');
+  assert.deepEqual(band('band1').tint, { fill: 1 });
+  const host = card.items.find((item) => item.field === 'host');
+  assert.deepEqual([host.color, host.tint], ['#1f5b3a', { color: 1 }]);
+  assert.equal(designs.usesColours('regimental'), true);
+  assert.equal(designs.usesColours('classic'), false);
+  assert.ok(designs.fieldsOf('bilingual').includes('occasionHi'));
+  assert.ok(!designs.fieldsOf('classic').includes('occasionHi'));
+});

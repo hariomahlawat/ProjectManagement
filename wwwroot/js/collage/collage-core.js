@@ -377,6 +377,8 @@
   function emptyFrame(item) {
     const slot = { id: item.id, kind: 'slot', x: item.x, y: item.y, width: item.width, aspect: item.aspect, angle: item.angle || 0, opacity: 100, radius: item.radius || 0 };
     if (Number.isInteger(item.cell)) slot.cell = item.cell;
+    // A card design's photo frame stays the design's (docs/ux/invitations-posters.md, PR 6).
+    if (typeof item.role === 'string') slot.role = item.role;
     return slot;
   }
 
