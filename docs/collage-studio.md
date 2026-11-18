@@ -194,6 +194,18 @@ silently: the editor asks first. If the browser closes the drafts database, the 
 it again. The browser keeps at most 30 drafts; the 31st asks to
 delete the oldest.
 
+A draft keeps the parts it does not understand
+([ux/invitations-posters.md](ux/invitations-posters.md), PR 2). An item of a kind this page
+does not draw (a newer PRISM's shape, for example), a sticker it does not know, and any field of
+the collage it does not use (a card's back page) are held aside by `core.readDraftModel` in
+`kept`. They're never drawn, and `core.draftModel` writes them back into the draft in their
+places, unchanged, whenever the draft is saved here. A text item's font that this page doesn't
+ship keeps its name and draws in the clean font. On opening, the toast says how many parts were
+"made by a newer PRISM" and are kept but not shown. A photo named only inside a kept part stays in
+the draft. The model version stays 1 for such additions; a draft whose version is higher is still
+not opened. Only names a PRISM could write are kept (short, lower case, no markup), up to 500
+items and about 2 million characters.
+
 ### Keys
 
 | Key | Does |

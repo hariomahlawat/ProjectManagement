@@ -131,8 +131,10 @@
   const hasPhotos = () => collage.items.some((item) => item.kind === 'photo');
   // Work worth keeping: a photo, some text or a sticker (an empty frame alone is not).
   // A photo used only as the blurred background still makes a picture worth saving.
+  // Parts a newer PRISM made, kept but not shown, are work too (docs/ux/invitations-posters.md, PR 2).
   const hasContent = () => collage.items.some((item) => ['photo', 'text', 'sticker'].includes(item.kind))
-    || (collage.background?.type === 'photo' && photos.has(collage.background.photo));
+    || (collage.background?.type === 'photo' && photos.has(collage.background.photo))
+    || core.keptCount(collage) > 0;
   const firstSlot = () => collage.items.find((item) => item.kind === 'slot' && !item.locked) || null;
   const isFrame = (item) => item && (item.kind === 'photo' || item.kind === 'slot');
 

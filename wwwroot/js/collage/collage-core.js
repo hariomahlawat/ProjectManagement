@@ -1399,14 +1399,39 @@
 
   /**
    * A draft's collage read back from storage, checked item by item so a damaged or hand-edited
-   * draft can never break the editor: unknown kinds, items without a usable size or place, and
-   * photos the draft does not hold are dropped. An older version is brought up to this one.
+   * draft can never break the editor: items without a usable size or place, and photos the draft
+   * does not hold, are dropped. An older version is brought up to this one.
+   *
+   * Parts this PRISM does not understand are **kept, not dropped** (docs/ux/invitations-posters.md,
+   * PR 2): an item of a kind it does not draw, a sticker it does not know, and any field of the
+   * collage it does not use. They are held aside in `kept`, never drawn, and written back into
+   * the draft unchanged by draftModel(), so a newer PRISM's card keeps its shapes and back page
+   * when an older page saves the draft. The model version stays 1 for these additions; a draft
+   * made by a newer *version* is still not opened.
+   *
    * Returns null when nothing usable is left or the draft was made by a newer PRISM.
    */
   // Ids the editor makes: a letter, then letters and digits.
   const ITEM_ID = /^[A-Za-z][A-Za-z0-9_-]{0,40}$/;
   // How much wider than tall (or the reverse) an item may be: well past any real frame or text.
   const ASPECT_LIMITS = Object.freeze([0.02, 50]);
+  // The kinds this PRISM draws, and the collage fields it uses.
+  const DRAWN_KINDS = Object.freeze(['photo', 'slot', 'text', 'sticker']);
+  const MODEL_FIELDS = Object.freeze(['version', 'size', 'background', 'layout', 'items', 'kept']);
+  // A kind, sticker or font name a newer PRISM may write: short, lower case, no markup.
+  const PART_NAME = /^[a-z][a-z0-9:_-]{0,40}$/;
+  // How much a draft may hold that is not understood: well past any real card.
+  const KEPT_LIMITS = Object.freeze({ items: 500, chars: 2_000_000 });
+
+  /** A plain copy of stored data (numbers, strings, arrays and objects only), or undefined. */
+  function plainCopy(value) {
+    try {
+      const json = JSON.stringify(value);
+      return json === undefined ? undefined : { json, value: JSON.parse(json) };
+    } catch {
+      return undefined;
+    }
+  }
 
   function readDraftModel(raw, photoIds) {
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.items)) return null;
@@ -1415,11 +1440,28 @@
     const known = new Set(photoIds || []);
     const items = [];
     const seen = new Set();
-    for (const item of raw.items) {
+    const keptItems = [];
+    let keptChars = 0;
+    // Holds a part aside, with its place among the draft's items, while the limits allow.
+    const keep = (item, at) => {
+      if (keptItems.length >= KEPT_LIMITS.items) return;
+      const copy = plainCopy(item);
+      if (!copy || keptChars + copy.json.length > KEPT_LIMITS.chars) return;
+      keptChars += copy.json.length;
+      keptItems.push({ at, item: copy.value });
+      seen.add(item.id);
+    };
+    for (const [at, item] of raw.items.entries()) {
       // An id is written into the page, so only the plain ids the editor makes are kept, once.
       if (!item || typeof item !== 'object' || typeof item.id !== 'string' || !ITEM_ID.test(item.id) || seen.has(item.id)) continue;
-      if (!['photo', 'slot', 'text', 'sticker'].includes(item.kind)) continue;
-      if (item.kind === 'sticker' && !STICKER_ID.test(item.sticker)) continue;
+      if (!DRAWN_KINDS.includes(item.kind)) {
+        if (typeof item.kind === 'string' && PART_NAME.test(item.kind)) keep(item, at);
+        continue;
+      }
+      if (item.kind === 'sticker' && !STICKER_ID.test(item.sticker)) {
+        if (typeof item.sticker === 'string' && PART_NAME.test(item.sticker)) keep(item, at);
+        continue;
+      }
       if (!isNumber(item.x) || !isNumber(item.y) || !isNumber(item.width) || !isNumber(item.aspect) || !(item.aspect > 0)) continue;
       if (item.kind === 'photo' && !known.has(item.photo)) continue;
       seen.add(item.id);
@@ -1448,7 +1490,8 @@
       if (item.kind === 'text') {
         const range = (value, [low, high], fallback) => Math.min(high, Math.max(low, isNumber(value) ? value : fallback));
         clean.text = typeof item.text === 'string' ? item.text.slice(0, TEXT_LIMITS.maxLength) : '';
-        clean.font = FONTS[item.font] ? item.font : 'clean';
+        // A font a newer PRISM ships is kept by name; fontOf() draws it in the clean font here.
+        clean.font = FONTS[item.font] || (typeof item.font === 'string' && PART_NAME.test(item.font)) ? item.font : 'clean';
         clean.size = range(item.size, TEXT_LIMITS.size, 40);
         clean.spacing = range(item.spacing, TEXT_LIMITS.spacing, 0);
         clean.outline = range(item.outline, TEXT_LIMITS.outline, 0);
@@ -1489,7 +1532,39 @@
       }
       : null;
     const background = readBackground(raw.background, photoIds);
-    return { version: MODEL_VERSION, size: SIZES[raw.size] ? raw.size : DEFAULT_SIZE, background, layout, items };
+    const model = { version: MODEL_VERSION, size: SIZES[raw.size] ? raw.size : DEFAULT_SIZE, background, layout, items };
+    // Fields of the collage this PRISM does not use (a newer PRISM's back page, for example).
+    const fields = {};
+    for (const [key, value] of Object.entries(raw)) {
+      if (MODEL_FIELDS.includes(key) || !PART_NAME.test(key)) continue;
+      const copy = plainCopy(value);
+      if (!copy || keptChars + copy.json.length > KEPT_LIMITS.chars) continue;
+      keptChars += copy.json.length;
+      fields[key] = copy.value;
+    }
+    if (keptItems.length || Object.keys(fields).length) model.kept = { items: keptItems, fields };
+    return model;
+  }
+
+  /** How many parts of a collage were made by a newer PRISM and are kept but not shown. */
+  function keptCount(collage) {
+    const kept = collage?.kept;
+    return kept ? (kept.items || []).length + Object.keys(kept.fields || {}).length : 0;
+  }
+
+  /**
+   * The collage as the draft stores it: parts held aside by readDraftModel() go back in their
+   * places among the items, and the fields back on the collage, exactly as they were read.
+   * A collage with nothing kept is returned as it is.
+   */
+  function draftModel(collage) {
+    if (!collage || !collage.kept) return collage;
+    const { kept, ...model } = collage;
+    const items = [...model.items];
+    for (const { at, item } of [...(kept.items || [])].sort((a, b) => a.at - b.at)) {
+      items.splice(Math.min(at, items.length), 0, item);
+    }
+    return { ...(kept.fields || {}), ...model, items };
   }
 
   /**
@@ -1561,11 +1636,22 @@
     };
   }
 
-  /** The ids of the photos a collage shows: in its items, and as its background. */
+  /**
+   * The ids of the photos a collage uses: in its items, as its background, and in any part kept
+   * for a newer PRISM (a `photo` named anywhere inside it), so the draft never lets those go.
+   */
   function photosInUse(collage) {
     const used = new Set();
     for (const item of collage?.items || []) if (item.kind === 'photo' && item.photo) used.add(item.photo);
     if (collage?.background?.type === 'photo' && collage.background.photo) used.add(collage.background.photo);
+    const walk = (value, depth) => {
+      if (!value || typeof value !== 'object' || depth > 12) return;
+      for (const [key, inner] of Object.entries(value)) {
+        if (key === 'photo' && typeof inner === 'string') used.add(inner);
+        else walk(inner, depth + 1);
+      }
+    };
+    walk(collage?.kept, 0);
     return used;
   }
 
@@ -1672,6 +1758,8 @@
     readDraftModel,
     sortDrafts,
     photosInUse,
+    keptCount,
+    draftModel,
     sliderText,
     CAPTION_STRIP,
     hasCaptionStrip,
