@@ -259,6 +259,12 @@ comes with tests that fail without it.
   logos, the Card panel's order, posters, phones and wording (part 2); long words, long
   programmes, small custom cards, and tests for drafts, guest PDFs, every design's save, posters
   without a logo and folded sides (part 3). Then a fresh review, until it scores 8.5 or above.
+- **Cold review 2, 19 Nov:** UX 7, code 7.5, tests 7.5. Fixed in parts 6 to 9: backs turned on
+  turned print sheets; words at 6 pt or more on every size; "at the" on Navy and Modern; logos
+  (wide logos by area, the roundel, locks, the picked logo removed); long guest names on two
+  lines; guest lists from spreadsheets (rank and name joined, headings, pasted columns); A4 edge
+  to edge; posters asking first; Save's print rules as tested pure functions and a test reading
+  sheet PDFs back; damaged drafts read safely. Then review 3.
 
 | PR | What | Done when |
 | --- | --- | --- |
