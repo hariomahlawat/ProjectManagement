@@ -44,7 +44,8 @@
     ['kicker', 'Small heading above'],
     ['title', 'Heading'],
     ['subtitle', 'Line under the heading'],
-    ['lines', 'Details, one line each', true]
+    ['lines', 'Details, one line each', true],
+    ['contact', 'Contact line at the bottom']
   ]);
   const COLOUR_NAMES = Object.freeze(['Top', 'Middle', 'Bottom']);
   const OCCASIONS = Object.freeze(['Raising Day Dinner', 'Regimental Dinner', 'Change of Command', 'Farewell', 'Barakhana', 'At Home', 'Ladies’ Night', 'Passing Out Parade']);
@@ -519,6 +520,8 @@
       selection.select(null);
       // Only the logo and the parts it moves change: the user's fonts, colours and places stay.
       doc.edit((draft) => designs.setLogoMode(draft, mode, options()), 'none');
+      // The back's small logo follows, in the same Undo step: none with No logo.
+      followLogoOnBack();
       history.commit();
       surface.syncAll();
       renderPanel();
