@@ -155,6 +155,38 @@ Cards and posters are drafts like any collage. They're listed under Drafts with 
 - **M6, pocket cards**: a **Pocket cards** row on the start screen opens each pocket design on
   its own pocket size.
 
+#### Cold review 9 fixes (19 Nov)
+
+- **Layout** (`collage-designs.js`, Card details' typing in `collage-card.js`):
+  - **H1, long programme lines**: words typed in Card details keep the edge their design sets
+    them by (`fieldAnchor`); the back's left-aligned programme block, which the design centres,
+    keeps its middle, so a long line no longer runs past the border. Before, every left-aligned
+    item kept its left edge as it grew.
+  - **M2, folded cards**: the inside left reads as a whole invitation: host, invitation line,
+    guest's line, "at the" and the occasion. The front cover shows a **Front cover title**
+    (`coverTitle`), which shows the occasion while it is empty and follows it until other words
+    are typed (`FALLBACKS`); deleted on the page it stays deleted. Each field is still on one
+    side only. Both inside pages are centred on the panel and use larger words.
+  - **M3, posters**: Notice fills the page (larger words, a second rule, a maroon bar at the
+    foot) and only its heading's group moves up with No logo; Talk or seminar's pale panel is
+    the lower quarter. A poster with no logo chosen yet ("Decide later") is saved as with No
+    logo (`closeLogoPlace`, called by Save), so no blank strip prints; the poster keeps its place.
+  - **M4, Ceremonial landscape with No photo**: two columns, the details on the right by the
+    maroon accent, so the right of the page is not blank.
+  - **M5, long guest names**: one line at 80% of the design's size or more, else two lines at
+    80% (no smaller than 70%), in the design's face and then serif italic and clean
+    (`fitGuest`); a name that fits none takes the clean face down to 60%. Save's card for each
+    guest and Card details use the same rule (`guestStyle`) while the field keeps its design look.
+  - **L1, a word alone**: design words wrap a little narrower when that stops a paragraph of
+    four or more words ending with one word alone (`balancedWidth`).
+  - **L3, a two-line occasion**: "at the" moves up, the occasion down (or a little smaller on a
+    short page) and the accent rule below, so neither touches it (`clearOccasion`).
+  - **L5**: the logo place's "Add logo" is larger; a poster asking which logo shows Your own
+    logo… once; a landscape back has the small logo under its note, as a portrait back does;
+    the guide now says Regimental sets its invitation line in italic Elegant, as the code does.
+  - **L6**: a part the design hid itself (a roundel or light tile with no logo needing it) has
+    no dashed outline in the editor, so the Navy logo no longer looks like an empty place.
+
 ### Save
 
 - Save asks first what it's for, as now. For a card, **Printing** adds:

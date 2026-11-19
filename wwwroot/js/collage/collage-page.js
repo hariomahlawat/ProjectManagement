@@ -266,10 +266,11 @@
       });
       if (item.kind === 'slot') {
         node.findOne('.slot-box').setAttrs({ width: item.width, height, cornerRadius: item.radius || 0 });
-        // Large enough to read at the page's usual zoom (cold review 9, L5: the logo place's words were tiny).
-        const size = Math.max(12, Math.min(item.width, height) * 0.2);
-        // A poster's logo place says what goes there (cold review fixes).
-        node.findOne('.slot-label').setAttrs({ width: item.width, height, fontSize: size, lineHeight: 1.25, text: item.role === 'logo' ? '＋\nAdd logo' : '＋\nAdd photo' });
+        // A poster's logo place says what goes there (cold review fixes), on three lines in its
+        // narrow place so the words are large enough to read (cold review 9, L5).
+        const logoPlace = item.role === 'logo';
+        const size = Math.max(12, Math.min(item.width, height) * (logoPlace ? 0.26 : 0.2));
+        node.findOne('.slot-label').setAttrs({ width: item.width, height, fontSize: size, lineHeight: 1.25, text: logoPlace ? '＋\nAdd\nlogo' : '＋\nAdd photo' });
         return;
       }
       // A photo is drawn from the model by drawPhotoNode(); it only needs drawing again.
