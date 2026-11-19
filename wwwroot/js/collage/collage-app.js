@@ -711,6 +711,13 @@
   /** A finished change: one Undo step, kept in the draft, and the page and panels redrawn. */
   function commit() {
     changeMadeAfterAlert();
+    // The light tile behind a crest on a dark design follows the logo moved, resized, hidden or
+    // deleted on the page, in the same Undo step (Codex on #3456). A logo the user placed near the
+    // edge is never made smaller here.
+    if (collage.card) {
+      const fitted = window.PrismCollageDesigns.fitLogoTile(collage.items, { width: core.PAGE_WIDTH, height: core.pageHeight(collage.size), resize: false });
+      if (fitted !== collage.items) edit((draft) => { draft.items = fitted.map((item) => ({ ...item })); }, 'none');
+    }
     // A card's back shows the front's logo, however the front's logo was changed (deleted or
     // replaced on the page too): kept in the same Undo step.
     if (collage.card && collage.back) {
