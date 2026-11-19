@@ -278,3 +278,21 @@ test('a card changed to a folded size gets an inside, and its inside fields can 
   }).toBe('Sudarshan Hall');
   expect(errors).toEqual([]);
 });
+
+// Codex on PR 9c: an ordinary size change (A5 to A6) only resizes; the user's changes stay.
+test('a card changed from A5 to A6 keeps a part the user locked', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a5p');
+  await page.locator('[data-start-design="classic"]').click();
+  // The occasion locked, through Layers and the Lock button.
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator('[data-layer-select]', { hasText: 'Raising Day Dinner' }).click();
+  await page.locator('.clg-props [data-props-tab="settings"]').click();
+  await page.locator('.clg-props [data-action="lock"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'occasion')?.locked).toBe(true);
+  await page.locator('#clgSize').selectOption('a6p');
+  await expect.poll(async () => (await newestDraft(page))?.model?.size).toBe('a6p');
+  const occasion = (await newestDraft(page)).model.items.find((item) => item.field === 'occasion');
+  expect(occasion.locked).toBe(true);
+  expect(errors).toEqual([]);
+});
