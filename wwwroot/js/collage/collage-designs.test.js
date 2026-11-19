@@ -1610,3 +1610,17 @@ test('the logo tile covers a crest turned on the page', () => {
   assert.ok(fitted.width >= 200, `tile ${fitted.width} wide for a crest 200 wide when turned`);
   assert.ok(core.itemHeight(fitted) >= 100);
 });
+
+// Codex on #3460: a locked guest's name is never changed by laying the page out again.
+test('a locked two-line guest name is left as it is when the page is laid out', () => {
+  const opts = { measure, newId };
+  const card = designs.applyDesign(core.newCollage('a5l'), 'classic', designs.startDetails('classic'), opts);
+  const long = 'Lt Gen A. K. Singh, PVSM, AVSM, VSM, ADC and Mrs Sunita Singh, with their daughter';
+  const guest = designs.fieldItem(card, 'guest', { ...designs.detailsOf(card), guest: long }, opts);
+  const locked = { ...guest, locked: true, y: guest.y - 30, minSize: 8 };
+  const withGuest = { ...card, items: [...card.items, locked] };
+  const before = JSON.stringify(locked);
+  designs.fieldItem(withGuest, 'occasion', designs.detailsOf(withGuest), opts);
+  designs.applyDesign(withGuest, 'classic', designs.detailsOf(withGuest), opts);
+  assert.equal(JSON.stringify(locked), before, 'the locked item of the collage is unchanged');
+});

@@ -296,7 +296,11 @@
       // emptied: only the outside's fields count as placed when reading the details.
       const inside = new Set((designs.partsFor(model.card.design, model.size).back || []).map((part) => part.field).filter(Boolean));
       const read = { ...model, card: { ...model.card, placed: (model.card.placed || []).filter((field) => !inside.has(field)) } };
-      return designs.applyDesign(model, model.card.design, designs.detailsOf(read), { measure: surface.measureText, newId: doc.newItemId });
+      // Only the inside is made: the outside the draft kept, moved and restyled parts and its
+      // background included, stays as it is (Codex on #3460).
+      const made = designs.applyDesign(model, model.card.design, designs.detailsOf(read), { measure: surface.measureText, newId: doc.newItemId });
+      if (!made.back) return model;
+      return { ...model, back: made.back, card: { ...model.card, details: made.card.details, placed: [...new Set([...(model.card.placed || []), ...(made.card.placed || [])])] } };
     }
 
     return { drafts, session, setDraftStatus, scheduleDraft, freshThumbnail, renderDrafts, undoDeleteDraft, openDraft };

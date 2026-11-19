@@ -1015,7 +1015,8 @@
    */
   function clearGuest(made, measure) {
     const guest = made.find((item) => item.kind === 'text' && item.field === 'guest');
-    if (!guest) return;
+    // A locked name is the user's (and the very item of the collage): never changed here (Codex on #3460).
+    if (!guest || guest.locked) return;
     const raiseAt = (item) => {
       const layout = core.layoutText(item, measure);
       return { layout, raise: layout.lines > 1 ? (layout.height - core.layoutText({ ...item, text: 'X' }, measure).height) / 2 : 0 };

@@ -645,7 +645,9 @@ test('drafts screen: a folded card read back without its inside gets it back; an
   const measure = (text, font) => [...text].length * Number(/(\d+(?:\.\d+)?)px/.exec(font)[1]) * 0.56;
   let sequence = 0;
   const card = designs.applyDesign(core.newCollage('fold5'), 'classic', { occasion: 'Raising Day' }, { measure, newId: () => `f${++sequence}` });
-  const { back, ...outside } = core.draftModel({ ...card, card: { ...card.card, guests: ['Maj A'] } });
+  // The user moved and recoloured the cover title: opening keeps it (Codex on #3460).
+  const moved = { ...card, items: card.items.map((item) => (item.field === 'coverTitle' ? { ...item, x: item.x + 40, color: '#123456' } : item)) };
+  const { back, ...outside } = core.draftModel({ ...moved, card: { ...moved.card, guests: ['Maj A'] } });
   assert.ok(back, 'a folded card has its inside');
   const withoutInside = { id: 'a', title: 'Folded', size: 'fold5', saved: Date.now(), autoTitle: false, model: outside };
   const unreadable = { ...withoutInside, id: 'b', model: { ...outside, back: { items: 'from a newer PRISM' } } };
@@ -660,6 +662,10 @@ test('drafts screen: a folded card read back without its inside gets it back; an
   assert.ok(designs.fieldsOnCard(opened).includes('guest'), 'with the guest line');
   assert.deepEqual(opened.card.guests, ['Maj A']);
   assert.equal(opened.card.details.occasion, 'Raising Day');
+  const cover = opened.items.find((item) => item.field === 'coverTitle');
+  const coverBefore = outside.items.find((item) => item.field === 'coverTitle');
+  assert.equal(cover.x, coverBefore.x, 'the moved cover title stays where it was');
+  assert.equal(cover.color, '#123456');
   // A back this PRISM could not read stays as it was in the draft: no inside is made over it.
   const second = env.screen.openDraft('b');
   session.release('b');

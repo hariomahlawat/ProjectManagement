@@ -99,3 +99,18 @@ test('L5 and L6: one Your own logo button while a poster asks; no empty outline 
   expect(outlines).toBe(0);
   expect(errors).toEqual([]);
 });
+
+// Codex on #3460: the occasion cleared and typed again: the cover, still following, follows it.
+test('the cover title follows the occasion through clearing it and typing a new one', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('fold6');
+  await page.locator('[data-start-design="classic"]').click();
+  await type(page, 'occasion', 'Barakhana');
+  await expect.poll(async () => (await sides(page)).front.find((item) => item.field === 'coverTitle')?.text).toBe('Barakhana');
+  await type(page, 'occasion', '');
+  await expect.poll(async () => (await sides(page)).front.some((item) => item.field === 'coverTitle')).toBe(false);
+  await type(page, 'occasion', 'At Home');
+  await expect.poll(async () => (await sides(page)).front.find((item) => item.field === 'coverTitle')?.text).toBe('At Home');
+  await expect(page.locator('[data-card-field="coverTitle"]')).toHaveValue('');
+  expect(errors).toEqual([]);
+});

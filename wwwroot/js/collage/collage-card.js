@@ -1124,7 +1124,10 @@
       const from = designs.FALLBACKS[field];
       const shown = from && !text.trim() ? String(details[from] || '') : text;
       if (from && !text.trim()) details[field] = '';
-      const followers = Object.keys(designs.FALLBACKS).filter((each) => designs.FALLBACKS[each] === field && details[each] === '' && text.trim());
+      // Followers follow an emptied field too (Codex on #3460): they go with it, and come back
+      // still following when words are typed again, so the cover never keeps an old occasion.
+      const followers = Object.keys(designs.FALLBACKS).filter((each) => designs.FALLBACKS[each] === field && details[each] === '');
+      const followerBack = new Map(followers.filter((each) => text.trim() && !textFor(collage, each)).map((each) => [each, designs.fieldItem(collage, each, { ...details, [each]: '' }, options())]).filter(([, item]) => item));
       const fresh = !textFor(collage, field) && shown.trim() ? designs.fieldItem(collage, field, details, options()) : null;
       // Words still at the width their design gave them take the width the design gives the new
       // words (no word left alone on a line: cold review 9, L1); words the user resized keep theirs.
@@ -1142,7 +1145,9 @@
       let edited = null;
       doc.edit((draft) => {
         // A field filled again is one the design has placed.
-        const placed = [...new Set([...(draft.card?.placed || []), ...(fresh ? [field] : [])])];
+        // A follower taken off with an emptied field is not one the user deleted: not placed.
+        const gone = text.trim() ? [] : followers.filter((each) => !textFor(draft, each)?.locked);
+        const placed = [...new Set([...(draft.card?.placed || []), ...(fresh ? [field] : []), ...followerBack.keys()])].filter((each) => !gone.includes(each));
         draft.card = { ...draft.card, design: draft.card?.design || 'classic', details, placed };
         const list = fieldsHere(draft, field);
         const index = list.findIndex((item) => item.kind === 'text' && item.field === field);
@@ -1165,7 +1170,13 @@
         };
         for (const follower of followers) {
           const item = textFor(draft, follower);
-          if (item && !item.locked) retext(item, text);
+          const here = fieldsHere(draft, follower);
+          if (item && !item.locked && !text.trim()) here.splice(here.indexOf(item), 1);
+          else if (item && !item.locked) retext(item, text);
+          else if (!item && followerBack.has(follower)) {
+            const own = here.findIndex((each) => !each.role);
+            here.splice(own < 0 ? here.length : own, 0, followerBack.get(follower));
+          }
         }
         if (index >= 0 && !shown.trim()) {
           removed = list[index].id;
