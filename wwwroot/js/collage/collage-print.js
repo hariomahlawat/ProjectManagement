@@ -205,7 +205,8 @@
     // A byte-order mark and control characters (a stray NUL from a wrongly read file) are never
     // part of a name; tabs and line breaks stay, as they separate columns and names.
     // Line ends from any system, CR alone included (an old Mac file), are one kind of line break.
-    const source = String(text || '').replace(/^﻿/, '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n?/g, '\n');
+    // Zero-width characters (a stray U+200B from a copied web page) are never a name either.
+    const source = String(text || '').replace(/[​-‍⁠﻿]/g, '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n?/g, '\n');
     const head = source.split(/\r?\n/).find((line) => line.trim()) || '';
     // Columns pasted from a spreadsheet come with tabs between them; a CSV saved with semicolons
     // (as some spreadsheets do) has them when its first row has no comma.
@@ -217,6 +218,8 @@
     const rows = (asCsv || pasted ? csvRows(source, separator) : source.split(/\r?\n/).map((line) => [line]))
       .filter((cells) => cells.some((cell) => cell.trim()));
     let columns = [0];
+    // The columns that hold the name itself: a row with a rank but no name is not a guest.
+    let nameColumns = [0];
     let spouse = -1;
     let honours = -1;
     let headed = false;
@@ -231,6 +234,7 @@
       if (!named.length && after > 0 && after < rows[0].length && !NOT_A_PERSON.test(rows[0][after]) && !SPOUSE_HEADING.test(rows[0][after]) && !HONOURS_HEADING.test(rows[0][after])) named.push(after);
       if (named.length) {
         columns = [...ranks, ...named];
+        nameColumns = named;
         spouse = rows[0].findIndex((cell) => SPOUSE_HEADING.test(cell));
         honours = rows[0].findIndex((cell) => HONOURS_HEADING.test(cell));
         width = rows[0].length;
@@ -246,6 +250,7 @@
     const names = [];
     let over = 0;
     for (const cells of rows) {
+      if (!nameColumns.some((i) => String(cells[i] ?? '').trim())) continue;
       const person = columns.map((i) => cells[i] ?? '').join(' ').replace(/\s+/g, ' ').trim();
       const awards = honours >= 0 ? String(cells[honours] ?? '').replace(/\s+/g, ' ').trim() : '';
       const main = person && awards ? `${person}, ${awards}` : person;

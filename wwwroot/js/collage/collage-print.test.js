@@ -312,3 +312,10 @@ test('cut marks lie beyond each card, never on its edge', () => {
     }
   }
 });
+
+// Tests review 7, L5: a zero-width line, or a rank with no name, is not a guest.
+test('a line of only a zero-width space, or a rank with an empty name, makes no guest card', () => {
+  const nl = String.fromCharCode(10);
+  assert.deepEqual(print.guestNames(['Maj A', String.fromCharCode(0x200b), 'Capt B'].join(nl)), ['Maj A', 'Capt B']);
+  assert.deepEqual(print.guestNames(['Rank,Name', 'Brig,', 'Col,D. Nair'].join(nl), { csv: true }), ['Col D. Nair']);
+});
