@@ -36,7 +36,8 @@
         photos: parts.keptPhotos(),
         thumbnail: ui.views.editor.hidden ? '' : draftThumbnail(),
         // A design opened and not changed yet is not worth a draft (it starts at the first change).
-        hasContent: doc.hasContent() && !untouched()
+        // A design only opened is not kept; one the user has named is (Codex on #3453).
+        hasContent: doc.hasContent() && (!untouched() || Boolean(ui.nameInput?.value?.trim()))
       }),
       onStatus: (text, warning) => setDraftStatus(text, warning),
       onUndo: (deleted) => showDraftUndo(deleted),

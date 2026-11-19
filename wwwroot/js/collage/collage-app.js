@@ -480,7 +480,8 @@
     // Only a page that never had a photo has nothing to lose; a saved draft whose last photo
     // was just removed still has that change to write.
     // A design opened and not changed has nothing to lose either (no draft is kept for it).
-    if (!draft.created && (!hasContent() || openedUntouched)) return;
+    // A card only opened from a design is not worth keeping, unless the user has named it.
+    if (!draft.created && (!hasContent() || (openedUntouched && !nameInput.value.trim()))) return;
     // Saved as a draft already, and not being written now: nothing is lost by leaving.
     if (draft.created && !session.pending && !session.writing && !session.failed) return;
     session.saveNow();

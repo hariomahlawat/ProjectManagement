@@ -990,3 +990,12 @@ test('a poster saved before its logo is chosen saves with nothing reported left 
   await page.keyboard.press('Escape');
   expect(errors).toEqual([]);
 });
+
+// Codex on #3453: a design only opened keeps no draft, but one the user names does.
+test('naming a card opened from a design keeps its draft', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-name]').fill('Signals Raising Day 2026');
+  await expect.poll(async () => (await newestDraft(page))?.name || (await newestDraft(page))?.title || '', { timeout: 10000 }).toContain('Signals Raising Day 2026');
+  expect(errors).toEqual([]);
+});
