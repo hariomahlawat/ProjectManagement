@@ -911,14 +911,15 @@
   /** The back's parts for a design: the programme, a frame for a route sketch or venue photo, a note. */
   function backParts(designKey, portrait) {
     const look = BACK_LOOKS[designKey] || BACK_LOOKS.classic;
-    const backPhoto = (x, y, w, h) => ({ role: 'backphoto', kind: 'slot', x, y, w, h });
+    // No empty photo frame (cold review 6: one saved empty left a hole): the programme has the
+    // page, and a photo the user adds from Photos goes on it as their own; a photo from an older
+    // back's frame stays on the back as theirs.
     return portrait
       ? [
         border('backborder', 0.04, look.accent, 1.2),
-        words('programmeTitle', 0.5, 0.11, 0.7, 40, { font: 'elegant', color: look.title, bold: true }, { lines: 1 }),
-        rule('backrule', 0.5, 0.165, 0.2, look.accent, 2),
-        words('programme', 0.5, 0.33, 0.8, 31, { font: 'clean', color: look.ink, bold: false, align: 'left' }, { lines: 10 }),
-        backPhoto(0.5, 0.63, 0.76, 0.22),
+        words('programmeTitle', 0.5, 0.13, 0.7, 40, { font: 'elegant', color: look.title, bold: true }, { lines: 1 }),
+        rule('backrule', 0.5, 0.19, 0.2, look.accent, 2),
+        words('programme', 0.5, 0.46, 0.8, 32, { font: 'clean', color: look.ink, bold: false, align: 'left' }, { lines: 12 }),
         words('backNote', 0.5, 0.82, 0.8, 20, { font: 'clean', color: look.ink, bold: false, italic: true }, { lines: 2 }),
         { ...logo(0.5, 0.91, 0.045), role: 'backlogo' }
       ]
@@ -926,8 +927,7 @@
         border('backborder', 0.04, look.accent, 1.2),
         words('programmeTitle', 0.5, 0.14, 0.6, 36, { font: 'elegant', color: look.title, bold: true }, { lines: 1 }),
         rule('backrule', 0.5, 0.23, 0.16, look.accent, 2),
-        words('programme', 0.29, 0.54, 0.46, 26, { font: 'clean', color: look.ink, bold: false, align: 'left' }, { lines: 10 }),
-        backPhoto(0.73, 0.54, 0.4, 0.5),
+        words('programme', 0.5, 0.54, 0.7, 27, { font: 'clean', color: look.ink, bold: false, align: 'left' }, { lines: 10 }),
         words('backNote', 0.5, 0.88, 0.84, 18, { font: 'clean', color: look.ink, bold: false, italic: true }, { lines: 1 })
       ];
   }

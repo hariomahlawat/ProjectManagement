@@ -239,7 +239,8 @@ test('a card gets a back in its design, turns over, keeps both sides through a d
   const backField = (c, field) => [...c.items, ...(c.back?.items || [])].find((item) => item.field === field);
   assert.equal(backField(two, 'programmeTitle').text, 'Programme');
   assert.match(backField(two, 'programme').text, /Guests arrive/);
-  assert.ok(two.back.items.some((item) => item.role === 'backphoto' && item.kind === 'slot'));
+  // No empty photo frame on the back: one saved empty left a hole (cold review 6).
+  assert.ok(!two.back.items.some((item) => item.kind === 'slot'));
   assert.equal(two.back.items.find((item) => item.role === 'backlogo').sticker, 'logo:sdd', 'the back shows the front\'s logo');
   // Turned over: the back is the side shown and edited; turned again, as it was.
   const over = core.flipSide(two);
