@@ -280,17 +280,20 @@
         { ...block('photoband', 0.035, 0.5, 0.07, 1, { fill: MAROON, stroke: '' }), onlyNoPhoto: true },
         { ...block('logobox', 0.58, 0.16, 0.12, 0.2, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }), noPhoto: { x: 0.19, y: 0.17 } },
         { ...logo(0.58, 0.16, 0.1), noPhoto: { x: 0.19, y: 0.17 } },
-        words('occasion', 0.66, 0.16, 0.3, 36, { font: 'elegant', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { x: 0.13, y: 0.355, w: 0.79, size: 40 } }),
-        words('host', 0.54, 0.36, 0.42, 20, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { x: 0.13, y: 0.465, w: 0.79, size: 21 } }),
-        words('invite', 0.54, 0.46, 0.42, 20, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left', noPhoto: { x: 0.13, y: 0.545, w: 0.79, size: 21 } }),
-        { ...rule('guestline', 0.75, 0.55, 0.42, INK, 1.5), noPhoto: { x: 0.405, y: 0.635, w: 0.55 } },
-        words('guest', 0.54, 0.53, 0.42, 26, { font: 'script', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.13, y: 0.617, w: 0.55, size: 28 } }),
-        { ...vline('accent', 0.535, 0.7, 0.18, MAROON, 3), noPhoto: { x: 0.13, y: 0.77, len: 0.15 } },
-        words('when', 0.555, 0.64, 0.4, 20, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.15, y: 0.72, w: 0.77 } }),
-        words('venue', 0.555, 0.7, 0.4, 19, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.15, y: 0.77, w: 0.77 } }),
-        words('dress', 0.555, 0.76, 0.4, 18, { font: 'clean', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.15, y: 0.82, w: 0.77 } }),
+        // With "No photo" in landscape (cold review 9, M4) the page has two columns: the logo,
+        // occasion, host and guest on the left, the date, venue and dress on the right, by the
+        // maroon accent, so the right of the page is not left blank.
+        words('occasion', 0.66, 0.16, 0.3, 36, { font: 'elegant', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { x: 0.13, y: 0.4, w: 0.46, size: 40, lines: 3 } }),
+        words('host', 0.54, 0.36, 0.42, 20, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { x: 0.13, y: 0.53, w: 0.46, size: 21 } }),
+        words('invite', 0.54, 0.46, 0.42, 20, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left', noPhoto: { x: 0.13, y: 0.635, w: 0.46, size: 21, lines: 2 } }),
+        { ...rule('guestline', 0.75, 0.55, 0.42, INK, 1.5), noPhoto: { x: 0.36, y: 0.755, w: 0.46 } },
+        words('guest', 0.54, 0.53, 0.42, 26, { font: 'script', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.13, y: 0.737, w: 0.46, size: 28 } }),
+        { ...vline('accent', 0.535, 0.7, 0.18, MAROON, 3), noPhoto: { x: 0.65, y: 0.52, len: 0.3 } },
+        words('when', 0.555, 0.64, 0.4, 20, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.675, y: 0.42, w: 0.27, size: 22, lines: 2 } }),
+        words('venue', 0.555, 0.7, 0.4, 19, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.675, y: 0.53, w: 0.27, size: 21, lines: 2 } }),
+        words('dress', 0.555, 0.76, 0.4, 18, { font: 'clean', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.675, y: 0.63, w: 0.27, size: 20, lines: 2 } }),
         words('rsvp', 0.54, 0.9, 0.42, 16, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.13, y: 0.915, w: 0.44 } }),
-        words('note', 0.54, 0.945, 0.42, 16, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.62, y: 0.915, w: 0.3 } })
+        words('note', 0.54, 0.945, 0.42, 16, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.65, y: 0.915, w: 0.29 } })
       ]
     }),
     bilingual: Object.freeze({
@@ -1704,8 +1707,11 @@
         const dy = b.y - a.y;
         const resized = !same(item.width, a.width) || !same(item.aspect, a.aspect) || (item.kind === 'text' && (!same(item.size, a.size) || !same(item.maxWidth, a.maxWidth)));
         const grows = !resized && (!same(a.width, b.width) || !same(a.aspect, b.aspect) || (item.kind === 'text' && (!same(a.size, b.size) || !same(a.maxWidth, b.maxWidth) || a.maxLines !== b.maxLines)));
-        if (same(dx, 0) && same(dy, 0) && !grows) return item;
-        const moved = { ...item, x: item.x + dx, y: item.y + dy };
+        // Words the user resized keep the edge their design sets them by (a left-set line its left).
+        const edge = resized && item.kind === 'text' ? fieldAnchor(collage, item.field) : null;
+        const along = edge === 'left' ? (b.x - b.width / 2) - (a.x - a.width / 2) : edge === 'right' ? (b.x + b.width / 2) - (a.x + a.width / 2) : dx;
+        if (same(along, 0) && same(dy, 0) && !grows) return item;
+        const moved = { ...item, x: item.x + along, y: item.y + dy };
         if (grows) {
           moved.width = b.width;
           moved.aspect = b.aspect;

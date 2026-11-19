@@ -1529,3 +1529,16 @@ test('no wrapped design line ends with one word alone, on every design at every 
     }
   }
 });
+
+test('No photo on Ceremonial landscape uses the whole width: words on both halves, balanced across the page', () => {
+  const opts = { measure, newId };
+  for (const size of cardSizes.filter((key) => !designs.isPortrait(key))) {
+    const card = designs.applyDesign(core.newCollage(size), 'ceremonial', { ...designs.startDetails('ceremonial'), photoMode: 'none' }, opts);
+    const boxes = card.items.filter((item) => item.kind === 'text' && !['rsvp', 'note'].includes(item.field)).map(box);
+    const left = Math.min(...boxes.map((b) => b.left));
+    const right = Math.max(...boxes.map((b) => b.right));
+    assert.ok(right > core.PAGE_WIDTH * 0.85, `${size}: words reach the right of the page (${right.toFixed(0)})`);
+    assert.ok(Math.abs((left + right) / 2 - core.PAGE_WIDTH * 0.535) < core.PAGE_WIDTH * 0.06, `${size}: the words are balanced across the page beside the band`);
+    assert.ok(boxes.some((b) => b.left > core.PAGE_WIDTH / 2), `${size}: details on the right half`);
+  }
+});

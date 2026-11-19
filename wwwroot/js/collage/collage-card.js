@@ -1114,6 +1114,16 @@
       if (from && !text.trim()) details[field] = '';
       const followers = Object.keys(designs.FALLBACKS).filter((each) => designs.FALLBACKS[each] === field && details[each] === '' && text.trim());
       const fresh = !textFor(collage, field) && shown.trim() ? designs.fieldItem(collage, field, details, options()) : null;
+      // Words still at the width their design gave them take the width the design gives the new
+      // words (no word left alone on a line: cold review 9, L1); words the user resized keep theirs.
+      const widths = new Map();
+      for (const each of [field, ...followers]) {
+        const item = textFor(collage, each);
+        const before = item && designs.fieldItem(collage, each, designs.detailsOf(collage), options());
+        if (!before || Math.abs(before.maxWidth - item.maxWidth) > 0.5) continue;
+        const after = designs.fieldItem(collage, each, each === field ? details : { ...details, [each]: '' }, options());
+        if (after) widths.set(each, after.maxWidth);
+      }
       let removed = null;
       let edited = null;
       doc.edit((draft) => {
@@ -1129,6 +1139,7 @@
           const left = target.x - target.width / 2;
           const right = target.x + target.width / 2;
           target.text = words;
+          if (widths.has(target.field)) target.maxWidth = widths.get(target.field);
           surface.layoutTextItem(target);
           const edge = designs.DESIGNS[draft.card?.design] && designs.fieldsOnCard(draft).includes(target.field) ? designs.fieldAnchor(draft, target.field) : target.align;
           if (edge === 'left') target.x = left + target.width / 2;
