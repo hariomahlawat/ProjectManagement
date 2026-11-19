@@ -786,9 +786,6 @@
     // -------------------------------------------------------------------------
 
     function guestSection() {
-      // Only a design with a place for the guest's name takes a guest list (not a car pass, RSVP
-      // or programme card): names it could not show would make identical cards.
-      if (!designs.fieldsOf(state.collage.card?.design, state.collage.size).includes('guest')) return '';
       const names = state.collage.card?.guests || [];
       const count = names.length;
       return `<div class="clg-section clg-card-guests">
