@@ -665,3 +665,23 @@ test('the 2nd and 3rd unit colours reach the parts that follow them', async ({ p
   }
   expect(errors).toEqual([]);
 });
+
+test('guest names from a file are text in the panel, never markup', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  const file = 'Name\nCol X <b data-probe="1">Retd</b>\n<img data-probe="2" src="/probe.png">\nMaj Y';
+  await page.locator('[data-card-guest-file]').setInputFiles({ name: 'guests.txt', mimeType: 'text/plain', buffer: Buffer.from(file) });
+  await expect(page.locator('[data-card-guest-count]')).toContainText('Col X <b data-probe="1">Retd</b>');
+  await expect(page.locator('[data-probe]')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('a guest file saved by a spreadsheet in ANSI (Windows-1252) keeps its accented names', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  // "Name", then "Maj Sébastien" in Windows-1252 (é is one byte, 0xE9).
+  const bytes = Buffer.concat([Buffer.from('Name\nMaj S', 'latin1'), Buffer.from([0xe9]), Buffer.from('bastien\n', 'latin1')]);
+  await page.locator('[data-card-guest-file]').setInputFiles({ name: 'guests.csv', mimeType: 'text/csv', buffer: bytes });
+  await expect.poll(async () => (await newestDraft(page))?.model?.card?.guests?.[0]).toBe('Maj Sébastien');
+  expect(errors).toEqual([]);
+});

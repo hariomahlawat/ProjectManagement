@@ -105,7 +105,8 @@
       parts.transformer.visible(false);
       parts.guides.visible(false);
       // The faint photo shown while a photo is moved in its frame is not part of the collage.
-      const ghosts = parts.stage.find('.adjust-ghost').filter((node) => node.visible());
+      // Nor the dashed fold of a folded card: it is only a guide on screen.
+      const ghosts = parts.stage.find('.adjust-ghost, .fold').filter((node) => node.visible());
       ghosts.forEach((node) => node.visible(false));
       const width = core.PAGE_WIDTH * state.scale;
       try {

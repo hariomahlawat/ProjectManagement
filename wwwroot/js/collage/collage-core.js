@@ -2158,6 +2158,7 @@
     sortDrafts,
     photosInUse,
     keptCount,
+    lookupTable,
     flipSide,
     pagesOf,
     draftModel,

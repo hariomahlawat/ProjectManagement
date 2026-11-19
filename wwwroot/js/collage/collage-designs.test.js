@@ -772,3 +772,45 @@ test('roleItemOn finds where the design puts a part on either side', () => {
   const folded = designs.applyDesign(core.newCollage('fold6'), 'classic', {}, { measure, newId });
   assert.ok(designs.roleItemOn(folded, 'guestline', 'back', { measure, newId }), 'a folded card\'s line is inside');
 });
+
+// The back logo the user hid or locked stays so (cold review 5); the front's lock is its own.
+test('a hidden back logo stays hidden and a locked one stays as it is through a design change', () => {
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
+  const setBack = (c, change) => ({ ...c, back: { ...c.back, items: c.back.items.map((item) => (item.role === 'backlogo' ? { ...item, ...change } : item)) } });
+  const backLogo = (c) => c.back.items.find((item) => item.role === 'backlogo');
+  assert.equal(backLogo(designs.applyDesign(setBack(card, { hidden: true }), 'navy', designs.detailsOf(card), { measure, newId })).hidden, true);
+  const locked = setBack(card, { locked: true, x: 123 });
+  const kept = backLogo(designs.applyDesign(locked, 'navy', designs.detailsOf(card), { measure, newId }));
+  assert.equal(kept.locked, true);
+  assert.equal(kept.x, 123);
+  // A locked and hidden front logo does not make a new back logo locked or hidden.
+  const front = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
+  const lockedFront = { ...front, items: front.items.map((item) => (item.role === 'logo' ? { ...item, locked: true, hidden: true } : item)) };
+  const withBack = designs.addBack(lockedFront, { measure, newId });
+  assert.equal(backLogo(withBack).locked, undefined);
+  assert.equal(backLogo(withBack).hidden, undefined);
+});
+
+// Backs and folded insides with full wording (cold review 5): an eight-line programme and a long
+// guest's name stay on the page with no words overlapping.
+test('backs and folded insides keep long wording on the page without overlaps', () => {
+  const programme = Array.from({ length: 8 }, (_, i) => `${18 + i}00 h  Item ${i + 1} of the evening`).join(String.fromCharCode(10));
+  const wording = { programme, guest: 'Lt Gen R. K. Mehta, PVSM, AVSM and Mrs Mehta' };
+  const sizes = Object.keys(core.SIZES).filter((key) => ['card', 'folded'].includes(core.SIZES[key].group));
+  for (const size of sizes) {
+    for (const design of designs.designsFor(size, 'card')) {
+      let card = designs.applyDesign(core.newCollage(size), design.key, wording, { measure, newId });
+      if (!card.back) card = designs.addBack(card, { measure, newId });
+      const height = core.pageHeight(size);
+      const back = card.back.items;
+      for (const item of back) {
+        const b = box(item);
+        assert.ok(b.left >= -0.5 && b.right <= core.PAGE_WIDTH + 0.5 && b.top >= -0.5 && b.bottom <= height + 0.5, `${design.key} ${size}: ${item.role || item.field} off the back`);
+      }
+      const texts = back.filter((item) => item.kind === 'text');
+      for (let i = 0; i < texts.length; i += 1) {
+        for (let j = i + 1; j < texts.length; j += 1) assert.ok(!overlap(box(texts[i]), box(texts[j])), `${design.key} ${size}: ${texts[i].field} overlaps ${texts[j].field} on the back`);
+      }
+    }
+  }
+});

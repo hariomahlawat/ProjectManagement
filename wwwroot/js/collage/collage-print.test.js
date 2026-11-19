@@ -224,3 +224,9 @@ test('a draft keeps at most 300 guests', () => {
   assert.equal(read.card.guests.length, 300);
   assert.equal(read.card.guests[299], 'Guest 300');
 });
+
+test('a "Name & Appointment" column is the name column', () => {
+  const nl = String.fromCharCode(10);
+  assert.deepEqual(print.guestNames(['S No,Name & Appointment', '1,Brig P. Singh Cdr 50 Bde', '2,Col D. Nair'].join(nl), { csv: true }), ['Brig P. Singh Cdr 50 Bde', 'Col D. Nair']);
+  assert.deepEqual(print.guestNames(['S No,Rank & Name,Appointment', '1,Brig P. Singh,Cdr 50 Bde'].join(nl), { csv: true }), ['Brig P. Singh']);
+});

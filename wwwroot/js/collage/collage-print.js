@@ -12,9 +12,8 @@
 })(typeof self !== 'undefined' ? self : typeof globalThis !== 'undefined' ? globalThis : this, function (core) {
   'use strict';
 
-  // A table looked up by a name from a draft or a file: no prototype, so "constructor" or
-  // "toString" is never a sheet.
-  const lookupTable = (entries) => Object.freeze(Object.assign(Object.create(null), entries));
+  // Tables looked up by a name from a draft or a file have no prototype (core.lookupTable).
+  const { lookupTable } = core;
 
   // ---------------------------------------------------------------------------
   // Print sheets
@@ -162,7 +161,7 @@
   // name with "and" ("Brig P. Singh and Mrs Singh").
   const RANK_HEADING = /^\s*(rank|title)\s*$/i;
   const NAME_WORDS = /\bnames?\b|\bsurname\b|^\s*guests?\s*$|^\s*initials?\s*$/i;
-  const NOT_A_PERSON = /\b(unit|regiment|formation|organi[sz]ation|station|place|venue|file|company|establishment|appointment)\b/i;
+  const NOT_A_PERSON = /\b(unit|regiment|formation|organi[sz]ation|station|place|venue|file|company|establishment)\b/i;
   const SPOUSE_HEADING = /\b(spouse|wife|husband|partner)\b/i;
   // Honours and awards follow the name after a comma ("Lt Gen A. Kumar, PVSM, AVSM").
   const HONOURS_HEADING = /\b(honours|honors|awards|decorations|post-?nominals)\b/i;

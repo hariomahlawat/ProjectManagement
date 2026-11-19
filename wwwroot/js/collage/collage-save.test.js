@@ -109,6 +109,9 @@ test('a guest\'s name keeps its field\'s edge: left, right or the middle', () =>
   const two = save.nameInField(one, 'A long name', { width: 380, height: 100 });
   assert.equal(two.y + 100 / 2, 1025, 'the bottom stays on the line');
   assert.equal(save.nameInField(one, 'Maj A', { width: 200, height: 50 }).y, 1000, 'one line stays put');
+  // A field that held two lines (100 tall, 950 to 1050): one line moves down onto its line.
+  const two2 = { ...field, y: 1000, aspect: 4 };
+  assert.equal(save.nameInField(two2, 'Maj A', { width: 200, height: 50 }).y + 25, 1050, 'down to the line');
 });
 
 test('the name of a guest moves with the line drawn to write on', () => {

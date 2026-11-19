@@ -479,7 +479,8 @@
     flushNudge();
     // Only a page that never had a photo has nothing to lose; a saved draft whose last photo
     // was just removed still has that change to write.
-    if (!draft.created && !hasContent()) return;
+    // A design opened and not changed has nothing to lose either (no draft is kept for it).
+    if (!draft.created && (!hasContent() || openedUntouched)) return;
     // Saved as a draft already, and not being written now: nothing is lost by leaving.
     if (draft.created && !session.pending && !session.writing && !session.failed) return;
     session.saveNow();

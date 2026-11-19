@@ -812,7 +812,8 @@
       const column = guestsFirstColumn ? ' Only the first column was used; give the list a heading row (Rank, Name) to join columns.'
         : guestsExtraCells ? ' Some rows have a comma inside a name without quotes ("Col X, VSM"): put such names in quotes so all of it is used.' : '';
       // The first names as they will print, so a wrong column shows before Save.
-      const first = (state.collage.card?.guests || []).slice(0, 3).map((name) => `“${name}”`).join(', ');
+      // Names are the user's (or a file's) words: escaped, never markup.
+      const first = (state.collage.card?.guests || []).slice(0, 3).map((name) => `“${escapeHtml(name)}”`).join(', ');
       return `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it. First on the cards: ${first}${count > 3 ? ', …' : ''}.${left}${column} The names stay in this browser.`;
     }
 
@@ -851,7 +852,11 @@
       // A card left (or another opened) while the file is read gets nothing from it.
       const forCollage = state.collageSession;
       let text = '';
-      try { text = await file.text(); } catch { if (forCollage === state.collageSession) messages.showAlert('That file could not be read.'); return; }
+      try {
+        // UTF-8, or a spreadsheet's ANSI file (Windows-1252) when the bytes are not UTF-8.
+        const bytes = await file.arrayBuffer();
+        try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { text = new TextDecoder('windows-1252').decode(bytes); }
+      } catch { if (forCollage === state.collageSession) messages.showAlert('That file could not be read.'); return; }
       if (forCollage !== state.collageSession) return;
       const guests = setGuests(text, { csv: /\.csv$/i.test(file.name) || file.type === 'text/csv' });
       renderPanel();

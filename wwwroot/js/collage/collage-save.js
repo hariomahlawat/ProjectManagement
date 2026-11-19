@@ -118,10 +118,10 @@
     const named = { ...field, text: name, width: layout.width, aspect: layout.width / layout.height };
     // A guest's card shows the name, even where the empty line was hidden.
     delete named.hidden;
-    // A name on two lines grows upwards: its last line stays where the field's was, on the line
-    // drawn to write on, never across it.
+    // The name's last line sits where the field's last line was, on the line drawn to write on:
+    // a longer name grows upwards, and a one-line name in a field that held two moves down to it.
     const fieldHeight = field.width / field.aspect;
-    if (layout.height > fieldHeight) named.y = field.y + fieldHeight / 2 - layout.height / 2;
+    named.y = field.y + fieldHeight / 2 - layout.height / 2;
     if (field.align === 'left') named.x = field.x - field.width / 2 + layout.width / 2;
     if (field.align === 'right') named.x = field.x + field.width / 2 - layout.width / 2;
     return named;

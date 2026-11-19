@@ -121,7 +121,8 @@
     // Settings panel
     // ---------------------------------------------------------------------------
 
-    const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    // Single quotes too, so text is safe inside any attribute.
+    const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     function renderProps() {
       messages.keepingFocus(() => renderPropsNow());

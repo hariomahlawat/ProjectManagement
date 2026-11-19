@@ -13,9 +13,14 @@
 })(typeof self !== 'undefined' ? self : typeof globalThis !== 'undefined' ? globalThis : this, function (core) {
   'use strict';
 
-  // A table looked up by a name from a draft or a file: no prototype, so "constructor" or
-  // "toString" is never a size, a design or a font.
-  const lookupTable = (entries) => Object.freeze(Object.assign(Object.create(null), entries));
+  // Tables looked up by a name from a draft or a file have no prototype (core.lookupTable).
+  const { lookupTable } = core;
+
+  // A card with its back showing is worked on from its front, then shown as it was: frontOf gives
+  // the front's point of view, asShown turns the result back when the back was showing.
+  const showsBack = (collage) => Boolean(collage?.side === 'back' && collage.back);
+  const frontOf = (collage) => (showsBack(collage) ? core.flipSide(collage) : collage);
+  const asShown = (collage, front) => (showsBack(collage) ? core.flipSide(front) : front);
 
   /** The wording a new card starts with: realistic, and every word can be changed. */
   const DEFAULT_DETAILS = Object.freeze({
@@ -567,7 +572,7 @@
     if (side !== 'back') return roleItem(collage, role, opts);
     const key = collage?.card?.design;
     if (!DESIGNS[key] || !collage.back) return null;
-    const front = collage.side === 'back' ? core.flipSide(collage) : collage;
+    const front = frontOf(collage);
     return backPage(front, key, detailsOf(front), opts).items.find((item) => item.role === role) || null;
   }
 
@@ -982,13 +987,9 @@
     // none when the front has none. `collage` here shows its front.
     const front = (collage.items || []).find((item) => item.role === 'logo');
     const at = made.findIndex((item) => item.role === 'backlogo');
-    // A back logo the user locked stays exactly as it is, turn and all (Codex on #3452); the front
-    // logo's own lock and hiding are its own, not the back's.
-    if (at >= 0 && !made[at].locked) {
-      if (front) {
-        const { locked, hidden, ...picture } = front;
-        made.splice(at, 1, { ...picture, id: made[at].id, x: made[at].x, y: made[at].y, width: made[at].width, angle: 0, role: 'backlogo', ...(made[at].hidden ? { hidden: true } : {}) });
-      } else made.splice(at, 1);
+    if (at >= 0) {
+      if (front) made.splice(at, 1, backLogoFrom(front, made[at]));
+      else if (!made[at].locked) made.splice(at, 1);
     }
     return { background: { ...look.background }, items: made };
   }
@@ -1004,8 +1005,7 @@
   function applyDesign(collage, designKey, details, opts) {
     const design = DESIGNS[designKey];
     if (!design) return collage;
-    const showingBack = collage.side === 'back' && collage.back;
-    const card = showingBack ? core.flipSide(collage) : collage;
+    const card = frontOf(collage);
     const wording = { ...DEFAULT_DETAILS, ...(details || {}) };
     // A folded card has its own outside and inside (PR 9c); any other the design's arrangement for
     // the page's shape (a poster has only one, used for either).
@@ -1026,7 +1026,7 @@
     }
     // The fields this design put on the card, both sides, so a missing one is known to be deleted.
     applied.card.placed = placedOn(applied);
-    return showingBack ? core.flipSide(applied) : applied;
+    return asShown(collage, applied);
   }
 
   /**
@@ -1098,8 +1098,7 @@
    */
   function followLogo(collage, opts, { add = false } = {}) {
     if (!collage?.back || !collage.card) return collage;
-    const showingBack = collage.side === 'back';
-    const front = showingBack ? core.flipSide(collage) : collage;
+    const front = frontOf(collage);
     const logo = front.items.find((item) => item.role === 'logo' && item.kind !== 'slot');
     const items = front.back.items;
     const at = items.findIndex((item) => item.role === 'backlogo');
@@ -1113,18 +1112,32 @@
       if (!place) return collage;
       const old = at >= 0 ? items[at] : null;
       if (old && old.kind === logo.kind && old.sticker === logo.sticker && old.photo === logo.photo && old.aspect === logo.aspect) return collage;
-      const small = { ...logo, id: old ? old.id : opts.newId(), x: place.x, y: place.y, width: place.width, angle: 0, role: 'backlogo' };
-      if (old?.locked) small.locked = true;
+      if (old?.locked) return collage;
+      const small = backLogoFrom(logo, old || { ...place, id: opts.newId(), hidden: false, locked: false });
       next = old ? items.map((item, i) => (i === at ? small : item)) : [...items, small];
     }
     const out = { ...front, back: { ...front.back, items: next } };
-    return showingBack ? core.flipSide(out) : out;
+    return asShown(collage, out);
+  }
+
+  /**
+   * The back's small logo made from the front's logo, in `place` (the back logo as it is, or the
+   * design's place for one): the front's picture at the place's position and size. A locked back
+   * logo stays exactly as it is; a hidden one stays hidden; the front logo's own lock and hiding
+   * are its own, not the back's.
+   */
+  function backLogoFrom(front, place) {
+    if (place.locked) return place;
+    const { locked, hidden, ...picture } = front;
+    const small = { ...picture, id: place.id, x: place.x, y: place.y, width: place.width, angle: 0, role: 'backlogo' };
+    if (place.hidden) small.hidden = true;
+    return small;
   }
 
   /** The card without its back, showing its front. */
   function deleteBack(collage) {
     if (!collage?.back) return collage;
-    const front = collage.side === 'back' ? core.flipSide(collage) : collage;
+    const front = frontOf(collage);
     const { back, side, ...rest } = front;
     // The fields only the back had are no longer on the card: their words, as they are now on the
     // card (typed in Card details or in an item's Words box), are kept for a new back.
@@ -1154,7 +1167,7 @@
     if (!where) return null;
     if (where === 'back') {
       // Built from the front's point of view, so the back's logo follows the front's.
-      const front = collage.side === 'back' ? core.flipSide(collage) : collage;
+      const front = frontOf(collage);
       return backPage(front, key, details, opts).items.find((item) => item.field === field) || null;
     }
     const { back, side, ...front } = collage;
