@@ -261,9 +261,8 @@
       if (!item) {
         ui.props.innerHTML = `
           <h2 class="clg-panel-title">Page</h2>
-          <label class="clg-field"><span class="clg-field__label">Size</span>
-            <select class="form-select form-select-sm" data-page-size>${core.sizesByGroup().map((group) => `<optgroup label="${escapeHtml(group.label)}">${group.keys
-              .map((key) => `<option value="${key}"${key === state.collage.size ? ' selected' : ''}>${escapeHtml(core.SIZES[key].label)} · ${escapeHtml(core.SIZES[key].note)}</option>`).join('')}</optgroup>`).join('')}${core.SIZES[state.collage.size] ? '' : `<optgroup label="Custom"><option value="${escapeHtml(state.collage.size)}" selected>${escapeHtml(core.sizeOf(state.collage.size).label)}</option></optgroup>`}</select></label>
+          ${/* One size menu, in the top bar (docs/ux/collage-usability-plan.md, round 2, PR 2); a size in mm is typed here. */ ''}
+          <p class="clg-hint">${escapeHtml(core.sizeOf(state.collage.size).label)}: change the size in the menu at the top.</p>
           ${customSizeFields()}
           <div class="clg-section clg-help-line">
             ${helpLine()}
@@ -462,10 +461,6 @@
         history.flushNudge();
         renderLayoutPanel();
         return;
-      }
-      if (event.target.matches('[data-page-size]')) {
-        ui.showSize(event.target.value);
-        ui.sizeSelect.dispatchEvent(new Event('change'));
       }
     });
 

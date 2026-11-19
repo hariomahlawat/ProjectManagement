@@ -189,7 +189,7 @@
       const start = event.target.closest('[data-start-size]');
       if (start) { screens.startCollage(start.dataset.startSize); return; }
       const startLayout = event.target.closest('[data-start-layout]');
-      if (startLayout) { screens.startCollage(core.DEFAULT_SIZE, startLayout.dataset.startLayout); return; }
+      if (startLayout) { screens.startCollage(screens.startSize(), startLayout.dataset.startLayout); return; }
       const layoutChoice = event.target.closest('[data-layout]');
       if (layoutChoice) { screens.applyLayoutKey(layoutChoice.dataset.layout); return; }
       const align = event.target.closest('[data-align]');

@@ -907,6 +907,21 @@ test('start choices: the remembered choice opens; an unknown one falls back to c
   assert.equal(choiceOf('collage'), 'collage');
 });
 
+// docs/ux/collage-usability-plan.md, round 2, PR 2: what a collage is for picks its page.
+test('start: a collage is for printing (A4) at first, WhatsApp is square; the size menu follows what is open', () => {
+  const { forOf, FOR_SIZES, groupsFor } = require('./collage-start.js');
+  assert.equal(forOf(null), 'print');
+  assert.equal(forOf('share'), 'share');
+  assert.equal(forOf('nonsense'), 'print');
+  assert.deepEqual({ ...FOR_SIZES }, { share: 'square', print: 'a4l' });
+  // A collage offers pages and screens; a card the card groups.
+  assert.deepEqual(groupsFor(core, 'a4l', false), ['page']);
+  assert.deepEqual(groupsFor(core, 'a5p', true), ['card', 'pocket', 'folded']);
+  // A page whose size is of the other kind keeps that group, so its size shows and can be left.
+  assert.deepEqual(groupsFor(core, 'a5p', false), ['page', 'card']);
+  assert.deepEqual(groupsFor(core, 'a4l', true), ['card', 'pocket', 'folded', 'page']);
+});
+
 test('start choices: storage that throws still opens cards and still switches', (t) => {
   const dom = page(t, START_CHOICES_HTML);
   Object.defineProperty(dom.window, 'localStorage', { configurable: true, get() { throw new Error('blocked'); } });
