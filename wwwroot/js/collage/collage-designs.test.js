@@ -327,3 +327,16 @@ test('pocket sizes are offered the pocket designs, and cards the others', () => 
     assert.equal(card.items.find((item) => item.field === 'occasion').text, 'Barakhana', key);
   }
 });
+
+// A programme card shows its programme on the front: its field is found there (PR 9b).
+test('the programme and title of a programme card are front fields, in both arrangements', () => {
+  for (const size of ['a7p', 'a7l']) {
+    const card = designs.applyDesign(core.newCollage(size), 'programmecard', {}, { measure, newId });
+    assert.equal(designs.isBackField(card, 'programme'), false, size);
+    assert.equal(designs.isBackField(card, 'programmeTitle'), false, size);
+    const made = designs.fieldItem(card, 'programme', { ...designs.detailsOf(card), programme: '1900 h Arrival' }, { measure, newId });
+    assert.equal(made.text, '1900 h Arrival', size);
+  }
+  const classic = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
+  assert.equal(designs.isBackField(classic, 'programme'), true);
+});

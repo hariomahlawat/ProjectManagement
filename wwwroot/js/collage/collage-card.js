@@ -56,7 +56,8 @@
     const startSize = ui.$('[data-card-size]');
     const options = () => ({ measure: surface.measureText, newId: doc.newItemId });
     // A field's words may be on the side not showing (the back's programme while the front shows).
-    const fieldsHere = (collage, field) => (designs.BACK_FIELDS.includes(field) === (collage.side === 'back') ? collage.items : collage.back?.items || []);
+    // A field's side comes from the design (a programme card shows its programme on the front).
+    const fieldsHere = (collage, field) => (designs.isBackField(collage, field) === (collage.side === 'back') ? collage.items : collage.back?.items || []);
     const textFor = (collage, field) => fieldsHere(collage, field).find((item) => item.kind === 'text' && item.field === field) || null;
 
     // -------------------------------------------------------------------------

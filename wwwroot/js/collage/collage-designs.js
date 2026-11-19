@@ -708,10 +708,18 @@
    * user emptied and fills again, so it comes back in its design's place. Null when the design
    * has no place for it or its words are empty.
    */
+  /**
+   * Whether a field is on the card's back: a back field, unless the design shows it on the
+   * front (a programme card has its programme and title on the front).
+   */
+  function isBackField(collage, field) {
+    return BACK_FIELDS.includes(field) && !fieldsOf(collage?.card?.design, collage?.size).includes(field);
+  }
+
   function fieldItem(collage, field, details, opts) {
     const key = collage?.card?.design;
     if (!DESIGNS[key]) return null;
-    if (BACK_FIELDS.includes(field)) {
+    if (isBackField(collage, field)) {
       if (!collage.back) return null;
       return backPage(collage, key, details, opts).items.find((item) => item.field === field) || null;
     }
@@ -720,5 +728,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, isBackField });
 });

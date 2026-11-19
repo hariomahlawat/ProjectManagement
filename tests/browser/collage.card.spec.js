@@ -538,3 +538,15 @@ test('a logo still being read when the card is turned over stays in the tray, no
   expect(back.some((item) => item.role === 'logo')).toBe(false);
   expect(errors).toEqual([]);
 });
+
+test('a programme card\'s programme typed in Card details is the programme on the card', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a7p');
+  await page.locator('[data-start-design="programmecard"]').click();
+  const programme = page.locator('[data-card-field="programme"]');
+  await programme.fill('1900 h  Arrival\n1930 h  Dinner');
+  await programme.blur();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'programme')?.text).toBe('1900 h  Arrival\n1930 h  Dinner');
+  await expect(programme).toHaveValue('1900 h  Arrival\n1930 h  Dinner');
+  expect(errors).toEqual([]);
+});
