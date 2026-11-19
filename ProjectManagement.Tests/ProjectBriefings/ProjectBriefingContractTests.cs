@@ -25,7 +25,7 @@ public sealed class ProjectBriefingContractTests
         Assert.DoesNotContain("My projects", page, StringComparison.Ordinal);
         Assert.Contains("R&amp;D cost", page, StringComparison.Ordinal);
         Assert.Contains("Download PowerPoint", page, StringComparison.Ordinal);
-        Assert.Contains("<legend class=\"form-label\">Template</legend>", page, StringComparison.Ordinal);
+        Assert.Contains("<legend class=\"form-label\">Slide style <small>", page, StringComparison.Ordinal);
         Assert.Contains("Shared decks", page, StringComparison.Ordinal);
         Assert.Contains("Add projects", page, StringComparison.Ordinal);
         // Slides in this deck (PR 4 of the blocks plan): one switchable list instead of tick boxes.
@@ -86,8 +86,11 @@ public sealed class ProjectBriefingContractTests
 
         // New deck: name, template and (since Plan: The Studio is optional, PR 4) the projects,
         // ticked or Same as a deck; without projects the Studio still opens on Add projects.
-        Assert.Contains("<input type=\"radio\" name=\"Template\" value=\"@preset.Preset\"", page, StringComparison.Ordinal);
-        Assert.Contains("ProjectBriefingDeckPresets.Templates.Select((preset, index) => (preset, index))", page, StringComparison.Ordinal);
+        Assert.Contains("<input type=\"radio\" name=\"Style\" value=\"@style\"", page, StringComparison.Ordinal);
+        Assert.Contains("@foreach (var style in ProjectBriefingProjectSlideDesigns.Choices)", page, StringComparison.Ordinal);
+        // The Key points chip only where the style leaves key points open (PR 5).
+        Assert.Contains("data-pbd-key-points-part hidden=\"@(ProjectBriefingProjectSlideDesigns.KeyPointsWhenChosen(currentDesign) is not null)\"", page, StringComparison.Ordinal);
+        Assert.Contains("if (keyPointsPart) keyPointsPart.hidden = designRule('keyPoints') !== 'keep';", script, StringComparison.Ordinal);
         Assert.DoesNotContain("Set up by hand", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-filter data-pbd-filter-picker data-pbd-new-pick", page, StringComparison.Ordinal);
         Assert.Contains("<select class=\"form-select\" name=\"SameAsDeckId\" disabled data-pbd-new-same-deck>", page, StringComparison.Ordinal);
@@ -774,7 +777,7 @@ public sealed class ProjectBriefingContractTests
         var composer = Read("ProjectBriefingSlideComposer.cs");
 
         // The design cards set what each project gets; the radios stay hidden for the summaries.
-        Assert.Contains("<legend>Design · one for every project</legend>", page, StringComparison.Ordinal);
+        Assert.Contains("<legend>Slide style · one for every project</legend>", page, StringComparison.Ordinal);
         Assert.Contains("value=\"CapabilityOverview\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"ProjectBrief\"", page, StringComparison.Ordinal);
         Assert.Contains("value=\"Both\"", page, StringComparison.Ordinal);

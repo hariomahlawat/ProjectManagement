@@ -168,8 +168,9 @@ public sealed class IndexModel : PageModel
                 input.Name,
                 input.Description,
                 cancellationToken,
-                input.Template,
-                projects);
+                input.Style is null ? input.Template : null,
+                projects,
+                input.Style);
         }
         catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
         {
@@ -1447,6 +1448,10 @@ public sealed class IndexModel : PageModel
 
         // The template (slide design) the deck starts from; none gives the standard settings.
         public ProjectBriefingDeckPreset? Template { get; set; }
+
+        // The slide style (Plan: The Studio is optional, PR 5): the design every project slide uses,
+        // as in the Deck tab. The New deck dialog sends this; a form from an older page sends Template.
+        public ProjectBriefingProjectSlideDesign? Style { get; set; }
 
         // The projects the deck starts with: ticked in the New deck dialog, or the list of another
         // deck the person may see. Neither: an empty deck, opened on Add projects (older pages).

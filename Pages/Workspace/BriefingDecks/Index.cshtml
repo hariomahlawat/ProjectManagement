@@ -599,7 +599,7 @@
                                     @* One design for every project in the deck; it sets the layout, what each project gets
                                        and key points (ProjectBriefingProjectSlideDesigns). *@
                                     <fieldset class="pbd-choice-group">
-                                        <legend>Design · one for every project</legend>
+                                        <legend>Slide style · one for every project</legend>
                                         <div class="pbd-designs" data-pbd-designs>
                                             @foreach (var design in designChoices)
                                             {
@@ -656,7 +656,7 @@
                                                 <input type="checkbox" checked="@showsProliferation" data-pbd-cost-part="proliferation" />
                                                 <span>Proliferation cost</span>
                                             </label>
-                                            <label class="pbd-chip" data-pbd-key-points-part>
+                                            <label class="pbd-chip" data-pbd-key-points-part hidden="@(ProjectBriefingProjectSlideDesigns.KeyPointsWhenChosen(currentDesign) is not null)">
                                                 <input type="checkbox" name="ShowKeyPoints" value="true" checked="@keyPointsOn" data-pbd-key-points-toggle />
                                                 <span>Key points</span>
                                                 <input type="hidden" name="ShowKeyPoints" value="false" />
@@ -946,15 +946,18 @@
                             <label class="form-label"><span>Deck name <small>required, at least 3 characters</small></span><input class="form-control" name="Name" maxlength="160" minlength="3" required aria-describedby="pbd-new-name-help" placeholder="For example: Monthly review, November" data-pbd-new-name /></label>
                             <small class="pbd-form-help" id="pbd-new-name-help">Shown in the deck library and on the cover slide.</small>
                             <small class="pbd-form-error" id="pbd-new-name-error" data-pbd-new-name-error hidden></small>
-                            @* The template is the slide design, with its recommended settings; any setting can be changed later. *@
-                            <fieldset class="pbd-new-templates">
-                                <legend class="form-label">Template</legend>
-                                @foreach (var (preset, index) in ProjectBriefingDeckPresets.Templates.Select((preset, index) => (preset, index)))
+                            @* The slide style (Plan: The Studio is optional, PR 5): the same choice, drawings and names as
+                               the Deck tab's Slide style, so a deck is not started from a "template" and then set with a
+                               "design". Every style can be changed later. *@
+                            <fieldset class="pbd-new-templates pbd-new-styles">
+                                <legend class="form-label">Slide style <small>for every project; you can change it later</small></legend>
+                                @foreach (var style in ProjectBriefingProjectSlideDesigns.Choices)
                                 {
-                                    <label class="pbd-preset pbd-preset--choice">
-                                        <input type="radio" name="Template" value="@preset.Preset" checked="@(index == 0)" />
-                                        <strong>@preset.Title</strong>
-                                        <small>@preset.Summary</small>
+                                    <label class="pbd-preset pbd-preset--choice pbd-new-style">
+                                        <input type="radio" name="Style" value="@style" checked="@(style == ProjectBriefingProjectSlideDesign.Capability)" />
+                                        <partial name="_DesignMini" model="style" />
+                                        <strong>@ProjectBriefingProjectSlideDesigns.DisplayName(style)</strong>
+                                        <small>@ProjectBriefingProjectSlideDesigns.Description(style)</small>
                                     </label>
                                 }
                             </fieldset>

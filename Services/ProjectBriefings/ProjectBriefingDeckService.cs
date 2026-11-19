@@ -42,7 +42,8 @@ public interface IProjectBriefingDeckService
         string? description,
         CancellationToken cancellationToken = default,
         ProjectBriefingDeckPreset? preset = null,
-        ProjectBriefingNewDeckProjects? projects = null);
+        ProjectBriefingNewDeckProjects? projects = null,
+        ProjectBriefingProjectSlideDesign? style = null);
 
     Task<long> DuplicateAsync(
         long sourceDeckId,
@@ -388,8 +389,23 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         string? description,
         CancellationToken cancellationToken = default,
         ProjectBriefingDeckPreset? preset = null,
-        ProjectBriefingNewDeckProjects? projects = null)
+        ProjectBriefingNewDeckProjects? projects = null,
+        ProjectBriefingProjectSlideDesign? style = null)
     {
+        // A slide style (the New deck dialog since Plan: The Studio is optional, PR 5) starts from the
+        // template for its layout, then sets the design as the Deck tab would.
+        if (style is { } chosenStyle)
+        {
+            if (!ProjectBriefingProjectSlideDesigns.Choices.Contains(chosenStyle))
+            {
+                throw new InvalidOperationException("Choose one of the slide styles.");
+            }
+
+            preset = chosenStyle == ProjectBriefingProjectSlideDesign.FactSheet
+                ? ProjectBriefingDeckPreset.ProjectUpdateSheets
+                : ProjectBriefingDeckPreset.MonthlyCommandReview;
+        }
+
         if (preset is { } requested && !ProjectBriefingDeckPresets.IsTemplate(requested))
         {
             throw new InvalidOperationException("The selected template is not available.");
@@ -432,6 +448,11 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         if (preset is { } template)
         {
             SetFromPreset(deck, template);
+        }
+
+        if (style is { } design)
+        {
+            SetDesign(deck, design);
         }
 
         // The deck and its projects in one save: there is never a new deck without the projects
@@ -719,6 +740,35 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         }
 
         deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithPreset(json, preset);
+    }
+
+    // Sets the project slide design on a new deck, as the Deck tab's Slide style does
+    // (ProjectBriefingProjectSlideDesigns): layout, what each project gets and key points. A new deck
+    // has no key points choice yet, so Brief starts without the band.
+    private static void SetDesign(ProjectBriefingDeck deck, ProjectBriefingProjectSlideDesign design)
+    {
+        var configuration = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson);
+        var current = configuration.StandardSlideOptions;
+        var settings = ProjectBriefingProjectSlideDesigns.Settings(
+            design,
+            deck.NarrativeMode,
+            current.KeyPoints,
+            showKeyPoints: false,
+            keyPointSlide: ProjectBriefingKeyPointPlacement.CapabilitySlide);
+        deck.Layout = settings.Layout;
+        deck.NarrativeMode = settings.NarrativeMode;
+        var standard = ProjectBriefingStandardSlideOptions.Normalize(
+            current.ProjectBriefLayout,
+            current.ShowPresentStage,
+            current.ShowPresentStatus,
+            current.IncludeStageDistributionTable,
+            settings.KeyPoints,
+            settings.KeyPointsOnly);
+        deck.SelectionRulesJson = ProjectBriefingDeckConfigurationCodec.WithPresentationOptions(
+            deck.SelectionRulesJson,
+            configuration.UpdateSheetOptions,
+            standard,
+            configuration.ClosingSlideType);
     }
 
     /// <summary>

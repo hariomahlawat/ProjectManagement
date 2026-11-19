@@ -189,8 +189,8 @@ public static class ProjectBriefingProjectSlideDesigns
     public static string Hint(ProjectBriefingProjectSlideDesign design) => design switch
     {
         ProjectBriefingProjectSlideDesign.KeyPointsOnly => "No brief or capability text. A project without key points shows the gap, like other missing content.",
-        ProjectBriefingProjectSlideDesign.KeyPoints => "Key points sit in a band at the foot of the slide. Switch them off for the Capability design.",
-        ProjectBriefingProjectSlideDesign.Capability => "Switch key points on for the Key points design. Anything switched off gives its space to the photo and text.",
+        ProjectBriefingProjectSlideDesign.KeyPoints => "Key points sit in a band at the foot of the slide. Choose Capability for the slide without them.",
+        ProjectBriefingProjectSlideDesign.Capability => "Choose Key points to add a band of key points. Anything switched off gives its space to the photo and text.",
         ProjectBriefingProjectSlideDesign.Brief => "Key points add a band at the foot of the brief slide. Anything switched off gives its space to the photo and text.",
         ProjectBriefingProjectSlideDesign.CapabilityAndBrief => "An older choice, kept for this deck: two slides per project.",
         _ => string.Empty

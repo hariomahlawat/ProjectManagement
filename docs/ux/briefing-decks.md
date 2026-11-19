@@ -23,12 +23,15 @@ here, kept as history.
 `/Workspace/BriefingDecks` without a deck id is the library (5 Nov 2026); it no longer opens the
 last-updated deck, so nobody edits a deck they did not pick.
 
-- **New deck** asks for a name, a template (Portfolio or Fact Sheets) and, optionally, the
+- **New deck** asks for a name, a **slide style** (the Deck tab's styles and drawings: Capability,
+  Key points, Brief, Fact sheet, Key points only; until 19 Nov 2026 a template, Portfolio or Fact
+  Sheets, which an older page's form can still post) and, optionally, the
   projects: ticked with the Add projects filters, or **Same as a deck** (another deck's list of
   projects, copied as it is today). **Create and open** opens the Studio (on Add projects when no
   projects were chosen); on the library, **Create and download** makes the deck and downloads it
-  at once, asking first about gaps as Download does (19 Nov 2026). A template only fills the new
-  deck's starting settings; the Studio has no template picker and no "customised" state.
+  at once, asking first about gaps as Download does (19 Nov 2026). A style starts the deck from the
+  template for its layout and sets the design (`SetDesign`), as the Deck tab would; the Studio has
+  no template picker and no "customised" state.
 - **Deck cards** (owner, 17 Nov 2026; replaced the Continue panel and the table). One card per
   deck, three across on a wide screen, two on a tablet, one on a phone. Each card shows a drawing
   of the deck's slide design (the Deck tab's design drawings, `_DesignMini`), the name and
@@ -123,9 +126,11 @@ the server; the script inserts only slide HTML and writes all other text as text
      the two opening institution slides move by their grip (drag, or Alt+Up / Alt+Down). Every
      change saves the list in place (`UpdateBlocks`); a deck must keep the status table or the
      project slides. The order is stored as `overviewOrder` in `SelectionRulesJson`.
-  2. **Project slides**: one design for every project (Capability, Key points, Brief, Fact sheet,
-     Key points only; "Capability and brief" only for decks that already use it), and "Show on
-     each slide" chips: present stage, status remark, R&D cost, proliferation cost, key points.
+  2. **Project slides**: one **slide style** for every project (Capability, Key points, Brief, Fact
+     sheet, Key points only; "Capability and brief" only for decks that already use it), and "Show
+     on each slide" chips: present stage, status remark, R&D cost, proliferation cost, and key
+     points only where the style leaves them open (Brief, Capability and brief); for the other
+     styles the style itself decides (19 Nov 2026).
      A design is read from and written as the deck's existing settings
      (`ProjectBriefingProjectSlideDesigns`); Key points only is the one new setting. The cost
      chips are the deck's cost choice, for the status table too. Brief has its layout
@@ -999,6 +1004,16 @@ library, New deck dialog and simplified Studio).
    only and Capability and brief stay for decks that already use them, shown only to those
    decks. Outline titles use the Deck tab's slide names. Before this PR, count the designs
    production decks use, to confirm what can stop being offered.
+   Built without the count (owner, 19 Nov 2026: production is on the offline LAN, out of reach of
+   this work): every design that exists today is kept, so nothing needs the numbers. The New deck
+   dialog offers the five styles with the Deck tab's drawings (`Style`; `Template` from an older
+   page still works) and a new deck is set to its style by `SetDesign`; "Capability and brief"
+   stays for decks that have it and is refused for a new one. The Key points chip is hidden where
+   the style decides key points (it was a second control for the Capability / Key points choice)
+   and kept for Brief, where it is the only way to add the band; the hints name the style instead.
+   The outline names the stage-wise distribution, its project list and the status table as the
+   Deck tab does, with the slide's own heading on hover. Removing a design no deck uses is a later,
+   separate step once the count is known.
 6. **A quieter Studio.** Header: name, one summary line (projects, style, marking, saved),
    Present and **Download PowerPoint**; the three progress steps, the note under Generate and the
    one-time banner go (its sentence moves to the empty state). Gaps live in the outline badges and

@@ -51,7 +51,7 @@ if (root) {
     RoleCharter: { section: 'opening', label: 'Role & Charter', fold: true, editor: '[data-pbd-role-charter-open]', about: 'The role statements and charter items kept for this deck. A long charter continues on a second slide rather than shrinking below 10 pt.' },
     // The stage-wise distribution (blocks plan PR 7) replaced the portfolio summary, stage summary and stage table.
     StageDistribution: { section: 'portfolio', label: 'Stage-wise distribution', about: "This deck's projects by stage, grouped Pre-AoN, AoN to SO, Under development and Completed, each bar split by parent category. Cancelled projects are left out." },
-    StageDistributionList: { section: 'portfolio', label: 'Projects by where they stand', fold: true, about: 'Every project in its column, with the Development PDC or the completion month. A long column continues on another slide.' },
+    StageDistributionList: { section: 'portfolio', label: 'Stage-wise distribution, project list', fold: true, about: 'Every project in its column, with the Development PDC or the completion month. A long column continues on another slide.' },
     CategorySummary: { section: 'portfolio', label: 'Category distribution', fold: true, about: 'Projects by category. Left out when the deck holds a single category.' },
     StatusTable: { section: 'portfolio', label: 'Status table', fold: true, about: 'Every project with its cost, present stage and latest status remark, in deck order.' },
     ProjectCapability: { section: 'project', label: 'Capability overview' },
@@ -528,9 +528,15 @@ if (root) {
     return section;
   };
 
+  // The overview slides are named as the Deck tab's slide list names them (Plan: The Studio is
+  // optional, PR 5), not by the heading on the slide ("Where the projects stand"), so one slide has
+  // one name across the Studio. Category slides keep their heading: two blocks share that role.
+  const NAMED_BY_BLOCK = new Set(['StageDistribution', 'StageDistributionList', 'StatusTable']);
   const entryTitle = (entry) => {
     if (entry.projectId) return projects.get(entry.projectId)?.projectName || slides[entry.indices[0]]?.title || 'Project';
-    const title = (slides[entry.indices[0]]?.title || ROLES[entry.role]?.label || '').replace(/\s*\(\d+\/\d+\)$/, '');
+    const title = (NAMED_BY_BLOCK.has(entry.role) && ROLES[entry.role]?.label
+      ? ROLES[entry.role].label
+      : (slides[entry.indices[0]]?.title || ROLES[entry.role]?.label || '')).replace(/\s*\(\d+\/\d+\)$/, '');
     return entry.indices.length > 1 ? `${title} · ${plural(entry.indices.length, 'slide')}` : title;
   };
 
@@ -667,7 +673,9 @@ if (root) {
           }
           const number = entry.indices.length ? slides[entry.indices[0]]?.number ?? entry.indices[0] + 1 : '–';
           const title = entryTitle(entry);
-          row.title = title;
+          // The slide's own heading, when the outline names it by its block, on hover.
+          const heading = (slides[entry.indices[0]]?.title || '').replace(/\s*\(\d+\/\d+\)$/, '');
+          row.title = heading && heading !== title && !entry.projectId ? `${title}: “${heading}”` : title;
           row.append(el('span', 'pbd-outline__number', String(number)), el('span', 'pbd-outline__name', title));
           const project = entry.projectId ? projects.get(entry.projectId) : null;
           const tag = presentationTag(project);
@@ -1101,7 +1109,7 @@ if (root) {
     // One line, so the slide starts higher; the promise about Generate stays on hover.
     if (status) {
       status.textContent = `${label} · built ${payload.generatedAt} from current PRISM data`;
-      status.title = 'Generate PowerPoint downloads exactly these slides.';
+      status.title = 'Download PowerPoint gives exactly these slides.';
     }
   };
 

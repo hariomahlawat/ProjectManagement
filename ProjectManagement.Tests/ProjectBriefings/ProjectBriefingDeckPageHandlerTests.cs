@@ -723,6 +723,24 @@ public sealed class ProjectBriefingDeckPageHandlerTests
         Assert.Equal("projects", empty.RouteValues!["start"]);
     }
 
+    // The New deck dialog sends a slide style; a form from an older page sends a template and still
+    // works (Plan: The Studio is optional, PR 5).
+    [Fact]
+    public async Task Create_TakesASlideStyle_AndStillTakesAnOlderPagesTemplate()
+    {
+        await using var db = CreateDb();
+        var page = CreatePage(db, Hod);
+
+        await page.OnPostCreateAsync(new IndexModel.CreateDeckInput { Name = "Briefs", Style = ProjectBriefingProjectSlideDesign.Brief }, CancellationToken.None);
+        await page.OnPostCreateAsync(new IndexModel.CreateDeckInput { Name = "Sheets", Template = ProjectBriefingDeckPreset.ProjectUpdateSheets }, CancellationToken.None);
+
+        var briefs = await db.Set<ProjectBriefingDeck>().SingleAsync(deck => deck.Name == "Briefs");
+        var sheets = await db.Set<ProjectBriefingDeck>().SingleAsync(deck => deck.Name == "Sheets");
+        Assert.Equal(ProjectBriefingNarrativeMode.ProjectBrief, briefs.NarrativeMode);
+        Assert.Equal(ProjectBriefingLayout.StandardBriefing, briefs.Layout);
+        Assert.Equal(ProjectBriefingLayout.ProjectUpdateSheet, sheets.Layout);
+    }
+
     // Copying the list of a deck the person cannot see is refused as a message, never a 500.
     [Fact]
     public async Task Create_InPage_SameAsADeckThePersonCannotSee_IsRefusedWithAMessage()
