@@ -313,19 +313,22 @@
       background: { type: 'color', value: '#fbf7ee' },
       portrait: [
         border('border', 0.05, GOLD, 2),
-        words('replyTitle', 0.5, 0.13, 0.8, 44, { font: 'elegant', color: MAROON, bold: true, spacing: 6 }, { lines: 1 }),
-        words('occasion', 0.5, 0.26, 0.8, 38, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
-        rule('nameline', 0.5, 0.45, 0.76, INK, 1.5),
-        words('replyName', 0.5, 0.49, 0.8, 22, { font: 'clean', color: '#55607a', bold: false }, { lines: 1 }),
-        words('attend', 0.5, 0.62, 0.8, 32, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
-        rule('countline', 0.5, 0.75, 0.3, INK, 1.5),
-        words('replyCount', 0.5, 0.79, 0.8, 22, { font: 'clean', color: '#55607a', bold: false }, { lines: 1 }),
-        words('replyBy', 0.5, 0.9, 0.8, 22, { font: 'clean', color: GOLD, bold: true }, { lines: 2 })
+        // A small logo at the top, so a card's logo is kept when it changes to the RSVP card.
+        logo(0.5, 0.1, 0.07),
+        words('replyTitle', 0.5, 0.21, 0.8, 40, { font: 'elegant', color: MAROON, bold: true, spacing: 6 }, { lines: 1 }),
+        words('occasion', 0.5, 0.32, 0.8, 34, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
+        rule('nameline', 0.5, 0.5, 0.76, INK, 1.5),
+        words('replyName', 0.5, 0.54, 0.8, 22, { font: 'clean', color: '#55607a', bold: false }, { lines: 1 }),
+        words('attend', 0.5, 0.655, 0.8, 30, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
+        rule('countline', 0.5, 0.77, 0.3, INK, 1.5),
+        words('replyCount', 0.5, 0.81, 0.8, 22, { font: 'clean', color: '#55607a', bold: false }, { lines: 1 }),
+        words('replyBy', 0.5, 0.91, 0.8, 22, { font: 'clean', color: GOLD, bold: true }, { lines: 2 })
       ],
       landscape: [
         border('border', 0.05, GOLD, 2),
-        words('replyTitle', 0.5, 0.15, 0.8, 38, { font: 'elegant', color: MAROON, bold: true, spacing: 6 }, { lines: 1 }),
-        words('occasion', 0.5, 0.31, 0.8, 26, { font: 'elegant', color: INK, bold: true }, { lines: 1 }),
+        logo(0.1, 0.18, 0.07),
+        words('replyTitle', 0.55, 0.15, 0.7, 36, { font: 'elegant', color: MAROON, bold: true, spacing: 6 }, { lines: 1 }),
+        words('occasion', 0.55, 0.31, 0.7, 26, { font: 'elegant', color: INK, bold: true }, { lines: 1 }),
         rule('nameline', 0.5, 0.5, 0.7, INK, 1.5),
         words('replyName', 0.5, 0.56, 0.8, 16, { font: 'clean', color: '#55607a', bold: false }, { lines: 1 }),
         words('attend', 0.5, 0.7, 0.8, 22, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
@@ -634,7 +637,10 @@
   function backPage(collage, designKey, details, opts, items = []) {
     const look = BACK_LOOKS[designKey] || BACK_LOOKS.classic;
     const wording = { ...DEFAULT_DETAILS, ...(details || {}) };
-    const made = makePage(items, backParts(designKey, isPortrait(collage.size)), pageContext(collage, wording, opts, { isCard: false, frameRole: 'backphoto' }));
+    // A field the front already shows (a programme card's programme) is not on the back again.
+    const onFront = new Set(fieldsOf(designKey, collage.size));
+    const parts = backParts(designKey, isPortrait(collage.size)).filter((part) => part.kind !== 'text' || !onFront.has(part.field));
+    const made = makePage(items, parts, pageContext(collage, wording, opts, { isCard: false, frameRole: 'backphoto' }));
     // The back's small logo is the front's logo (the SDD logo, a crest or the user's own), or
     // none when the front has none. `collage` here shows its front.
     const front = (collage.items || []).find((item) => item.role === 'logo');

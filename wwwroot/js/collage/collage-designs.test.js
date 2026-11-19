@@ -340,3 +340,17 @@ test('the programme and title of a programme card are front fields, in both arra
   const classic = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
   assert.equal(designs.isBackField(classic, 'programme'), true);
 });
+
+test('a programme card with a back has its programme once; a logo is kept through the RSVP card', () => {
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a7p'), 'programmecard', {}, { measure, newId }), { measure, newId });
+  const onFront = card.items.filter((item) => item.kind === 'text').map((item) => item.field);
+  assert.ok(!card.back.items.some((item) => item.kind === 'text' && onFront.includes(item.field)), 'no field on both sides');
+  const edited = { ...card, items: card.items.map((item) => (item.field === 'programme' ? { ...item, text: '1900 h Arrival' } : item)) };
+  assert.equal(designs.detailsOf(edited).programme, '1900 h Arrival');
+  // A logo of the user's own, through the RSVP card and back to the pass.
+  const pass = designs.applyDesign(core.newCollage('a7p'), 'pass', {}, { measure, newId });
+  const own = { ...pass, items: pass.items.map((item) => (item.role === 'logo' ? { ...item, kind: 'photo', photo: 'p1', sticker: undefined } : item)) };
+  const reply = designs.applyDesign(own, 'reply', designs.detailsOf(own), { measure, newId });
+  const back = designs.applyDesign(reply, 'pass', designs.detailsOf(reply), { measure, newId });
+  assert.equal(back.items.find((item) => item.role === 'logo').photo, 'p1');
+});
