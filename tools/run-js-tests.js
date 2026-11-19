@@ -14,6 +14,8 @@ const explicitTests = [
   path.join('wwwroot', 'js', 'pages', 'workspace-index.test.js'),
   path.join('wwwroot', 'js', 'pages', 'workspace-rail-groups.test.js'),
   path.join('wwwroot', 'js', 'pages', 'workspace-briefing-desk.test.js'),
+  // Add projects and the New deck dialog's project picker (it was missing from this list).
+  path.join('wwwroot', 'js', 'pages', 'project-briefing-add-projects.test.js'),
   path.join('wwwroot', 'js', 'pages', 'workspace-navigation-unification.test.js'),
   path.join('wwwroot', 'js', 'pages', 'activities-build-hotfix.test.js'),
   path.join('wwwroot', 'js', 'pages', 'activities-hardening.test.js'),

@@ -83,12 +83,16 @@ public sealed class ProjectBriefingContractTests
         var script = Read("project-briefing-decks.js");
         var studio = Read("project-briefing-studio.js");
 
-        // New deck: name and template, then the Studio opens on Add projects.
+        // New deck: name, template and (since Plan: The Studio is optional, PR 4) the projects,
+        // ticked or Same as a deck; without projects the Studio still opens on Add projects.
         Assert.Contains("<input type=\"radio\" name=\"Template\" value=\"@preset.Preset\"", page, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingDeckPresets.Templates.Select((preset, index) => (preset, index))", page, StringComparison.Ordinal);
         Assert.DoesNotContain("Set up by hand", page, StringComparison.Ordinal);
-        Assert.Contains("Create and add projects", page, StringComparison.Ordinal);
-        Assert.Contains("return RedirectToPage(new { deckId, start = \"projects\" });", model, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-filter data-pbd-filter-picker data-pbd-new-pick", page, StringComparison.Ordinal);
+        Assert.Contains("<select class=\"form-select\" name=\"SameAsDeckId\" disabled data-pbd-new-same-deck>", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-new-action=\"open\">Create and open</button>", page, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-new-action=\"download\" disabled>Create and download</button>", page, StringComparison.Ordinal);
+        Assert.Contains("? RedirectToPage(new { deckId, start = \"projects\" })", model, StringComparison.Ordinal);
         Assert.Contains("data-pbd-start=\"@(Model.StartWithAddProjects ? \"projects\" : null)\"", page, StringComparison.Ordinal);
         Assert.Contains("url.searchParams.delete('start');", script, StringComparison.Ordinal);
 

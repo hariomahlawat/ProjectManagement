@@ -2219,10 +2219,70 @@ if (root) {
   });
 
   // New deck: the name rule is said under the field, and every opening starts from a fresh form.
+  // The projects are chosen here too (Plan: The Studio is optional, PR 4): ticked through the Add
+  // projects filters (picker mode) or copied from another deck. Create and open posts the form
+  // (the server opens the deck, or Add projects when none were chosen); Create and download, on
+  // the library, creates the deck in the page and hands it to the library's Download, which asks
+  // about gaps first, then shows the library again with the new deck on top.
   const newDeckModal = document.getElementById('pbd-new-deck-modal');
   const newDeckForm = newDeckModal?.querySelector('[data-pbd-new-form]');
   const newDeckName = newDeckModal?.querySelector('[data-pbd-new-name]');
   const newDeckError = newDeckModal?.querySelector('[data-pbd-new-name-error]');
+  const newProjects = newDeckModal?.querySelector('[data-pbd-new-projects]');
+  const newPick = newDeckModal?.querySelector('[data-pbd-new-pick]');
+  const newSame = newDeckModal?.querySelector('[data-pbd-new-same]');
+  const newSameDeck = newDeckModal?.querySelector('[data-pbd-new-same-deck]');
+  const newSummary = newDeckModal?.querySelector('[data-pbd-new-summary]');
+  const newFormError = newDeckModal?.querySelector('[data-pbd-new-error]');
+  const newDownload = newDeckModal?.querySelector('[data-pbd-new-action="download"]');
+  const newSourceButtons = [...(newDeckModal?.querySelectorAll('[data-pbd-new-source]') || [])];
+  let newSource = 'pick';
+  const picker = newProjects ? initAddProjects({
+    root: newProjects,
+    deckId: 0,
+    picker: true,
+    idPrefix: 'pbd-new-filter',
+    checkReply,
+    setState,
+    statusElement: null,
+    updateMembership: async () => {},
+    confirmRemoval: prismConfirm,
+    modalElement: newDeckModal,
+    getMembers: () => []
+  }) : null;
+  const chosenCount = () => {
+    if (newSource === 'same') {
+      const option = newSameDeck?.selectedOptions?.[0];
+      return option && option.value ? Number(option.textContent.match(/·\s*(\d+)\s+project/)?.[1]) || 1 : 0;
+    }
+    return picker?.tickedIds().length || 0;
+  };
+  const updateNewSummary = () => {
+    const count = chosenCount();
+    if (newSummary) {
+      newSummary.textContent = newSource === 'same'
+        ? (count ? `The projects of “${newSameDeck.selectedOptions[0].textContent.split(' · ')[0]}” (${count}).` : 'Choose the deck to copy the projects of.')
+        : (count ? `${count} ${count === 1 ? 'project' : 'projects'} ticked.` : 'No projects chosen yet: the deck opens on Add projects.');
+    }
+    // Nothing to download without projects.
+    if (newDownload) newDownload.disabled = count === 0;
+  };
+  const setNewSource = (source) => {
+    newSource = source;
+    newSourceButtons.forEach((button) => {
+      const active = button.dataset.pbdNewSource === source;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    if (newPick) newPick.hidden = source !== 'pick';
+    if (newSame) newSame.hidden = source !== 'same';
+    // Only the chosen source is sent.
+    if (newSameDeck) newSameDeck.disabled = source !== 'same';
+    updateNewSummary();
+  };
+  newSourceButtons.forEach((button) => button.addEventListener('click', () => setNewSource(button.dataset.pbdNewSource)));
+  newSameDeck?.addEventListener('change', updateNewSummary);
+  newProjects?.addEventListener('pbd:filter-ticked', updateNewSummary);
   const showNewDeckError = (message) => {
     if (!newDeckName || !newDeckError) return;
     newDeckError.textContent = message;
@@ -2235,24 +2295,108 @@ if (root) {
       newDeckName.setAttribute('aria-describedby', 'pbd-new-name-help');
     }
   };
+  const showNewFormError = (message) => {
+    if (!newFormError) return;
+    newFormError.textContent = message || '';
+    newFormError.hidden = !message;
+  };
   newDeckModal?.addEventListener('shown.bs.modal', () => {
     newDeckName?.focus();
   });
   newDeckModal?.addEventListener('hidden.bs.modal', () => {
     newDeckForm?.reset();
     showNewDeckError('');
+    showNewFormError('');
+    picker?.clearTicks();
+    setNewSource('pick');
   });
   newDeckName?.addEventListener('input', () => {
     if (newDeckName.value.trim().length >= 3) showNewDeckError('');
   });
-  newDeckForm?.addEventListener('submit', (event) => {
+  let creating = false;
+  newDeckForm?.addEventListener('submit', async (event) => {
     if (!newDeckName) return;
     const name = newDeckName.value.trim();
     if (name.length < 3) {
       event.preventDefault();
       showNewDeckError(name.length === 0 ? 'Give the deck a name.' : 'The deck name needs at least 3 characters.');
       newDeckName.focus();
+      return;
     }
+    showNewFormError('');
+    // The ticked projects go with the form (only when choosing them).
+    newDeckForm.querySelectorAll('input[name="ProjectIds"][data-pbd-new-ticked]').forEach((input) => input.remove());
+    if (newSource === 'pick') {
+      (picker?.tickedIds() || []).forEach((projectId) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'ProjectIds';
+        input.value = String(projectId);
+        input.dataset.pbdNewTicked = 'true';
+        newDeckForm.append(input);
+      });
+    } else if (!newSameDeck?.value) {
+      event.preventDefault();
+      showNewFormError('Choose the deck to copy the projects of, or choose projects instead.');
+      newSameDeck?.focus();
+      return;
+    }
+    const action = event.submitter?.dataset?.pbdNewAction || 'open';
+    if (action !== 'download') return; // Create and open: the form posts as usual.
+    event.preventDefault();
+    if (creating) return;
+    creating = true;
+    const submitters = [...newDeckForm.querySelectorAll('button[type="submit"]')];
+    submitters.forEach((button) => { button.disabled = true; });
+    if (newDownload) newDownload.setAttribute('aria-busy', 'true');
+    let created = null;
+    try {
+      const response = await fetch(newDeckForm.action, {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: new FormData(newDeckForm),
+        headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      checkReply(response);
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.deckId) throw new Error(payload?.message || 'The deck could not be created.');
+      created = payload;
+    } catch (error) {
+      showNewFormError(error.message || 'The deck could not be created.');
+      creating = false;
+      submitters.forEach((button) => { button.disabled = false; });
+      updateNewSummary();
+      newDownload?.removeAttribute('aria-busy');
+      return;
+    }
+    // The deck exists now: download it through the library's Download (gap question, progress,
+    // errors), then show the library with the new deck. A form built here, not a second copy of
+    // that flow.
+    const download = document.createElement('form');
+    download.method = 'post';
+    download.action = created.generateUrl;
+    download.hidden = true;
+    download.setAttribute('data-pbd-library-download', '');
+    download.setAttribute('data-pbd-library-generate', '');
+    download.dataset.gapsUrl = created.gapsUrl;
+    [['deckId', String(created.deckId)], ['__RequestVerificationToken', token]].forEach(([fieldName, value]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = fieldName;
+      input.value = value;
+      download.append(input);
+    });
+    const submit = document.createElement('button');
+    submit.type = 'submit';
+    download.append(submit);
+    document.body.append(download);
+    download.addEventListener('pbd:download-settled', () => {
+      // A moment for the browser to take the file before the page is replaced.
+      window.setTimeout(() => window.location.assign(window.location.pathname), 600);
+    }, { once: true });
+    window.bootstrap?.Modal?.getInstance(newDeckModal)?.hide();
+    download.requestSubmit();
   });
+  setNewSource('pick');
 
 }

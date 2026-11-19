@@ -5717,6 +5717,66 @@ span.pbd-additional-slide-row__handle {
     margin-bottom: .1rem;
 }
 
+/* New deck: the projects, chosen here (Plan: The Studio is optional, PR 4). The list scrolls inside
+   the dialog so the name, the template and the buttons stay in reach. */
+.pbd-new-projects {
+    display: grid;
+    gap: .6rem;
+    margin: .35rem 0 .9rem;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+}
+
+.pbd-new-projects legend {
+    float: none;
+    margin-bottom: .1rem;
+}
+
+.pbd-new-projects .pbd-segmented {
+    justify-self: start;
+    border: 1px solid var(--pbd-border);
+}
+
+.pbd-new-projects .pbd-segmented .pbd-segmented__option {
+    flex: 0 0 auto;
+    padding: .35rem .9rem;
+    white-space: nowrap;
+}
+
+/* The form wraps the dialog's header, body and footer: it passes the scrollable dialog's height
+   on, so the body scrolls and the buttons stay in view. */
+#pbd-new-deck-modal .modal-content > form {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
+}
+
+.pbd-new-projects__pick .pbd-filter__footer-info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem .75rem;
+}
+
+.pbd-new-projects__results {
+    max-height: min(18rem, 40vh);
+    overflow-y: auto;
+}
+
+.pbd-new-deck__footer {
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+.pbd-new-deck__summary {
+    margin: 0 auto 0 0;
+    font-size: .875rem;
+    color: var(--pbd-muted);
+}
+
 .pbd-preset--choice {
     position: relative;
     margin: 0;
