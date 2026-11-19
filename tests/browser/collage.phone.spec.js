@@ -4,10 +4,11 @@
 // the "phone" project of playwright.config.js.
 
 const { test, expect } = require('./test');
-const { openFresh, newestDraft } = require('./helpers');
+const { openFresh, newestDraft, startOn } = require('./helpers');
 
 test('on a phone, panels are sheets, new words open their settings, and Layers is always reachable', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await expect(page.locator('[data-view="editor"]')).toBeVisible();
 
@@ -38,6 +39,7 @@ test('on a phone, panels are sheets, new words open their settings, and Layers i
 
 test('zoomed all the way in on a phone, every page canvas stays under the browser limit', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 portrait/ }).click();
   await expect(page.locator('[data-view="editor"]')).toBeVisible();
   // The zoom buttons are hidden on phones; the same zoom a pinch gives, as far as it goes.
@@ -50,6 +52,7 @@ test('zoomed all the way in on a phone, every page canvas stays under the browse
 
 test('on a phone the header is one line, every button has a name, and hints speak of tapping', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await expect(page.locator('[data-view="editor"]')).toBeVisible();
   // The icon-only buttons are named for screen readers.

@@ -4,7 +4,7 @@
 // logo that is never a copy of the first, and a light tile behind a crest on a dark design.
 
 const { test, expect } = require('./test');
-const { openFresh, newestDraft } = require('./helpers');
+const { openFresh, startOn, newestDraft } = require('./helpers');
 
 const roles = async (page) => ((await newestDraft(page))?.model?.items || []).filter((item) => item.role);
 
@@ -34,14 +34,19 @@ test('M6: the pocket cards are on the start screen and each opens on its own poc
   const errors = await openFresh(page);
   const row = page.locator('[data-card-pocket-hint]');
   await expect(row).toBeVisible();
+  await startOn(page, 'card');
   await expect(row.locator('[data-start-pocket]')).toHaveCount(4);
+  await startOn(page, 'card');
   await expect(row.locator('[data-start-pocket="pass"]')).toContainText('Entry card or car pass');
   // With a pocket size chosen, the designs themselves are the pocket cards: the row goes.
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a7p');
   await expect(row).toBeHidden();
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a5p');
   await expect(row).toBeVisible();
   // The RSVP card opens on the RSVP card size, in its own design.
+  await startOn(page, 'card');
   await row.locator('[data-start-pocket="reply"]').click();
   await page.locator('[data-view="editor"]').waitFor();
   await expect(page.locator('[data-size]')).toHaveValue('in355p');
@@ -55,6 +60,7 @@ test('M6: the pocket cards are on the start screen and each opens on its own poc
 
 test('M4: a second logo beside your own is the SDD logo; the logo on the card cannot be picked for the other', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await ownLogo(page);
   await expect.poll(async () => (await roles(page)).find((item) => item.role === 'logo')?.kind).toBe('photo');
@@ -75,6 +81,7 @@ test('M4: a second logo beside your own is the SDD logo; the logo on the card ca
 
 test('M4: with the SDD logo first, Add a second logo opens the choice; Cancel leaves one logo', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await touch(page);
   await page.locator('[data-card-logo="second"]').click();
@@ -90,6 +97,7 @@ test('M4: with the SDD logo first, Add a second logo opens the choice; Cancel le
 
 test('M3: a dark crest on the navy card gets a light tile behind it, gone again with the SDD logo', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="navy"]').click();
   await touch(page);
   const tile = async () => (await roles(page)).find((item) => item.role === 'logotile');
@@ -114,6 +122,7 @@ test('M3: a dark crest on the navy card gets a light tile behind it, gone again 
 // Codex on #3456: a wide picture as the second logo beside the SDD logo still fits on the page.
 test('a wide second logo beside the SDD logo is narrowed so both stay on the page', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await touch(page);
   await page.locator('[data-card-logo="second"]').click();
@@ -131,6 +140,7 @@ test('a wide second logo beside the SDD logo is narrowed so both stay on the pag
 // Codex on #3456: the tile follows a logo deleted on the page, in the same Undo step.
 test('deleting the crest on the page hides its light tile; one Undo brings both back', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="navy"]').click();
   await touch(page);
   await ownLogo(page);
@@ -151,6 +161,7 @@ test('deleting the crest on the page hides its light tile; one Undo brings both 
 // Code review 9, H1: on Modern the first logo is off-centre; the second used to mirror onto the host's words.
 test('on Modern a second logo goes beside the first, clear of the words', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="modern"]').click();
   await ownLogo(page);
   await expect.poll(async () => (await roles(page)).find((item) => item.role === 'logo')?.kind).toBe('photo');

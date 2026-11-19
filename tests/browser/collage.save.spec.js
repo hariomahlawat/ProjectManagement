@@ -6,10 +6,11 @@
 
 const fs = require('node:fs');
 const { test, expect } = require('./test');
-const { openFresh, photoFile } = require('./helpers');
+const { openFresh, photoFile, startOn } = require('./helpers');
 
 async function startWithPhoto(page) {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'picnic.jpg' }));
   await expect(page.locator('[data-photo-count]')).toHaveText('1 of 60 photos');

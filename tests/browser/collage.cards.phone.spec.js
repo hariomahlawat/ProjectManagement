@@ -4,10 +4,11 @@
 // shorter, so the card above stays big enough to read; quick picks are big enough to touch.
 
 const { test, expect } = require('./test');
-const { openFresh } = require('./helpers');
+const { openFresh, startOn } = require('./helpers');
 
 test('on a phone, typing in Card details leaves more of the card showing, and quick picks are 36 px tall', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await expect(page.locator('[data-card-field="venue"]')).toBeAttached();
   const sheetHeight = () => page.locator('[data-drawer]').evaluate((element) => element.getBoundingClientRect().height);

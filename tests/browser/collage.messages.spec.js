@@ -4,7 +4,7 @@
 // stack with the Undo offers, end at the user's next change, and never show in Preview.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft } = require('./helpers');
+const { openFresh, photoFile, newestDraft, startOn } = require('./helpers');
 
 async function photos(page, count) {
   const files = [];
@@ -16,6 +16,7 @@ const message = (page, text) => page.locator('[data-prism-toast]:not(.is-leaving
 
 test('the "did not fit" message is a toast, hidden in Preview, and gone after the next change', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 5));
   await expect(message(page, 'did not fit')).toBeVisible();
@@ -37,6 +38,7 @@ test('the "did not fit" message is a toast, hidden in Preview, and gone after th
 
 test('a tray photo dropped beside the page when every frame is full says so, and changes nothing', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^2 side by side/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 3));
   await expect(page.locator('[data-photo-count]')).toHaveText('3 of 60 photos');
@@ -62,6 +64,7 @@ test('a tray photo dropped beside the page when every frame is full says so, and
 test('a message stays while it is being read, and its text goes only when the toast goes', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 5));
   const toast = message(page, 'did not fit');

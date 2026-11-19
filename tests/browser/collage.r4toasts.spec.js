@@ -6,7 +6,7 @@
 // dialog.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile } = require('./helpers');
+const { openFresh, startOn, photoFile } = require('./helpers');
 
 const live = (page) => page.locator('[data-prism-toast]:not(.is-leaving)');
 
@@ -51,6 +51,7 @@ async function alignBottom(page) {
 }
 
 async function headingAtTheBottom(page) {
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await expect(page.locator('[data-view="editor"]')).toBeVisible();
   await page.locator('.clg-rail [data-panel="text"]').click();
@@ -119,6 +120,7 @@ test.describe('on a 390 px phone', () => {
 
 test('an Undo offer goes once its step is undone, from the toast, with Ctrl+Z or with the Undo button', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^4 grid/ }).click();
   const files = [];
   for (let i = 0; i < 4; i += 1) files.push(await photoFile(page, { name: `p${i}.jpg`, colour: `hsl(${i * 70}, 55%, 40%)` }));
@@ -152,6 +154,7 @@ test('an Undo offer goes once its step is undone, from the toast, with Ctrl+Z or
 
 test('the editor\'s toasts close when the user leaves for the start screen, and wait dimmed behind a dialog', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('.clg-rail [data-panel="text"]').click();
   await page.locator('[data-add-text="heading"]').click();

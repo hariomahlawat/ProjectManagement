@@ -4,7 +4,7 @@
 // review's Low findings, each checked once.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile } = require('./helpers');
+const { openFresh, startOn, photoFile } = require('./helpers');
 
 /** Contrast of an element's text against the first solid background behind it, with opacity. */
 function contrastOf(element) {
@@ -38,6 +38,7 @@ function contrastOf(element) {
 }
 
 async function startA4(page) {
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).first().click();
   await expect(page.locator('[data-view="editor"]')).toBeVisible();
 }
@@ -115,6 +116,7 @@ test('a panel keeps its title in view while it scrolls, and "Make it casual" can
 
 test('a deleted draft offers Undo in the glass toast, and Undo brings it back', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).last().click();
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'keep.jpg' }));
   await expect(page.locator('[data-draft-status]')).toHaveText('Draft saved in this browser');
@@ -142,6 +144,7 @@ test('a deleted draft offers Undo in the glass toast, and Undo brings it back', 
 
 test('a draft card shows its delete button on hover or focus', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).last().click();
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'one.jpg' }));
   await expect(page.locator('[data-draft-status]')).toHaveText('Draft saved in this browser');

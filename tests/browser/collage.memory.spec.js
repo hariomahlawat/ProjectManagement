@@ -6,7 +6,7 @@
 // decoding and drawing; the editor has no test hook for this.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile } = require('./helpers');
+const { openFresh, startOn, photoFile } = require('./helpers');
 
 // The same numbers as core.PHOTO_LIMITS: 60 million pixels in all, at most 2,000 px a side.
 const BUDGET = 60 * 1000 * 1000;
@@ -40,6 +40,7 @@ test('many photos are decoded smaller, and earlier copies shrink to fit the budg
     };
   });
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await expect(page.locator('[data-view="editor"]')).toBeVisible();
 

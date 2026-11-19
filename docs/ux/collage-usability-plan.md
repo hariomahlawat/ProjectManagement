@@ -174,4 +174,7 @@ same way. Each can be reverted on its own.
 
 ## Status
 
-- PR 1: this plan.
+- PR 1: this plan, #3461, merged 19 Nov 2026. It corrected one finding: five photo groups were
+  already folded (F5).
+- PR 2: the three choices on the start page, with the pocket cards moved under the card
+  designs. The remembered choice uses the `localStorage` key `prism-collage-start`.

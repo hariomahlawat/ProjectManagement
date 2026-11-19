@@ -5,7 +5,7 @@
 // are not shown here, the user is told so once, and saving the draft here writes them back.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile } = require('./helpers');
+const { openFresh, startOn, photoFile } = require('./helpers');
 
 /** Runs fn(record, store) on the one draft record in the drafts database, inside the page. */
 function withDraft(page, fn, arg) {
@@ -35,6 +35,7 @@ function withDraft(page, fn, arg) {
 test('a draft keeps the parts a newer PRISM made when it is edited and saved here', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await expect(page.locator('[data-view="editor"]')).toBeVisible();
   await page.locator('[data-file-input]').setInputFiles([await photoFile(page, { name: 'front.jpg', colour: 'hsl(20, 60%, 40%)' })]);

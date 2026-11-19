@@ -3,9 +3,10 @@
 // Settings that say what they do (docs/ux/collage-review-3-fixes.md, PR 5).
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft } = require('./helpers');
+const { openFresh, photoFile, newestDraft, startOn } = require('./helpers');
 
 async function onePhoto(page) {
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'farewell-group.jpg' }));
   await expect.poll(async () => (await newestDraft(page))?.model.items.length).toBe(1);
@@ -82,6 +83,7 @@ test('the naming note comes for each collage, also for a saved draft opened late
   await onePhoto(page);
   await page.getByRole('button', { name: 'Back to the start' }).click();
   // Another collage, named by its words: the note.
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 portrait/ }).click();
   await addWords('Second collage');
   await expect(note).toHaveCount(1);

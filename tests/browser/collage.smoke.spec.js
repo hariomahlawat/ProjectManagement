@@ -4,11 +4,12 @@
 // picture. The fuller flows are in collage.flows.spec.js.
 
 const { test, expect } = require('./test');
-const { photoFile, openFresh } = require('./helpers');
+const { photoFile, openFresh, startOn } = require('./helpers');
 
 test('a collage starts, takes a photo and saves a PNG', async ({ page }) => {
   const errors = await openFresh(page);
 
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await expect(page.locator('[data-view="editor"]')).toBeVisible();
 

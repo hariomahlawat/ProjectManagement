@@ -85,4 +85,16 @@ function fulfillLikePrism(route, { status = 200, body = '', contentType, headers
   });
 }
 
-module.exports = { openFresh, photoFile, newestDraft, showLayers, showSettings, productionHeaders, fulfillLikePrism };
+/**
+ * Opens one section of the start screen (cards, posters or a collage), as a user does before
+ * picking a design, a layout or a blank page (docs/ux/collage-usability-plan.md, PR 2). Waits
+ * for the start screen first (after "Back to the start" it comes once the draft is kept), and
+ * does nothing more when that section already shows.
+ */
+async function startOn(page, choice) {
+  await page.locator('[data-view="start"]').waitFor();
+  if (await page.locator(`[data-start-section="${choice}"]`).isVisible()) return;
+  await page.locator(`[data-start-choice="${choice}"]`).click();
+}
+
+module.exports = { openFresh, startOn, photoFile, newestDraft, showLayers, showSettings, productionHeaders, fulfillLikePrism };

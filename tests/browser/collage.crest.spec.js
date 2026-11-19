@@ -6,7 +6,7 @@
 // the picture's headers and the stored PNG to tests/browser/fixtures.
 
 const { test, expect } = require('./test');
-const { openFresh } = require('./helpers');
+const { openFresh, startOn } = require('./helpers');
 const samples = require('./fixtures/collage-api-samples.json');
 
 const crest = samples.stickers.stickers[0];
@@ -18,6 +18,7 @@ test('a crest goes on the collage, is drawn, and Save makes a PNG with it', asyn
     if (new URL(response.url()).pathname === `/api/collage/stickers/${crest.id}/image`) pictureAnswers.push(response);
   });
 
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('.clg-rail [data-panel="stickers"]').click();
   await page.locator('[data-sticker-group="crests"]').click();

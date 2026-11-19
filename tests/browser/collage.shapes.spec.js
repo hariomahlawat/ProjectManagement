@@ -4,12 +4,13 @@
 // panel go on the page, stretch freely, change colour and thickness, and Save draws them.
 
 const { test, expect } = require('./test');
-const { openFresh } = require('./helpers');
+const { openFresh, startOn } = require('./helpers');
 
 const kinds = (page) => page.evaluate(() => window.Konva.stages[0].find('.item').map((n) => `${n.getAttr('kind')}`));
 
 test('a page border and a band go on the page, stretch freely, and Save draws them', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 portrait/ }).click();
   await page.locator('.clg-rail [data-panel="stickers"]').click();
   await page.locator('[data-sticker-group="lines"]').click();
@@ -80,6 +81,7 @@ test('a page border and a band go on the page, stretch freely, and Save draws th
 
 test('a line stretches along its length only from its side handle, and its thickness stays', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('.clg-rail [data-panel="stickers"]').click();
   await page.locator('[data-sticker-group="lines"]').click();
@@ -118,6 +120,7 @@ async function streamBytes(download) {
 
 test('words inside a page border can still be clicked; the border is picked by its line', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 portrait/ }).click();
   await page.locator('.clg-rail [data-panel="text"]').click();
   await page.locator('[data-add-text="heading"]').click();

@@ -4,7 +4,7 @@
 // neat grid, new words go to free space, and the space slider offers Undo when it puts photos back.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft, showLayers } = require('./helpers');
+const { openFresh, startOn, photoFile, newestDraft, showLayers } = require('./helpers');
 
 async function photos(page, count) {
   const files = [];
@@ -28,6 +28,7 @@ const overlap = (a, b) => {
 
 test('four photos added to a blank page are laid out in a grid, none covering another', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 portrait/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 4));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(4);
@@ -38,6 +39,7 @@ test('four photos added to a blank page are laid out in a grid, none covering an
 
 test('three headings added over a full layout do not cover each other', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^4 grid/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 4));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(4);
@@ -54,6 +56,7 @@ test('three headings added over a full layout do not cover each other', async ({
 
 test('the space slider says when it puts a hand-moved photo back, and Undo brings it back', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^4 grid/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 4));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(4);

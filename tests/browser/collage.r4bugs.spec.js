@@ -6,7 +6,7 @@
 // change still pending.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft, showLayers, showSettings } = require('./helpers');
+const { openFresh, startOn, photoFile, newestDraft, showLayers, showSettings } = require('./helpers');
 
 async function photos(page, count, from = 0) {
   const files = [];
@@ -16,6 +16,7 @@ async function photos(page, count, from = 0) {
 
 /** "1 big, 2 small" with three photos, written to its draft. */
 async function threeInLayout(page) {
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 3));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(3);
@@ -111,6 +112,7 @@ test('a photo read for a collage that was left meanwhile is let go', async ({ pa
     };
   });
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(1);
@@ -154,6 +156,7 @@ test('Delete on a button does nothing; on the page or the item\'s Layers row it 
 
 test('leaving while a change is still being written asks, rather than dropping it', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(1);

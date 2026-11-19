@@ -5,9 +5,10 @@
 // this collage?" question, a photo dropped on the page or pasted, and Undo after a drag or a resize.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft, showLayers } = require('./helpers');
+const { openFresh, photoFile, newestDraft, showLayers, startOn } = require('./helpers');
 
 async function startBlank(page) {
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await expect(page.locator('[data-view="editor"]')).toBeVisible();
 }
@@ -211,6 +212,7 @@ test('a photo dropped on the page goes where it is dropped, and one dropped on a
   // On a layout, a photo dropped on its second empty frame fills that frame.
   await page.getByRole('button', { name: 'Back to the start' }).click();
   await expect(page.locator('[data-view="start"]')).toBeVisible();
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
   // The layout's empty frames are drawn once the editor shows.
   const slotIds = () => page.evaluate(() => window.Konva.stages[0].find('.item').filter((n) => n.getAttr('kind') === 'slot').map((n) => n.id()));

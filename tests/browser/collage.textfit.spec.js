@@ -4,10 +4,11 @@
 // the words their size as a recorded change, kept in the draft (docs/ux/collage-review-4-fixes.md, PR 10).
 
 const { test, expect } = require('./test');
-const { openFresh, newestDraft } = require('./helpers');
+const { openFresh, newestDraft, startOn } = require('./helpers');
 
 /** A heading whose stored size is from before its font arrived: opened, put right, then Undone. Returns its real width. */
 async function staleHeading(page) {
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('.clg-rail [data-panel="text"]').click();
   await page.locator('[data-add-text="heading"]').click();

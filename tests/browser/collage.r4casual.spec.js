@@ -4,7 +4,7 @@
 // (docs/ux/collage-review-4-fixes.md, PR 4).
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft } = require('./helpers');
+const { openFresh, photoFile, newestDraft, startOn } = require('./helpers');
 
 const turnedBox = (i) => {
   const r = (i.angle || 0) * Math.PI / 180;
@@ -16,6 +16,7 @@ const turnedBox = (i) => {
 
 test('"Make it casual" keeps every print on the page', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^4 grid/ }).click();
   const files = [];
   for (let i = 0; i < 4; i += 1) files.push(await photoFile(page, { name: `p${i}.jpg`, colour: `hsl(${i * 70}, 55%, 40%)` }));
@@ -38,6 +39,7 @@ test('"Make it casual" keeps every print on the page', async ({ page }) => {
 
 test('a tall photo added with wide ones goes into the tall frame', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
   await page.locator('[data-file-input]').setInputFiles([
     await photoFile(page, { name: 'wide-1.jpg', width: 1200, height: 800 }),
@@ -54,6 +56,7 @@ test('a tall photo added with wide ones goes into the tall frame', async ({ page
 
 test('a heading added over photos gets a white outline so it can be read', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^4 grid/ }).click();
   const files = [];
   for (let i = 0; i < 4; i += 1) files.push(await photoFile(page, { name: `p${i}.jpg` }));
@@ -67,6 +70,7 @@ test('a heading added over photos gets a white outline so it can be read', async
 
 test('with more photos than empty frames, the one matched to no frame waits in the tray, with the message', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^2 side by side/ }).click();
   // One photo fills a frame first, so one empty frame is left.
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'first.jpg' }));

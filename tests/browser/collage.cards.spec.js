@@ -5,10 +5,11 @@
 // goes into the saved picture.
 
 const { test, expect } = require('./test');
-const { openFresh, newestDraft } = require('./helpers');
+const { openFresh, newestDraft, startOn } = require('./helpers');
 
 test('a car pass size and the SDD logo: the menu groups sizes, and Save draws the logo at the card shape', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
 
   const size = page.locator('[data-size]');
@@ -63,21 +64,31 @@ async function streamBytes(download) {
 
 test('a custom card size typed in mm: refused out of range, then the card saves a PDF of that paper size', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   const size = page.locator('[data-card-size]');
   await size.selectOption('custom');
   await expect(size).toHaveValue('a5p');
+  await startOn(page, 'card');
   const box = page.locator('[data-card-custom]');
   await expect(box).toBeVisible();
+  await startOn(page, 'card');
   await box.locator('[data-card-custom-size="width"]').fill('30');
+  await startOn(page, 'card');
   await box.locator('[data-card-custom-size="height"]').fill('180');
+  await startOn(page, 'card');
   await box.locator('[data-card-custom-use]').click();
+  await startOn(page, 'card');
   await expect(box.locator('[data-card-custom-error]')).toHaveText('Each side must be from 50 to 300 mm.');
+  await startOn(page, 'card');
   await box.locator('[data-card-custom-size="width"]').fill('120');
+  await startOn(page, 'card');
   await box.locator('[data-card-custom-size="height"]').press('Enter');
   await expect(size).toHaveValue('mm:120x180');
   await expect(box).toBeHidden();
+  await startOn(page, 'card');
   await expect(page.locator('[data-start-design]').first()).toHaveAttribute('aria-label', /Custom 120 × 180 mm/);
 
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await expect(page.locator('[data-size]')).toHaveValue('mm:120x180');
   await page.getByRole('button', { name: 'Save as…' }).click();
@@ -115,7 +126,9 @@ test('a custom card size typed in mm: refused out of range, then the card saves 
 test('A6 cards with a back print two to a turned A4 sheet, fronts then backs, with cut marks', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a6p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-side="add"]').click();
   await page.getByRole('button', { name: 'Save as…' }).click();
@@ -149,7 +162,9 @@ test('A6 cards with a back print two to a turned A4 sheet, fronts then backs, wi
 test('a guest list makes one card for each guest: on their own pages, or filling A4 sheets', async ({ page }) => {
   test.setTimeout(120000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a6p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const list = page.locator('[data-card-guests]');
   await list.fill('Lt Gen R. K. Mehta, AVSM\nBrig P. Singh, SM and Mrs Singh\nCol D. Nair');
@@ -253,7 +268,9 @@ test('a guest list makes one card for each guest: on their own pages, or filling
 // Codex on PR 10: a design with no place for the guest's name takes no guest list.
 test('a car pass offers no guest list, and Save offers no card for each guest', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('passl');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="pass"]').click();
   await expect(page.locator('[data-card-field="host"], [data-card-field="when"]').first()).toBeVisible();
   await expect(page.locator('[data-card-guests]')).toHaveCount(0);
@@ -268,7 +285,9 @@ test('a car pass offers no guest list, and Save offers no card for each guest', 
 test('a folded card with a guest list puts each name inside; the outside is shared', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('fold6');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-guests]').fill('Col D. Nair\nMaj B. Rao');
   await page.locator('[data-card-guests]').blur();
@@ -302,7 +321,9 @@ test('a folded card with a guest list puts each name inside; the outside is shar
 // fields Card details types inside are there.
 test('a card changed to a folded size gets an inside, and its inside fields can be typed', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a5p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('#clgSize').selectOption('fold6');
   const venue = page.locator('[data-card-field="venue"]');
@@ -319,7 +340,9 @@ test('a card changed to a folded size gets an inside, and its inside fields can 
 // Codex on PR 9c: an ordinary size change (A5 to A6) only resizes; the user's changes stay.
 test('a card changed from A5 to A6 keeps a part the user locked', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a5p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   // The occasion locked, through Layers and the Lock button.
   await page.locator('.clg-props [data-props-tab="layers"]').click();
