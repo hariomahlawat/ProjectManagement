@@ -918,6 +918,11 @@
                                             <button type="button" class="btn btn-link btn-sm" data-pbd-filter-tick-all hidden></button>
                                             <button type="button" class="btn btn-link btn-sm" data-pbd-filter-list-retry hidden>Try again</button>
                                         </div>
+                                        @* Shown when a list reply shows the deck was changed in another tab or by someone else (cold review 6). *@
+                                        <p class="pbd-filter__changed" role="status" data-pbd-filter-changed hidden>
+                                            <span>This deck was changed in another tab or by someone else. Reload it before adding; your ticks are kept.</span>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" data-pbd-filter-changed-reload>Reload</button>
+                                        </p>
                                         </div>
                                         <div class="pbd-filter__results" data-pbd-filter-results></div>
                                         <form method="post" asp-page-handler="AddSelection" data-pbd-add-selection-form data-pbd-filter-add-form hidden>

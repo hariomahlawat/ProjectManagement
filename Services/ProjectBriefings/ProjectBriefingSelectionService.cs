@@ -26,6 +26,20 @@ public interface IProjectBriefingSelectionService
         ProjectBriefingProjectFilter filter,
         CancellationToken cancellationToken = default);
 
+    // The same filter, read for the dialog (cold review 6): every matching project's id, by name,
+    // and the full rows of only the first `take` (all when null), so a keystroke does not build
+    // a row for every project in the register.
+    async Task<ProjectBriefingFilterPage> FilterPageAsync(
+        ProjectBriefingProjectFilter filter,
+        int? take,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await FilterAsync(filter, cancellationToken);
+        return new ProjectBriefingFilterPage(
+            rows.Select(row => row.ProjectId).ToArray(),
+            take.HasValue ? rows.Take(take.Value).ToArray() : rows);
+    }
+
     Task<IReadOnlyList<int>> ValidateProjectIdsAsync(
         IReadOnlyCollection<int> projectIds,
         CancellationToken cancellationToken = default);
@@ -136,7 +150,31 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
         ProjectBriefingProjectFilter filter,
         CancellationToken cancellationToken = default)
     {
+        // Every match, with no limit (Codex review): the dialog's totals are the real ones.
+        return (await FilterPageAsync(filter, take: null, cancellationToken)).Rows;
+    }
+
+    public async Task<ProjectBriefingFilterPage> FilterPageAsync(
+        ProjectBriefingProjectFilter filter,
+        int? take,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(filter);
+        var query = await FilteredProjectsAsync(filter, cancellationToken);
+        // The ids are one narrow read; stages, categories and officers are read for the rows shown.
+        var projectIds = await query
+            .OrderBy(project => project.Name)
+            .ThenBy(project => project.Id)
+            .Select(project => project.Id)
+            .ToListAsync(cancellationToken);
+        var rows = await BuildResultsAsync(query, take, cancellationToken);
+        return new ProjectBriefingFilterPage(projectIds, rows);
+    }
+
+    private async Task<IQueryable<Project>> FilteredProjectsAsync(
+        ProjectBriefingProjectFilter filter,
+        CancellationToken cancellationToken)
+    {
         var query = EligibleProjects();
 
         var text = filter.Query?.Trim();
@@ -200,9 +238,7 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
                 status.ProjectId == project.Id && status.AvailableForProliferation == true));
         }
 
-        // Every match, with no limit (Codex review): the dialog lists them all and its totals are
-        // the real ones.
-        return await BuildResultsAsync(query, take: null, cancellationToken);
+        return query;
     }
 
     // The projects each published ARPP of these financial years lists (all years when none are
@@ -338,7 +374,7 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
         int? take,
         CancellationToken cancellationToken)
     {
-        IQueryable<Project> ordered = query.OrderBy(project => project.Name);
+        IQueryable<Project> ordered = query.OrderBy(project => project.Name).ThenBy(project => project.Id);
         var projectRows = await (take.HasValue ? ordered.Take(take.Value) : ordered)
             .Select(project => new SearchProjectBaseRow(
                 project.Id,

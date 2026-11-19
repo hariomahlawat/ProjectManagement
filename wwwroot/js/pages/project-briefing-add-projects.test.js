@@ -31,6 +31,7 @@ const MARKUP = `
       <span data-pbd-filter-count></span>
       <button type="button" data-pbd-filter-tick-all hidden></button>
       <button type="button" data-pbd-filter-list-retry hidden>Try again</button>
+      <p data-pbd-filter-changed hidden><span>Changed elsewhere.</span><button type="button" data-pbd-filter-changed-reload>Reload</button></p>
       <div data-pbd-filter-results></div>
       <form data-pbd-filter-add-form><input type="hidden" name="Kind" value="IndividualProjects" /></form>
     </div>
@@ -57,6 +58,8 @@ async function setUp({ members = [], rows = [row(1, 'Alpha'), row(2, 'Bravo'), r
   const dom = new JSDOM(`<!doctype html><html><body>${MARKUP}</body></html>`, { url: 'http://localhost/' });
   const { window } = dom;
   const { document } = window;
+  if (setUp.keptTicks) window.sessionStorage.setItem('prism.briefingDecks.addTicks.7', setUp.keptTicks);
+  window.bootstrap = { Modal: { getOrCreateInstance: () => ({ show: () => { window.shownAgain = true; } }) } };
   const state = { members: members.map((projectId) => ({ projectId })), submits: [], fetches: [], optionsReplies: [], listReplies: [], confirms: [] };
   window.fetch = (url) => {
     const href = String(url);
@@ -74,7 +77,17 @@ async function setUp({ members = [], rows = [row(1, 'Alpha'), row(2, 'Bravo'), r
       state.listReplies.push(wait);
       return wait.promise;
     }
-    return Promise.resolve(reply({ rows, ...(state.listPayloadExtra || {}) }));
+    // As the server does: the in-deck marks of the deck it holds, the first 200 rows unless all
+    // are asked for, and the real totals.
+    const held = new Set((state.serverMembers || state.members).map((member) => Number(member.projectId)));
+    const marked = rows.map((candidate) => ({ ...candidate, isSelected: held.has(candidate.projectId) }));
+    const all = new URL(href, 'http://localhost').searchParams.get('all') === 'true';
+    return Promise.resolve(reply({
+      rows: all ? marked : marked.slice(0, 200),
+      total: marked.length,
+      inDeck: marked.filter((candidate) => candidate.isSelected).length,
+      ...(state.listPayloadExtra || {})
+    }));
   };
   const root = document.querySelector('[data-pbd-root]');
   const form = document.querySelector('[data-pbd-filter-add-form]');
@@ -451,14 +464,20 @@ test('"Ongoing" with "Completed between" says why nothing matches', async () => 
   assert.match(page.$('[data-pbd-filter-count]').textContent, /ongoing projects have no completion year/);
 });
 
-test('a long list draws the first 200, with Show all; the count and Tick all cover every match', async () => {
+test('a long list: the server sends the first 200 and the real totals; Show all fetches the rest', async () => {
   const rows = Array.from({ length: 230 }, (_, index) => row(index + 1, `Project ${String(index + 1).padStart(3, '0')}`));
-  const page = await setUp({ rows });
+  const page = await setUp({ rows, members: [5, 210] });
   assert.equal(page.document.querySelectorAll('.pbd-filter__row').length, 200);
-  assert.equal(page.$('[data-pbd-filter-count]').textContent, '230 projects match');
+  assert.ok(!page.state.fetches.at(-1).includes('all=true'), 'the first read asks for the first rows only');
+  assert.equal(page.$('[data-pbd-filter-count]').textContent, '230 projects match · 2 already in the deck');
   assert.equal(page.$('[data-pbd-filter-show-all]').textContent, 'Show all 230 projects');
+  // Tick all ticks as many as fit from the rows sent.
+  assert.equal(page.$('[data-pbd-filter-tick-all]').textContent, 'Tick the first 118 that fit');
   page.$('[data-pbd-filter-show-all]').click();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.ok(page.state.fetches.at(-1).includes('all=true'));
   assert.equal(page.document.querySelectorAll('.pbd-filter__row').length, 230);
+  assert.equal(page.$('[data-pbd-filter-count]').textContent, '230 projects match · 2 already in the deck');
   assert.equal(page.$('[data-pbd-filter-show-all]'), null);
   assert.equal(page.document.activeElement, page.$('[data-pbd-filter-tick="201"]'), 'the keyboard carries on at the first new row');
 });
@@ -527,4 +546,44 @@ test('a list reply read before a Remove does not bring back the full-deck size (
   await tick();
   assert.match(page.$('[data-pbd-filter-room]').textContent, /Room for 120 more/);
   assert.equal(page.$('[data-pbd-filter-tick="1"]').disabled, false);
+});
+
+test('a row shows its file number, so a search by file number shows why it matched', async () => {
+  const page = await setUp({ rows: [row(1, 'Alpha', { caseFileNumber: 'PD/221/A' }), row(2, 'Bravo')] });
+  assert.match(page.$('#pbd-filter-meta-1').textContent, /^File PD\/221\/A · Ongoing/);
+  assert.doesNotMatch(page.$('#pbd-filter-meta-2').textContent, /File/);
+});
+
+test('a deck changed elsewhere is said at once, the server marks are shown, and Reload keeps the ticks', async () => {
+  const page = await setUp({ members: [] });
+  assert.equal(page.$('[data-pbd-filter-changed]').hidden, true);
+  page.tickRow(1);
+  page.tickRow(3);
+  // Another editor adds Charlie; the next list reply shows it.
+  page.state.serverMembers = [{ projectId: 3 }];
+  page.$('[data-pbd-filter-query]').value = 'a';
+  page.$('[data-pbd-filter-query]').dispatchEvent(new page.window.Event('input', { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  assert.equal(page.$('[data-pbd-filter-changed]').hidden, false);
+  assert.equal(page.$('[data-pbd-filter-tick="3"]'), null, 'Charlie shows as in the deck');
+  assert.equal(page.$('[data-pbd-filter-ticked]').textContent, '1 ticked · Review');
+  page.$('[data-pbd-filter-changed-reload]').click();
+  const kept = JSON.parse(page.window.sessionStorage.getItem('prism.briefingDecks.addTicks.7'));
+  assert.deepEqual(kept.map((candidate) => candidate.projectId), [1]);
+  // The page's own newer deck clears the notice.
+  page.controller.refreshMembership([{ projectId: 3 }]);
+  assert.equal(page.$('[data-pbd-filter-changed]').hidden, true);
+});
+
+test('ticks kept across that reload come back and the dialog opens again', async () => {
+  setUp.keptTicks = JSON.stringify([row(2, 'Bravo'), row(9, 'Gone into the deck')]);
+  try {
+    const page = await setUp({ members: [9] });
+    assert.equal(page.window.shownAgain, true);
+    assert.equal(page.$('[data-pbd-filter-tick="2"]').checked, true);
+    assert.equal(page.$('[data-pbd-filter-ticked]').textContent, '1 ticked · Review', 'a project now in the deck is not ticked');
+    assert.equal(page.window.sessionStorage.getItem('prism.briefingDecks.addTicks.7'), null);
+  } finally {
+    setUp.keptTicks = undefined;
+  }
 });

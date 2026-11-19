@@ -340,6 +340,12 @@ public sealed record ProjectBriefingSearchResultVm(
     string? ProjectOfficer,
     string? CaseFileNumber);
 
+// The Add projects list (cold review 6): every matching project's id, by name, and the rows of
+// the first few.
+public sealed record ProjectBriefingFilterPage(
+    IReadOnlyList<int> ProjectIds,
+    IReadOnlyList<ProjectBriefingSearchResultVm> Rows);
+
 public sealed record ProjectBriefingManageSearchResultVm(
     int ProjectId,
     string ProjectName,

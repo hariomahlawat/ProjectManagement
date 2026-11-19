@@ -4113,6 +4113,29 @@ html.pm-no-has.pm-has-pbd-viewer-open {
 }
 
 /* Larger than the old search results' text (cold review, L5). */
+/* The deck was changed elsewhere (cold review 6). */
+.pbd-filter__changed {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem .75rem;
+    margin: .5rem 0 0;
+    padding: .5rem .75rem;
+    border: 1px solid var(--pm-warning-soft-border);
+    border-radius: .5rem;
+    background: var(--pm-warning-soft-bg);
+    color: var(--pm-warning-soft-text);
+    font-size: .85rem;
+}
+
+.pbd-filter__changed[hidden] {
+    display: none;
+}
+
+.pbd-filter__changed span {
+    flex: 1 1 16rem;
+}
+
 /* "Show all N projects" under the first 200 (cold review 5). */
 .pbd-filter__more {
     grid-column: 1 / -1;
