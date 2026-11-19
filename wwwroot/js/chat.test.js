@@ -3769,7 +3769,7 @@ test('reactions: the toolbar adds one at once, chips show who, and live changes 
     const win = app.openWindow('peer', { focus: false });
     await tick(); await tick();
     const noted = win.log.querySelector('[data-focus-key="react-noted:1"]');
-    assert.equal(noted.textContent, '✓ Noted');
+    assert.equal(noted.textContent.trim(), 'Noted');
     assert.equal(noted.getAttribute('aria-pressed'), 'false');
     noted.click();
     // Shown before the server answers.
@@ -3781,7 +3781,7 @@ test('reactions: the toolbar adds one at once, chips show who, and live changes 
 
     app.onReactions({ messageId: 1, groupId: null, reactions: [{ kind: 'noted', userIds: ['me', 'peer'] }, { kind: 'like', userIds: ['peer'] }] });
     const chips = Array.from(win.log.querySelectorAll('.pm-chat__reaction'));
-    assert.deepEqual(chips.map((c) => c.textContent), ['✓ Noted2', '👍1']);
+    assert.deepEqual(chips.map((c) => c.textContent), [' Noted2', '1']);
     assert.equal(chips[0].title, 'Noted: you and Peer Person');
     assert.equal(chips[1].getAttribute('aria-pressed'), 'false');
 
@@ -3881,7 +3881,7 @@ test('the message toolbar is one tab stop; ← → move inside it', async () => 
     assert.equal(bar.getAttribute('role'), 'toolbar');
     const buttons = Array.from(bar.querySelectorAll('button'));
     assert.deepEqual(buttons.map((b) => b.tabIndex), [0, -1, -1, -1, -1]);
-    assert.deepEqual(buttons.map((b) => b.textContent || b.getAttribute('aria-label')), ['✓ Noted', '👍', '👀', 'Reply to the message from Peer Person', 'Copy message from Peer Person']);
+    assert.deepEqual(buttons.map((b) => b.textContent || b.getAttribute('aria-label')), [' Noted', 'React: Like', 'React: Looking into it', 'Reply to the message from Peer Person', 'Copy message from Peer Person']);
     buttons[0].focus();
     bar.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     assert.equal(window.document.activeElement, buttons[1]);
@@ -4381,7 +4381,7 @@ test('a live reaction during the reconnect refresh keeps the reaction and still 
     const item = win.log.querySelector('[data-message-id="1"]');
     assert.match(item.querySelector('.pm-chat__bubble').textContent, /Corrected while offline/, 'the missed edit is brought in');
     assert.ok(item.querySelector('.pm-chat__edited'));
-    assert.equal(item.querySelector('.pm-chat__reaction').textContent, '👍1', 'the live reaction stays');
+    assert.equal(item.querySelector('.pm-chat__reaction').textContent, '1', 'the live reaction stays');
   } finally {
     window.close();
   }
@@ -4458,7 +4458,7 @@ test('a reaction from someone else arriving before my own reaction is answered i
     app.onReactions({ messageId: 1, groupId: null, reactions: [{ kind: 'noted', userIds: ['me'] }, { kind: 'like', userIds: ['peer'] }] });
     answer();
     await tick(); await tick(); await tick();
-    assert.deepEqual(chips(), ['✓ Noted1', '👍1'], "the peer's reaction stays");
+    assert.deepEqual(chips(), [' Noted1', '1'], "the peer's reaction stays");
 
     // A failed request does not wipe a list the server has sent since.
     mode = 'fail';
@@ -4467,7 +4467,7 @@ test('a reaction from someone else arriving before my own reaction is answered i
     app.onReactions({ messageId: 1, groupId: null, reactions: [{ kind: 'noted', userIds: ['me', 'peer'] }, { kind: 'like', userIds: ['peer'] }] });
     answer();
     await tick(); await tick(); await tick();
-    assert.deepEqual(chips(), ['✓ Noted2', '👍1']);
+    assert.deepEqual(chips(), [' Noted2', '1']);
   } finally {
     window.close();
   }
@@ -4502,7 +4502,7 @@ test("someone's reaction arriving while my edit is saved is kept, and the saved 
     await tick(); await tick(); await tick();
     const item = win.log.querySelector('[data-message-id="2"]');
     assert.match(item.querySelector('.pm-chat__bubble').textContent, /with the annex/, 'the saved text');
-    assert.equal(item.querySelector('.pm-chat__reaction').textContent, '✓ Noted1', "the peer's reaction stays");
+    assert.equal(item.querySelector('.pm-chat__reaction').textContent, ' Noted1', "the peer's reaction stays");
     assert.equal(app.messageEventAt.get(2).reactions.list.length, 1, 'the stale empty list is not recorded as newest');
   } finally {
     window.close();
@@ -4537,7 +4537,7 @@ test('a reaction to my new message arriving before my own send is answered is no
     answer();
     await tick(); await tick(); await tick();
     const item = win.log.querySelector('[data-message-id="7"]');
-    assert.equal(item.querySelector('.pm-chat__reaction').textContent, '✓ Noted1');
+    assert.equal(item.querySelector('.pm-chat__reaction').textContent, ' Noted1');
     assert.equal(win.log.querySelectorAll('.pm-chat__msg').length, 1, 'one message, no duplicate');
   } finally {
     window.close();
@@ -4559,7 +4559,7 @@ test('a repeated push of a message (a retried send) does not undo reactions alre
     app.onMessage(pushed);
     app.onReactions({ messageId: 8, groupId: null, reactions: [{ kind: 'like', userIds: ['me'] }] });
     app.onMessage({ ...pushed }); // the same message again, read before the reaction
-    assert.equal(win.log.querySelector('[data-message-id="8"] .pm-chat__reaction').textContent, '👍1');
+    assert.equal(win.log.querySelector('[data-message-id="8"] .pm-chat__reaction').textContent, '1');
   } finally {
     window.close();
   }
@@ -4590,7 +4590,7 @@ test('an edit missed offline and brought in by the refresh is not reverted by a 
     // The same message pushed again (a retried send) with the current server text.
     app.onMessage(directMessage(1, 'peer', 'Second edit, missed offline', { reactions: [{ kind: 'like', userIds: ['peer'] }] }));
     assert.match(bubble(), /Second edit, missed offline/, 'not the earlier live edit');
-    assert.equal(win.log.querySelector('[data-message-id="1"] .pm-chat__reaction').textContent, '👍1');
+    assert.equal(win.log.querySelector('[data-message-id="1"] .pm-chat__reaction').textContent, '1');
   } finally {
     window.close();
   }
@@ -4613,7 +4613,7 @@ test('a pushed edit changes the text only: a reaction pushed just before it stay
     const item = win.log.querySelector('[data-message-id="1"]');
     assert.match(item.querySelector('.pm-chat__bubble').textContent, /Meeting at 1600/);
     assert.ok(item.querySelector('.pm-chat__edited'));
-    assert.equal(item.querySelector('.pm-chat__reaction').textContent, '✓ Noted1');
+    assert.equal(item.querySelector('.pm-chat__reaction').textContent, ' Noted1');
     assert.equal(app.messageEventAt.get(1).reactions.list.length, 1, 'the stale list is not remembered');
   } finally {
     window.close();
@@ -4694,6 +4694,68 @@ test('the reconnect catch-up completes when the server has no unsent or removed-
     assert.match(win.log.querySelector('[data-message-id="1"] .pm-chat__bubble').textContent, /Corrected while you were away/);
     assert.equal(app.offlineSince, null, 'the catch-up is done');
     assert.ok(!app.unsentRetry, 'and nothing is retried');
+  } finally {
+    window.close();
+  }
+});
+
+test('reactions are drawn with the shipped icons, never emoji a PC may lack', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) {
+      return { messages: [directMessage(1, 'peer', 'right sir', { reactions: [{ kind: 'like', userIds: ['me'] }, { kind: 'looking', userIds: ['peer'] }] })], hasMore: false };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const item = win.log.querySelector('[data-message-id="1"]');
+    const bar = item.querySelector('.pm-chat__actions');
+    assert.ok(bar.querySelector('.bi-check2'));
+    assert.ok(bar.querySelector('.bi-hand-thumbs-up-fill'));
+    assert.ok(bar.querySelector('.bi-eye-fill'));
+    const chips = item.querySelectorAll('.pm-chat__reaction');
+    assert.ok(chips[0].querySelector('.bi-hand-thumbs-up-fill'));
+    assert.ok(chips[1].querySelector('.bi-eye-fill'));
+    assert.doesNotMatch(item.textContent, /\p{Extended_Pictographic}/u);
+  } finally {
+    window.close();
+  }
+});
+
+test('the message toolbar goes below a message with no room above it in the window', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/with/peer/messages')) {
+      return { messages: [directMessage(1, 'me', 'Hi Rohit, update your project stages.'), directMessage(2, 'peer', 'right sir')], hasMore: false };
+    }
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    const rect = (top) => ({ top, bottom: top + 30, left: 0, right: 300, width: 300, height: 30 });
+    win.body.getBoundingClientRect = () => rect(100);
+    const first = win.log.querySelector('[data-message-id="1"]');
+    const second = win.log.querySelector('[data-message-id="2"]');
+    first.getBoundingClientRect = () => rect(102); // at the top of the visible area
+    second.getBoundingClientRect = () => rect(160);
+    for (const item of [first, second]) {
+      Object.defineProperty(item.querySelector('.pm-chat__actions'), 'offsetHeight', { value: 26 });
+    }
+    first.querySelector('.pm-chat__bubble').dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
+    second.querySelector('.pm-chat__bubble').dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
+    assert.ok(first.querySelector('.pm-chat__actions').classList.contains('is-below'));
+    assert.ok(!second.querySelector('.pm-chat__actions').classList.contains('is-below'));
+    // Keyboard focus places it too.
+    first.getBoundingClientRect = () => rect(200);
+    first.querySelector('.pm-chat__action').dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+    assert.ok(!first.querySelector('.pm-chat__actions').classList.contains('is-below'));
   } finally {
     window.close();
   }

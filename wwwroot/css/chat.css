@@ -1587,11 +1587,13 @@
     border-top: 1px solid var(--pm-danger);
 }
 
-/* The message toolbar (chat/actions.js): over the top corner of the message, shown while
-   pointing at the message or using the keyboard in it. */
+/* The message toolbar (chat/actions.js): just above the message, on the side with free space,
+   shown while pointing at the message or using the keyboard in it. It never covers the text of
+   the message it belongs to, and never runs past the window's edge. Below the message when there
+   is no room above (bindActionPlacement). */
 .pm-chat__actions {
     position: absolute;
-    top: -.85rem;
+    bottom: calc(100% - .2rem);
     z-index: 2;
     display: flex;
     gap: .1rem;
@@ -1606,11 +1608,16 @@
 }
 
 .pm-chat__msg.is-theirs .pm-chat__actions {
-    right: -.25rem;
+    left: 0;
 }
 
 .pm-chat__msg.is-mine .pm-chat__actions {
-    left: -.25rem;
+    right: 0;
+}
+
+.pm-chat__actions.is-below {
+    top: calc(100% - .2rem);
+    bottom: auto;
 }
 
 .pm-chat__msg:hover .pm-chat__actions,
@@ -1638,6 +1645,11 @@
 .pm-chat__action.is-icon {
     padding: .05rem .3rem;
     font-size: .78rem;
+}
+
+.pm-chat__action .bi,
+.pm-chat__reaction-symbol .bi {
+    vertical-align: -.1em;
 }
 
 .pm-chat__action.is-done {
