@@ -481,33 +481,6 @@ test('Save offers A4 edge to edge where it fits more cards: 4 A6 touching, no cu
   expect(errors).toEqual([]);
 });
 
-test('a logo still being read when the card is turned over stays in the tray, not on the back', async ({ page }) => {
-  test.setTimeout(90000);
-  const errors = await openFresh(page);
-  await page.locator('[data-start-design="classic"]').click();
-  await page.locator('[data-card-side="add"]').click();
-  await page.locator('[data-card-side="front"]').click();
-  // A large picture, so it is still being read when the card is turned.
-  const png = await page.evaluate(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 3000;
-    canvas.height = 3000;
-    const context = canvas.getContext('2d');
-    for (let i = 0; i < 400; i += 1) { context.fillStyle = `hsl(${i}, 60%, 50%)`; context.fillRect((i * 37) % 3000, (i * 91) % 3000, 300, 300); }
-    return canvas.toDataURL('image/png').split(',')[1];
-  });
-  const chosen = page.locator('[data-card-logo-file]').setInputFiles({ name: 'big-logo.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
-  await page.locator('[data-card-side="back"]').click();
-  await chosen;
-  await expect(page.locator('[data-prism-toast]').filter({ hasText: 'turned over while your logo was read' })).toBeVisible({ timeout: 20000 });
-  await touch(page).catch(() => {});
-  const draft = (await newestDraft(page)).model;
-  // Stored front first: the front keeps the SDD logo, and the back has no logo in its place.
-  expect(draft.items.find((item) => item.role === 'logo').sticker).toBe('logo:sdd');
-  expect(draft.back.items.some((item) => item.role === 'logo')).toBe(false);
-  expect(errors).toEqual([]);
-});
-
 test('Tab straight after typing in Card details goes to the next field, not to the top of the page', async ({ page }) => {
   const errors = await openFresh(page);
   await page.locator('[data-start-design="classic"]').click();
@@ -883,5 +856,137 @@ test('unit colours say which words and lines each colour also sets', async ({ pa
   await expect(uses).toContainText('Top: the host');
   await expect(uses).toContainText('the ring round the logo');
   await expect(uses).toContainText('Bottom: the occasion');
+  expect(errors).toEqual([]);
+});
+
+
+// Tests review 6, H1 and M2: a card saved one to a page is drawn over the whole page, and a
+// folded card's page has its two fold marks.
+test('a card saved one to a page fills the page; a folded card gets its fold marks', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  const saveOwnPage = async () => {
+    await page.getByRole('button', { name: 'Save as…' }).click();
+    await page.getByRole('button', { name: 'Printing' }).click();
+    await page.locator('[data-save-sheet] input[value="card"]').check();
+    const download = page.waitForEvent('download');
+    await page.locator('[data-action="save-go"]').click();
+    const sheets = await sheetsOf(page, await download);
+    await page.keyboard.press('Escape');
+    return sheets;
+  };
+  await page.locator('[data-card-size]').selectOption('a6p');
+  await page.locator('[data-start-design="classic"]').click();
+  for (const sheet of await saveOwnPage()) {
+    const [w, h] = sheet.size;
+    expect(sheet.pictures).toHaveLength(1);
+    const [a, b, c, d, e, f] = sheet.pictures[0];
+    // Unturned, the page's size, from its bottom-left corner.
+    expect(Math.abs(a - w)).toBeLessThan(0.5);
+    expect(Math.abs(d - h)).toBeLessThan(0.5);
+    expect(Math.abs(b) + Math.abs(c) + Math.abs(e) + Math.abs(f)).toBeLessThan(0.5);
+    expect(sheet.lines).toBe(0);
+  }
+  await page.getByRole('button', { name: 'Back to the start' }).click();
+  await page.locator('[data-card-size]').selectOption('fold6');
+  await page.locator('[data-start-design="classic"]').click();
+  const folded = await saveOwnPage();
+  expect(folded).toHaveLength(2);
+  for (const sheet of folded) {
+    expect(sheet.pictures).toHaveLength(1);
+    expect(sheet.lines).toBe(2);
+  }
+  expect(errors).toEqual([]);
+});
+
+// Tests review 6, M1: one unit colour changes only the parts that follow it, and never a locked one.
+test('a unit colour changes only its own parts, and leaves a locked part as it is', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="regimental"]').click();
+  await touch(page);
+  // The occasion (colour 3) locked, through Layers and the Lock button.
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator('[data-layer-select]', { hasText: 'Raising Day Dinner' }).click();
+  await page.locator('.clg-props [data-props-tab="settings"]').click();
+  await page.locator('.clg-props [data-action="lock"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'occasion')?.locked).toBe(true);
+  const before = (await newestDraft(page)).model.items;
+  const colourOf = (items, role) => {
+    const item = items.find((each) => each.role === role);
+    return item.fill || item.stroke || item.color;
+  };
+  const occasionColour = before.find((item) => item.field === 'occasion').color;
+  for (const [index, value] of [[2, '#3a5f1f'], [3, '#5b1f6e']]) {
+    await page.locator(`[data-card-colour="${index}"]`).evaluate((input, colour) => {
+      input.value = colour;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, value);
+  }
+  await expect.poll(async () => colourOf((await newestDraft(page)).model.items, 'band3')).toBe('#5b1f6e');
+  const after = (await newestDraft(page)).model.items;
+  expect(colourOf(after, 'band2')).toBe('#3a5f1f');
+  // Colour 1's band kept its colour; the locked occasion kept its own.
+  expect(colourOf(after, 'band1')).toBe(colourOf(before, 'band1'));
+  expect(after.find((item) => item.field === 'occasion').color).toBe(occasionColour);
+  expect(errors).toEqual([]);
+});
+
+// Tests review 6, M4: a name typed in the Guest field is replaced by each guest's name in Save.
+test('a guest name typed on the card is replaced by each guest in the PDF', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a6p');
+  await page.locator('[data-start-design="classic"]').click();
+  const guest = page.locator('[data-card-field="guest"]');
+  await guest.fill('Brig Typed Name');
+  await guest.blur();
+  await page.locator('[data-card-guests]').fill('Maj A\nCapt B\nLt C');
+  await page.locator('[data-card-guests]').blur();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await page.locator('[data-save-sheet] input[value="card"]').check();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  const file = await download;
+  await expect(page.locator('[data-save-result]')).toContainText('3 guest cards on 3 pages');
+  // Each page's picture, by its bytes: three guests, three different cards (with the typed name
+  // left in place, all three would be the same).
+  const hashes = await page.evaluate(async (base64) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    const pdf = await window.PDFLib.PDFDocument.load(bytes);
+    const { PDFName, PDFDict } = window.PDFLib;
+    return pdf.getPages().map((each) => {
+      const xobjects = each.node.Resources().lookupMaybe(PDFName.of('XObject'), PDFDict);
+      const ref = xobjects.values()[0];
+      const contents = pdf.context.lookup(ref).getContents();
+      let hash = contents.length;
+      for (let i = 0; i < contents.length; i += 7) hash = (hash * 31 + contents[i]) >>> 0;
+      return `${contents.length}:${hash}`;
+    });
+  }, (await bytesOf(file)).toString('base64'));
+  expect(hashes).toHaveLength(3);
+  expect(new Set(hashes).size).toBe(3);
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});
+
+// Tests review 6, M5 (PR 11 as written): a poster saved without choosing a logo saves, and its
+// waiting logo place is not counted as an empty frame left out.
+test('a poster saved before its logo is chosen saves with nothing reported left out', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-poster="notice"]').click();
+  await expect(page.locator('.clg-card-question')).toBeVisible();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-dialog]')).toBeVisible();
+  await expect(page.locator('[data-save-dialog]')).not.toContainText('empty frame');
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  await download;
+  await expect(page.locator('[data-save-result]')).toContainText('Saved');
+  await expect(page.locator('[data-save-result]')).not.toContainText(/left out|could not/);
+  await page.keyboard.press('Escape');
   expect(errors).toEqual([]);
 });

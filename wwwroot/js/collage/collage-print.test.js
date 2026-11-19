@@ -281,3 +281,34 @@ test('guest headings: the rank comes first whatever the order; a rank with an un
   // the heading row is not a guest.
   assert.deepEqual(print.guestNames(['Rank,Full designation,Unit', 'Brig,P. Singh,50 Bde'].join(nl), { csv: true }), ['Brig P. Singh']);
 });
+
+// Tests review 6, L3: line ends from any system; a "List of Guests" heading is not a guest.
+test('a guest file with CR-only line ends, or headed "List of Guests", reads one name a line', () => {
+  const cr = String.fromCharCode(13);
+  assert.deepEqual(print.guestNames(['Brig A. Rao', 'Col B. Sen', 'Maj C. Das'].join(cr)), ['Brig A. Rao', 'Col B. Sen', 'Maj C. Das']);
+  const nl = String.fromCharCode(10);
+  assert.deepEqual(print.guestNames(['List of Guests', 'Brig A. Rao', 'Col B. Sen'].join(nl)), ['Brig A. Rao', 'Col B. Sen']);
+});
+
+// Tests review 6, M3: a cut mark lies off the card, never along its edge.
+test('cut marks lie beyond each card, never on its edge', () => {
+  for (const size of ['a6p', 'a7p', 'passl', 'a5p', 'fold6']) {
+    for (const sheet of ['a4', 'a3']) {
+      const layout = print.sheetLayout(size, sheet);
+      if (!layout?.count) continue;
+      for (const [x1, y1, x2, y2] of print.cutMarks(layout)) {
+        for (const card of layout.cards) {
+          const [top, bottom, left, right] = [card.y, card.y + card.h, card.x, card.x + card.w];
+          if (x1 === x2) {
+            // An up-and-down mark: off the card's height wherever it is across.
+            const inside = Math.min(y1, y2) < bottom - 1e-9 && Math.max(y1, y2) > top + 1e-9 && x1 >= left - 1e-9 && x1 <= right + 1e-9;
+            assert.ok(!inside, `${size} on ${sheet}: an upright mark lies on a card`);
+          } else {
+            const inside = Math.min(x1, x2) < right - 1e-9 && Math.max(x1, x2) > left + 1e-9 && y1 >= top - 1e-9 && y1 <= bottom + 1e-9;
+            assert.ok(!inside, `${size} on ${sheet}: a level mark lies on a card`);
+          }
+        }
+      }
+    }
+  }
+});

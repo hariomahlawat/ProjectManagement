@@ -186,7 +186,7 @@
   // An appointment ("Cdr 50 Bde") is not part of a name on the card; a spouse's column joins the
   // name with "and" ("Brig P. Singh and Mrs Singh").
   const RANK_HEADING = /^\s*(rank|title)\s*$/i;
-  const NAME_WORDS = /\bnames?\b|\bsurname\b|^\s*(guests?|initials?|officers?|invitees?|persons?)\s*$/i;
+  const NAME_WORDS = /\bnames?\b|\bsurname\b|^\s*(list of\s+)?(guests?|initials?|officers?|invitees?|persons?)\s*$/i;
   const NOT_A_PERSON = /\b(unit|regiment|formation|organi[sz]ation|station|place|venue|file|company|establishment)\b/i;
   const SPOUSE_HEADING = /\b(spouse|wife|husband|partner)\b/i;
   // Honours and awards follow the name after a comma ("Lt Gen A. Kumar, PVSM, AVSM").
@@ -204,7 +204,8 @@
   function readGuests(text, { csv = false, heading = true } = {}) {
     // A byte-order mark and control characters (a stray NUL from a wrongly read file) are never
     // part of a name; tabs and line breaks stay, as they separate columns and names.
-    const source = String(text || '').replace(/^﻿/, '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+    // Line ends from any system, CR alone included (an old Mac file), are one kind of line break.
+    const source = String(text || '').replace(/^﻿/, '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n?/g, '\n');
     const head = source.split(/\r?\n/).find((line) => line.trim()) || '';
     // Columns pasted from a spreadsheet come with tabs between them; a CSV saved with semicolons
     // (as some spreadsheets do) has them when its first row has no comma.
