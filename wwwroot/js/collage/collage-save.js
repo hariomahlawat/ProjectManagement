@@ -45,11 +45,16 @@
   /**
    * The line in Save saying what the saved picture leaves out: empty frames, and items hidden
    * from Layers (docs/ux/collage-review-4-fixes.md, PR 6). Empty when nothing is left out.
+   * `designFrames` of the empty frames are a card or poster design's photo frame: removing one in
+   * Layers leaves its hole, so the line points to No photo in Card (or Poster) details, where the
+   * design closes the gap (UX review 8). `word` is 'Card' or 'Poster'.
    */
-  function leftOutLine(empty, hidden) {
+  function leftOutLine(empty, hidden, designFrames = 0, word = 'Card') {
     const parts = [];
-    if (empty === 1) parts.push('The empty frame is left out of the saved picture, so its place stays blank. Add a photo to it, or remove it in Layers.');
-    else if (empty > 1) parts.push(`The ${empty} empty frames are left out of the saved picture, so their places stay blank. Add photos to them, or remove them in Layers.`);
+    const own = empty - designFrames;
+    if (designFrames > 0) parts.push(`The design's photo frame is empty, so its place stays blank in the saved picture. Add a photo to it, or choose No photo in ${word} details and the design closes the gap.`);
+    if (own === 1) parts.push(`${designFrames ? 'Another' : 'The'} empty frame is left out of the saved picture, so its place stays blank. Add a photo to it, or remove it in Layers.`);
+    else if (own > 1) parts.push(`The ${own} ${designFrames ? 'other ' : ''}empty frames are left out of the saved picture, so their places stay blank. Add photos to them, or remove them in Layers.`);
     if (hidden === 1) parts.push('1 hidden item left out; show it from Layers to keep it.');
     else if (hidden > 1) parts.push(`${hidden} hidden items left out; show them from Layers to keep them.`);
     return parts.join(' ');
@@ -260,6 +265,9 @@
       // A poster's empty logo place is not a photo frame: its own question says it is left out.
       const empty = sides.filter((item) => item.kind === 'slot' && item.role !== 'logo').length;
       const hidden = sides.filter((item) => item.kind !== 'slot' && item.hidden && item.role !== 'roundel').length;
+      // A design's own photo frame (Ceremonial photo, a photo poster) has No photo in the details.
+      const designFrames = getCollage().card ? sides.filter((item) => item.kind === 'slot' && item.role === 'photo').length : 0;
+      const word = designs?.DESIGNS?.[getCollage().card?.design]?.poster ? 'Poster' : 'Card';
       const emptyLine = $('[data-save-empty]');
       // A card with Hindi lines whose Hindi is empty while its English is not prints half a line
       // (UX review 7): Save says so before the file is made.
@@ -268,7 +276,7 @@
       const hindiNames = { occasionHi: 'occasion', hostHi: 'host', inviteHi: 'invitation line' };
       const emptyHindi = Object.keys(hindiNames).filter((field) => onCard.includes(field) && !String(details[field] || '').trim() && String(details[field.replace(/Hi$/, '')] || '').trim());
       const hindiNote = emptyHindi.length ? ` The Hindi ${emptyHindi.map((field) => hindiNames[field]).join(' and ')} ${emptyHindi.length === 1 ? 'is' : 'are'} empty, so the card shows only the English there: type ${emptyHindi.length === 1 ? 'it' : 'them'} in Card details.` : '';
-      emptyLine.textContent = `${leftOutLine(empty, hidden)}${hindiNote}`.trim();
+      emptyLine.textContent = `${leftOutLine(empty, hidden, designFrames, word)}${hindiNote}`.trim();
       emptyLine.hidden = !emptyLine.textContent;
       const typed = targetValue.value.trim();
       saveSummaryLine.textContent = saveSummary({

@@ -237,6 +237,49 @@ test('every card design saves with its words drawn, the Bilingual Hindi included
   expect(errors).toEqual([]);
 });
 
+// UX review 8: a photo design saved without a photo left a hole; No photo closes the gap.
+test('No photo: the Ceremonial card offers it while its frame is empty, closes the gap, and saves with nothing left out', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="ceremonial"]').click();
+  await expect(page.locator('.clg-card-photo')).toContainText('The photo frame is empty');
+  // Save says so, and points to No photo rather than to Layers.
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-empty]')).toContainText('choose No photo in Card details');
+  await page.keyboard.press('Escape');
+  await page.locator('[data-card-photo="none"]').click();
+  await expect(page.locator('[data-card-photo-name]')).toContainText('No photo on this card');
+  await expect.poll(async () => (await newestDraft(page))?.model?.card?.details?.photoMode).toBe('none');
+  const model = (await newestDraft(page)).model;
+  expect(model.items.some((item) => item.role === 'photo')).toBe(false);
+  expect(model.items.some((item) => item.role === 'photoband')).toBe(true);
+  const { ink, result } = await saveAndCountInk(page);
+  expect(ink).toBeGreaterThan(2000);
+  expect(result).not.toMatch(/empty frame|left out|could not/);
+  // Add a photo… brings the frame back, waiting for the photo.
+  const chooser = page.waitForEvent('filechooser');
+  await page.locator('[data-card-photo="add"]').click();
+  await chooser;
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'photo')?.kind).toBe('slot');
+  expect((await newestDraft(page)).model.items.some((item) => item.role === 'photoband')).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('No photo on the talk poster: the points take the photo place and nothing is left out', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-poster="talk"]').click();
+  await page.locator('.clg-card-question [data-card-logo="none"]').click();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-empty]')).toContainText('choose No photo in Poster details');
+  await page.keyboard.press('Escape');
+  await page.locator('[data-card-photo="none"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.card?.details?.photoMode).toBe('none');
+  const { result } = await saveAndCountInk(page);
+  expect(result).not.toMatch(/empty frame|left out|could not/);
+  expect(errors).toEqual([]);
+});
+
 test('a poster with No logo saves with nothing left out', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);

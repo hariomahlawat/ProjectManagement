@@ -428,7 +428,7 @@
         return `<label class="clg-field" for="${id}"><span class="clg-field__label">${escapeHtml(label)}</span>${input}</label>${chips}${note}`;
       }).join('');
       // A poster asks which logo first, above everything, until it is answered (PR 11).
-      form.innerHTML = posterQuestion() + `<div class="clg-section clg-card-words"><p class="clg-section__title">Words</p>${fields}</div>`
+      form.innerHTML = posterQuestion() + photoPrompt() + `<div class="clg-section clg-card-words"><p class="clg-section__title">Words</p>${fields}</div>`
         + logo + (poster && !state.collage.back ? '' : sidesSection()) + colours + (poster || !shown.has('guest') ? '' : guestSection());
       renderStrip();
     }
@@ -462,6 +462,48 @@
           <div class="clg-stack"><button type="button" class="btn btn-outline-primary btn-sm" data-card-logo="own"><i class="bi bi-upload" aria-hidden="true"></i> Your own logo…</button>
           <button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="none">No logo</button>
           <button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="later">Decide later</button></div></div>`;
+    }
+
+    /**
+     * The design's photo frame (UX review 8): while it is empty, a short prompt, not a question
+     * that must be answered: add a photo, or No photo, and the design closes the gap (an empty
+     * frame saved leaves a hole). With No photo chosen, a line saying so and how to add one.
+     */
+    function photoPrompt() {
+      if (state.collage.side === 'back' || !designs.hasPhotoFrame(state.collage)) return '';
+      const word = isPoster() ? 'poster' : 'card';
+      const frame = state.collage.items.find((item) => item.role === 'photo');
+      if (frame && frame.kind !== 'slot') return '';
+      if (frame) {
+        return `<div class="clg-section clg-card-photo" role="group" aria-labelledby="clgPhotoAsk"><p class="clg-section__title" id="clgPhotoAsk">Photo</p>
+          <p class="clg-hint">The photo frame is empty. Add a photo, or choose No photo and the design closes the gap.</p>
+          <div class="clg-stack"><button type="button" class="btn btn-outline-primary btn-sm" data-card-photo="add"><i class="bi bi-image" aria-hidden="true"></i> Add a photo…</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-card-photo="none">No photo</button></div></div>`;
+      }
+      if (designs.detailsOf(state.collage).photoMode !== 'none') return '';
+      return `<div class="clg-section clg-card-photo" role="group" aria-labelledby="clgPhotoAsk"><p class="clg-section__title" id="clgPhotoAsk">Photo</p>
+          <p class="clg-hint" data-card-photo-name>No photo on this ${word}. The design uses the space.</p>
+          <div class="clg-stack"><button type="button" class="btn btn-outline-secondary btn-sm" data-card-photo="add"><i class="bi bi-image" aria-hidden="true"></i> Add a photo…</button></div></div>`;
+    }
+
+    /**
+     * No photo ('none'): the empty frame goes and the parts round it move into its space; or the
+     * frame back (''), the parts back round it. Only the frame and the parts it moves change.
+     */
+    function setPhotoMode(mode) {
+      selection.select(null);
+      doc.edit((draft) => designs.setPhotoMode(draft, mode, options()), 'none');
+      history.commit();
+      surface.syncAll();
+      renderPanel();
+      if (mode === 'none') messages.offerUndo(`No photo on this ${isPoster() ? 'poster' : 'card'}. The design closes the gap.`);
+    }
+
+    /** Add a photo…: the frame back if No photo was chosen, then the photo chosen for it. */
+    function addPhoto() {
+      if (!state.collage.items.some((item) => item.role === 'photo')) setPhotoMode('');
+      const frame = state.collage.items.find((item) => item.role === 'photo' && item.kind === 'slot');
+      if (frame) parts.chooseFor(frame.id);
     }
 
     function logoSection() {
@@ -1052,6 +1094,12 @@
       }
       const side = event.target.closest('[data-card-side]');
       if (side) { useSide(side.dataset.cardSide); return; }
+      const photo = event.target.closest('[data-card-photo]');
+      if (photo) {
+        if (photo.dataset.cardPhoto === 'none') setPhotoMode('none');
+        if (photo.dataset.cardPhoto === 'add') addPhoto();
+        return;
+      }
       const use = event.target.closest('[data-card-logo-use]');
       if (use) { useLogoSticker(use.dataset.cardLogoUse); return; }
       const logo = event.target.closest('[data-card-logo]');

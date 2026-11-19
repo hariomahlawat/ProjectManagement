@@ -137,6 +137,10 @@ Cards and posters are drafts like any collage. They're listed under Drafts with 
   - Decide later
 
   With **No logo**, the design moves the heading up into the space.
+- A design with a photo frame (Ceremonial photo, With a photo, Talk or seminar) offers **No
+  photo** while the frame is empty (UX review 8: saved without a photo, these left a large
+  blank). The frame goes and the design closes the gap; **Add a photo…** brings it back. Only
+  the frame and the parts it moves change. Kept in the card's `photoMode` detail.
 
 ### Save
 
