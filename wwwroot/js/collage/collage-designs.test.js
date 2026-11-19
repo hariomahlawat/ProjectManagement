@@ -1663,3 +1663,16 @@ test('followFallbacks: the cover still following takes the occasion edited on th
   const set = { ...typed, card: { ...typed.card, details: { ...typed.card.details, coverTitle: 'Dinner Night' } } };
   assert.equal(designs.followFallbacks(set, measure), set);
 });
+
+// Codex on #3460: a left-set cover title keeps its left edge when it follows longer words.
+test('followFallbacks keeps the edge the design sets the cover title by', () => {
+  const opts = { measure, newId };
+  const card = designs.applyDesign(core.newCollage('fold6'), 'ceremonial', { ...designs.startDetails('ceremonial'), occasion: 'Tea' }, opts);
+  const coverOf = (collage) => collage.items.find((item) => item.field === 'coverTitle');
+  const before = coverOf(card);
+  assert.equal(designs.fieldAnchor(card, 'coverTitle'), 'left', 'Ceremonial sets its cover title by its left edge');
+  const typed = { ...card, back: { ...card.back, items: card.back.items.map((item) => (item.field === 'occasion' ? { ...item, text: 'Change of Command Parade and Reception' } : item)) } };
+  const after = coverOf(designs.followFallbacks(typed, measure));
+  assert.ok(Math.abs((after.x - after.width / 2) - (before.x - before.width / 2)) < 0.5, 'the same left edge');
+  assert.ok(after.x - after.width / 2 >= core.PAGE_WIDTH / 2, 'never across the fold');
+});

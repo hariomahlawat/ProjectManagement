@@ -1073,6 +1073,11 @@
       if (follower.text === source.text || follower.text !== String(given[from] ?? '')) continue;
       const layout = core.layoutText({ ...follower, text: source.text }, measure);
       const next = { ...follower, text: source.text, width: layout.width, aspect: layout.width / layout.height };
+      // It keeps the edge its design sets it by (Ceremonial's cover title is set by its left edge),
+      // so longer words never grow across the cover's border or the fold (Codex on #3460).
+      const anchor = fieldAnchor(out, field);
+      if (anchor === 'left') next.x = follower.x - follower.width / 2 + layout.width / 2;
+      if (anchor === 'right') next.x = follower.x + follower.width / 2 - layout.width / 2;
       const swap = (items) => items.map((item) => (item === follower ? next : item));
       out = { ...out, items: swap(out.items || []), ...(out.back ? { back: { ...out.back, items: swap(out.back.items || []) } } : {}), card: { ...out.card, details: { ...given, [from]: source.text } } };
     }
