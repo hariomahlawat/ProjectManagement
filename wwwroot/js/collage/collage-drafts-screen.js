@@ -300,7 +300,12 @@
       // background included, stays as it is (Codex on #3460).
       const made = designs.applyDesign(model, model.card.design, designs.detailsOf(read), { measure: surface.measureText, newId: doc.newItemId });
       if (!made.back) return model;
-      return { ...model, back: made.back, card: { ...model.card, details: made.card.details, placed: [...new Set([...(model.card.placed || []), ...(made.card.placed || [])])] } };
+      // A field already on the outside stays there, as the draft has it (an older folded card's
+      // cover title is its occasion): the inside made now leaves it out, so each field has one
+      // item (Codex on #3460).
+      const outside = new Set((model.items || []).filter((item) => item.kind === 'text' && item.field).map((item) => item.field));
+      const back = { ...made.back, items: made.back.items.filter((item) => !(item.kind === 'text' && outside.has(item.field))) };
+      return { ...model, back, card: { ...model.card, details: made.card.details, placed: [...new Set([...(model.card.placed || []), ...(made.card.placed || [])])] } };
     }
 
     return { drafts, session, setDraftStatus, scheduleDraft, freshThumbnail, renderDrafts, undoDeleteDraft, openDraft };

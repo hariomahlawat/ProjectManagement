@@ -1004,3 +1004,28 @@ test('add panels: without PRISM\'s crests the other stickers still work, and the
   assert.equal(env.values.collage.items[0].kind, 'sticker');
   assert.deepEqual(env.calls.announce.at(-1), ['Sticker added.']);
 });
+
+// Codex on #3460: an older folded draft (the occasion itself on the cover) with no inside gets
+// its inside back without a second occasion.
+test('drafts screen: an older folded draft with its occasion on the cover gets an inside with no second occasion', async (t) => {
+  const designs = require('./collage-designs.js');
+  const measure = (text, font) => [...text].length * Number(/(\d+(?:\.\d+)?)px/.exec(font)[1]) * 0.56;
+  let sequence = 0;
+  const card = designs.applyDesign(core.newCollage('fold6'), 'classic', { occasion: 'Raising Day' }, { measure, newId: () => `g${++sequence}` });
+  const legacy = { ...card, items: card.items.map((item) => (item.field === 'coverTitle' ? { ...item, field: 'occasion', color: '#123456' } : item)) };
+  const { back, ...outside } = core.draftModel({ ...legacy, card: { ...legacy.card, placed: (legacy.card.placed || []).filter((field) => field !== 'coverTitle') } });
+  assert.ok(back);
+  const record = { id: 'a', title: 'Folded', size: 'fold6', saved: Date.now(), autoTitle: false, model: outside };
+  const session = openableSession({ a: { record, photos: [] } });
+  const env = makeDraftsScreen(t, session, {}, { measureText: measure, newItemId: () => `m${++sequence}` });
+  env.window.PrismCollageDesigns = designs;
+  const opening = env.screen.openDraft('a');
+  session.release('a');
+  await opening;
+  const opened = env.values.collage;
+  assert.ok(opened.back, 'the inside is back');
+  const occasions = [...opened.items, ...opened.back.items].filter((item) => item.kind === 'text' && item.field === 'occasion');
+  assert.equal(occasions.length, 1, 'one occasion');
+  assert.equal(occasions[0].color, '#123456', 'the cover\u2019s own, as the draft had it');
+  assert.ok(opened.back.items.some((item) => item.field === 'guest' || item.role === 'guestline'), 'with the guest line');
+});
