@@ -77,7 +77,7 @@ test('a card starts from a design, its details are typed in the panel, and a new
   expect(errors).toEqual([]);
 });
 
-test('words typed on the card show in the Card details, and a plain collage has no Card button', async ({ page }) => {
+test('card words selected on the page are edited in Card details, and a plain collage has no Card button', async ({ page }) => {
   const errors = await openFresh(page);
   await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
@@ -87,17 +87,19 @@ test('words typed on the card show in the Card details, and a plain collage has 
   await startOn(page, 'card');
   await page.locator('[data-start-design="navy"]').click();
   await expect(page.locator('[data-card-field="venue"]')).toHaveValue('Officers’ Mess, SDD Campus');
-  // Select the venue on the page through Layers and type in its Words box.
+  // Select the venue on the page through Layers: its settings name the field, with no second
+  // Words box (docs/ux/collage-usability-plan.md, PR 5), and the button opens that field.
   await page.locator('.clg-props [data-props-tab="layers"]').click();
   await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).click();
   await page.locator('.clg-props [data-props-tab="settings"]').click();
-  const words = page.locator('[data-text]');
-  await words.fill('Sudarshan Hall');
-  await words.blur();
-  // Back in the Card panel, the field shows the words typed on the card.
-  await page.locator('.clg-rail [data-panel="card"]').click();
-  await page.locator('.clg-rail [data-panel="card"]').click();
-  await expect(page.locator('[data-card-field="venue"]')).toHaveValue('Sudarshan Hall');
+  await expect(page.locator('.clg-props [data-text]')).toHaveCount(0);
+  await expect(page.locator('[data-card-words]')).toContainText('These words come from Card details: Venue');
+  await page.getByRole('button', { name: 'Edit in Card details' }).click();
+  const venue = page.locator('[data-card-field="venue"]');
+  await expect(venue).toBeFocused();
+  await page.keyboard.type('Sudarshan Hall');
+  await venue.blur();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'venue')?.text).toBe('Sudarshan Hall');
   expect(errors).toEqual([]);
 });
 
@@ -116,15 +118,12 @@ test('a design pressed straight after typing in Card details still changes the d
   expect(errors).toEqual([]);
 });
 
-test('a quick pick pressed straight after typing words in Settings still fills its field', async ({ page }) => {
+test('a quick pick pressed straight after typing in another field still fills its field', async ({ page }) => {
   const errors = await openFresh(page);
   await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
-  // Select the venue through Layers and type in its Words box, then at once press a quick pick.
-  await page.locator('.clg-props [data-props-tab="layers"]').click();
-  await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).click();
-  await page.locator('.clg-props [data-props-tab="settings"]').click();
-  await page.locator('[data-text]').fill('Sudarshan Hall');
+  // Type the venue in Card details, then at once press a quick pick.
+  await page.locator('[data-card-field="venue"]').fill('Sudarshan Hall');
   await page.locator('[data-card-pick="occasion"][data-value="Barakhana"]').click();
   await expect(page.locator('[data-card-field="occasion"]')).toHaveValue('Barakhana');
   await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'occasion')?.text).toBe('Barakhana');
@@ -161,16 +160,18 @@ test('Regimental takes the unit\'s colours from Card details; Bilingual shows th
   expect(errors).toEqual([]);
 });
 
-test('words typed in Card details show in the selected item\'s Words box at once', async ({ page }) => {
+test('words typed in Card details change the selected item at once, which keeps its style settings', async ({ page }) => {
   const errors = await openFresh(page);
   await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('.clg-props [data-props-tab="layers"]').click();
   await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).click();
   await page.locator('.clg-props [data-props-tab="settings"]').click();
-  await expect(page.locator('[data-text]')).toHaveValue('Officers’ Mess, SDD Campus');
   await page.locator('[data-card-field="venue"]').fill('Sudarshan Hall');
-  await expect(page.locator('[data-text]')).toHaveValue('Sudarshan Hall');
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'venue')?.text).toBe('Sudarshan Hall');
+  // The selected item's settings still offer its style, under Style, and no Words box.
+  await expect(page.locator('.clg-props .clg-section__title').first()).toHaveText('Style');
+  await expect(page.locator('.clg-props [data-text]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -200,21 +201,24 @@ test('Undo straight after a quick pick puts the field back too', async ({ page }
   expect(errors).toEqual([]);
 });
 
-test('a Card field clicked straight after typing words in Settings shows those words', async ({ page }) => {
+test('double-clicking card words on the page puts the cursor in their Card details field', async ({ page }) => {
   const errors = await openFresh(page);
   await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('.clg-props [data-props-tab="layers"]').click();
-  await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).click();
-  await page.locator('.clg-props [data-props-tab="settings"]').click();
-  await page.locator('[data-text]').fill('Sudarshan Hall');
-  // At once, into the matching Card details field, and type one more letter.
+  const id = await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).getAttribute('data-layer-select');
+  const spot = await page.evaluate((itemId) => {
+    const stage = window.Konva.stages[0];
+    const box = stage.findOne(`#${itemId}`).getClientRect();
+    const host = stage.container().getBoundingClientRect();
+    return { x: host.x + box.x + box.width / 2, y: host.y + box.y + box.height / 2 };
+  }, id);
+  await page.mouse.dblclick(spot.x, spot.y);
   const venue = page.locator('[data-card-field="venue"]');
-  await venue.click();
-  await expect(venue).toHaveValue('Sudarshan Hall');
+  await expect(venue).toBeFocused();
   await venue.press('End');
   await venue.type('s');
-  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'venue')?.text).toBe('Sudarshan Halls');
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'venue')?.text).toBe('Officers’ Mess, SDD Campuss');
   expect(errors).toEqual([]);
 });
 

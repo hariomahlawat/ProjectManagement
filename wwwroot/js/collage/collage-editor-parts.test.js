@@ -156,6 +156,35 @@ test('the settings panel HTML escapes names and offers Size only for photos and 
   assert.equal(html.layersSection({ items: [] }, null), '');
 });
 
+// docs/ux/collage-usability-plan.md, PR 5: a card's words are typed in Card details only.
+test('card words show where they come from and a button, not a second Words box; other words keep theirs', () => {
+  const { createSettingsHtml } = require('./collage-settings.js');
+  const stickers = require('./collage-stickers.js');
+  const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const html = createSettingsHtml({
+    core, draw, stickers, stickerSource: () => '', escapeHtml, photos: new Map(),
+    FRAME_WIDTHS: [60, 1400], TEXT_COLOURS: ['#ffffff'], LABEL_COLOURS: ['#ffffff'],
+    cardField: (item) => (item.field === 'venue' ? 'Venue' : null)
+  });
+  const venue = { ...core.textItem('i1', 'Officers’ Mess', { x: 10, y: 10 }, {}), field: 'venue' };
+  const card = html.textSections(venue);
+  assert.doesNotMatch(card, /data-text>/);
+  assert.match(card, /These words come from Card details: <b>Venue<\/b>/);
+  assert.match(card, /data-card-edit="venue"/);
+  assert.match(card, /<p class="clg-section__title">Style<\/p>/);
+  // The style settings stay.
+  assert.match(card, /data-text-set="font"/);
+  // Words the user added, and a field this design does not show, keep their Words box.
+  const own = html.textSections(core.textItem('i2', 'Well done', { x: 10, y: 10 }, {}));
+  assert.match(own, /data-text>Well done</);
+  assert.match(own, /<p class="clg-section__title">Font<\/p>/);
+  const hidden = html.textSections({ ...core.textItem('i3', 'x', { x: 10, y: 10 }, {}), field: 'hostHi' });
+  assert.match(hidden, /data-text>/);
+  // Without a cardField, every text has its Words box, as before.
+  const plain = createSettingsHtml({ core, draw, stickers, stickerSource: () => '', escapeHtml, photos: new Map(), FRAME_WIDTHS: [60, 1400], TEXT_COLOURS: ['#ffffff'], LABEL_COLOURS: ['#ffffff'] });
+  assert.match(plain.textSections(venue), /data-text>/);
+});
+
 function fakeCanvasMaker(canvases) {
   return () => {
     const ctx = new Proxy({ calls: [] }, {

@@ -16,7 +16,11 @@
    * the colour lists and frame widths are the editor's. isOpen(key) says whether a folded group
    * was left open (docs/ux/collage-review-2-fixes.md, PR 8).
    */
-  function createSettingsHtml({ core, draw, stickers, stickerSource, escapeHtml, photos, FRAME_WIDTHS, TEXT_COLOURS, LABEL_COLOURS, isOpen = () => false }) {
+  /**
+   * cardField(item) is the Card details label of the field a card's words come from, or null: such
+   * words are typed in Card details only (docs/ux/collage-usability-plan.md, PR 5).
+   */
+  function createSettingsHtml({ core, draw, stickers, stickerSource, escapeHtml, photos, FRAME_WIDTHS, TEXT_COLOURS, LABEL_COLOURS, isOpen = () => false, cardField = () => null }) {
     /** A group used less often, folded away until opened; it stays open once opened. */
     function fold(key, title, inner) {
       return `
@@ -122,12 +126,20 @@
       const aligns = [['left', 'Left'], ['center', 'Centre'], ['right', 'Right']].map(([v, l]) => `<button type="button" class="btn btn-sm ${item.align === v ? 'btn-primary' : 'btn-outline-secondary'}" data-text-set="align" data-value="${v}" aria-pressed="${item.align === v}">${l}</button>`).join('');
       const range = (prop, label, [min, max], unit = '') => `<label class="clg-field"><span class="clg-field__label">${label}<output data-out="${prop}">${item[prop]}${unit}</output></span>
             <input type="range" min="${min}" max="${max}" step="1" value="${item[prop]}" data-prop="${prop}" aria-label="${label}"></label>`;
-      return `
-        <label class="clg-field"><span class="clg-field__label">Words</span>
+      // A card's words are typed in one place, Card details (PR 5); here they are styled.
+      const from = cardField(item);
+      const words = from
+        ? `<div class="clg-card-words" data-card-words>
+            <p class="clg-hint">These words come from Card details: <b>${escapeHtml(from)}</b>.</p>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-card-edit="${escapeHtml(item.field)}"><i class="bi bi-pencil" aria-hidden="true"></i> Edit in Card details</button>
+          </div>`
+        : `<label class="clg-field"><span class="clg-field__label">Words</span>
           <textarea class="form-control form-control-sm clg-text-field" rows="3" maxlength="${core.TEXT_LIMITS.maxLength}" data-text>${escapeHtml(item.text)}</textarea></label>
-        <p class="clg-hint"><span class="clg-for-mouse">Type Hindi with the Windows Hindi keyboard, or paste it.</span><span class="clg-for-touch">Type Hindi with your phone’s Hindi keyboard (add Hindi in its keyboard settings), or paste it.</span></p>
+        <p class="clg-hint"><span class="clg-for-mouse">Type Hindi with the Windows Hindi keyboard, or paste it.</span><span class="clg-for-touch">Type Hindi with your phone’s Hindi keyboard (add Hindi in its keyboard settings), or paste it.</span></p>`;
+      return `
+        ${words}
         <div class="clg-section">
-          <p class="clg-section__title">Font</p>
+          <p class="clg-section__title">${from ? 'Style' : 'Font'}</p>
           <div class="clg-fonts">${fonts}</div>
           ${range('size', 'Size', core.TEXT_LIMITS.size)}
           <div class="clg-choices">

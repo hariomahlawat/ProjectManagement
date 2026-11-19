@@ -1312,7 +1312,32 @@
       if (button) useDesign(button.dataset.cardDesign);
     });
 
-    return { renderStart, renderPanel, refresh, setField, useDesign };
+    /**
+     * The Card details label of a field the form shows for this card, or null (not a card, no
+     * field, or a field this design does not show). Words with such a field are typed in Card
+     * details only (docs/ux/collage-usability-plan.md, PR 5).
+     */
+    function fieldLabel(field) {
+      if (!state.collage?.card || !field) return null;
+      if (!designs.fieldsOnCard(state.collage).includes(field)) return null;
+      const entry = (isPoster() ? POSTER_FORM : FORM).find(([key]) => key === field);
+      return entry ? entry[1].replace(/^Back: /, 'back ') : null;
+    }
+
+    /** Opens Card details with the cursor in a field's box, its words selected (PR 5). */
+    function editField(field) {
+      screens.setPanel('card');
+      window.requestAnimationFrame(() => {
+        const input = form.querySelector(`[data-card-field="${CSS.escape(field)}"]`);
+        if (!input) return;
+        input.focus({ preventScroll: true });
+        input.select?.();
+        // In the middle of the panel, clear of a phone's rail and keyboard.
+        input.scrollIntoView({ block: 'center' });
+      });
+    }
+
+    return { renderStart, renderPanel, refresh, setField, useDesign, fieldLabel, editField };
   }
 
   return Object.freeze({ createCard, FORM, OCCASIONS, DRESSES, DEFAULT_CARD_SIZE });

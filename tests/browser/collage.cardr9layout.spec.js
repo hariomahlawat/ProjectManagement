@@ -138,7 +138,11 @@ test('the occasion typed on the page in its Words box takes the following cover 
   await page.locator('.clg-props [data-props-tab="layers"]').click();
   await page.locator('[data-layer-select]').filter({ hasText: 'Barakhana' }).click();
   await page.locator('.clg-props [data-props-tab="settings"]').click();
-  await page.locator('[data-text]').fill('Regimental Dinner');
+  // Card words are typed in Card details (docs/ux/collage-usability-plan.md, PR 5).
+  await page.getByRole('button', { name: 'Edit in Card details' }).click();
+  await expect(page.locator('[data-card-field="occasion"]')).toBeFocused();
+  await page.keyboard.type('Regimental Dinner');
+  await page.locator('[data-card-field="occasion"]').blur();
   await expect.poll(async () => (await sides(page)).back.find((item) => item.field === 'occasion')?.text).toBe('Regimental Dinner');
   await expect.poll(async () => (await sides(page)).front.find((item) => item.field === 'coverTitle')?.text).toBe('Regimental Dinner');
   expect(errors).toEqual([]);
