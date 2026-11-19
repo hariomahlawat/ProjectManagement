@@ -184,3 +184,9 @@ same way. Each can be reverted on its own.
   opens the layout made for their number (`layoutForCount` in `collage-core.js`), one photo in
   one frame filling the page (`withPageFrame`). Layouts marks the ones that fit
   (`layoutsThatFit`), and both "did not fit" messages carry a **Use a 6-photo layout** button.
+  Codex found two cases, both fixed: no Fits mark past 12 photos, and a photo used twice counts
+  twice (`photosToLayOut`). #3467.
+- PR 4: photos keep their order. `assignToSlots` fills frames of one shape (within 10%) in the
+  order picked, in reading order, and leaves the last ones over; mixed layouts still match by
+  shape. One older browser test expected the shape match with a single frame left; it now expects
+  the first photo picked.

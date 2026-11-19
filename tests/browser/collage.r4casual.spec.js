@@ -68,14 +68,16 @@ test('a heading added over photos gets a white outline so it can be read', async
   expect(errors).toEqual([]);
 });
 
-test('with more photos than empty frames, the one matched to no frame waits in the tray, with the message', async ({ page }) => {
+test('with more photos than empty frames, the last one picked waits in the tray, with the message', async ({ page }) => {
   const errors = await openFresh(page);
   await startOn(page, 'collage');
   await page.getByRole('button', { name: /^2 side by side/ }).click();
   // One photo fills a frame first, so one empty frame is left.
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'first.jpg' }));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(1);
-  // A tall photo, then a photo shaped like the empty frame.
+  // A tall photo, then a photo shaped like the empty frame. The frames all have one shape, so
+  // the first picked goes in and the last waits (docs/ux/collage-usability-plan.md, PR 4; before,
+  // the photo matching the frame's shape went in).
   const slot = (await newestDraft(page)).model.items.find((i) => i.kind === 'slot');
   const w = 1200;
   await page.locator('[data-file-input]').setInputFiles([
@@ -87,6 +89,6 @@ test('with more photos than empty frames, the one matched to no frame waits in t
   const model = (await newestDraft(page)).model;
   const names = Object.fromEntries(await page.evaluate(() => [...document.querySelectorAll('[data-tray-photo]')].map((b) => [b.dataset.trayPhoto, b.getAttribute('aria-label') || b.title || ''])));
   const filled = model.items.find((i) => i.id === slot.id);
-  expect(names[filled.photo] || '').toContain('matching');
+  expect(names[filled.photo] || '').toContain('tall');
   expect(errors).toEqual([]);
 });
