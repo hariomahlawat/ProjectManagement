@@ -1607,3 +1607,16 @@ test('one photo gets one empty frame filling the page inside the usual margin', 
   assert.ok(Math.abs(frame.width / frame.aspect - (height - 2 * gap)) < 1e-9);
   assert.equal(frame.angle, 0);
 });
+
+test('a layout must take each placed copy of a photo and every photo still waiting', () => {
+  const photo = (id, ref) => ({ id, kind: 'photo', photo: ref });
+  // A, B, A, B in four frames, and C waiting: five, not three (Codex review on #3467).
+  const page = { ...collage.newCollage('a4l'), items: [photo('1', 'A'), photo('2', 'B'), photo('3', 'A'), photo('4', 'B'), { id: '5', kind: 'text' }] };
+  assert.equal(collage.photosToLayOut(page, ['A', 'B', 'C']), 5);
+  assert.equal(collage.layoutForCount(collage.photosToLayOut(page, ['A', 'B', 'C'])), 't5');
+  // A photo on the back of a card is in use there, so it does not wait for the front.
+  const card = { ...page, items: [photo('1', 'A')], back: { items: [photo('9', 'D')] } };
+  assert.equal(collage.photosToLayOut(card, ['A', 'D', 'E']), 2);
+  assert.equal(collage.photosToLayOut(collage.newCollage('a4l'), []), 0);
+  assert.equal(collage.photosToLayOut(null, null), 0);
+});

@@ -1065,6 +1065,18 @@
   }
 
   /**
+   * How many photos a layout would have to take: every photo on the page, a photo used twice
+   * counted twice (a layout keeps each copy), and every kept photo not used anywhere yet, which
+   * waits in Photos (`keptIds`: the photos not removed). Codex review on #3467.
+   */
+  function photosToLayOut(collage, keptIds) {
+    const items = collage?.items || [];
+    const placed = items.filter((item) => item.kind === 'photo').length;
+    const used = new Set([...items, ...(collage?.back?.items || [])].filter((item) => item.kind === 'photo').map((item) => item.photo));
+    return placed + [...(keptIds || [])].filter((id) => !used.has(id)).length;
+  }
+
+  /**
    * One empty frame that fills the page inside the layouts' usual margin: where one photo chosen on
    * the start screen goes, so it fills the page rather than sitting small in the middle (PR 3).
    */
@@ -2267,6 +2279,7 @@
     layoutForCount,
     layoutsThatFit,
     photoFileCount,
+    photosToLayOut,
     withPageFrame,
     layoutFrames,
     applyLayout,

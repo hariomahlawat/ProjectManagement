@@ -204,7 +204,8 @@
      * the page already has it or there is none bigger (docs/ux/collage-usability-plan.md, PR 3).
      */
     function fitOffer() {
-      const count = photosInCollage();
+      const kept = [...doc.photos.entries()].filter(([, photo]) => !photo.removed).map(([id]) => id);
+      const count = core.photosToLayOut(state.collage, kept);
       const key = core.layoutForCount(count);
       if (!key || state.collage.layout?.key === key || state.collage.card) return null;
       const frames = core.LAYOUTS[key].cells.length;

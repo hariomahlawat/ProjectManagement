@@ -70,8 +70,8 @@
     function renderLayoutPanelNow() {
       const current = state.collage.layout;
       // Layouts with a frame for each photo the collage has are marked (docs/ux/collage-usability-plan.md, PR 3).
-      let count = 0;
-      for (const photo of doc.photos.values()) if (!photo.removed) count += 1;
+      const kept = [...doc.photos.entries()].filter(([, photo]) => !photo.removed).map(([id]) => id);
+      const count = core.photosToLayOut(state.collage, kept);
       const fits = new Set(core.layoutsThatFit(count));
       for (const button of ui.layoutGrid.querySelectorAll('[data-layout]')) {
         button.setAttribute('aria-pressed', String(current?.key === button.dataset.layout));

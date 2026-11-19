@@ -926,7 +926,8 @@
       ? `Layout applied. ${left} photo${left > 1 ? 's' : ''} did not fit and ${left > 1 ? 'are' : 'is'} still in Photos.`
       : 'Layout applied.');
     // A button for the layout made for every photo, when that is another one (docs/ux/collage-usability-plan.md, PR 3).
-    const fitting = core.layoutForCount(photosInCollage());
+    const kept = [...photos.entries()].filter(([, photo]) => !photo.removed).map(([id]) => id);
+    const fitting = core.layoutForCount(core.photosToLayOut(collage, kept));
     const offer = fitting && fitting !== key && !collage.card ? fitting : null;
     if (left) {
       showAlert(`${left} photo${left > 1 ? 's' : ''} did not fit this layout. ${left > 1 ? 'They are' : 'It is'} still in Photos; Ctrl+Z brings the page back.`, offer ? {
