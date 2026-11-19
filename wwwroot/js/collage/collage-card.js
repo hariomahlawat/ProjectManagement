@@ -546,11 +546,16 @@
         // No photo chosen, or the frame deleted: the design's frame comes back first.
         if (designs.detailsOf(state.collage).photoMode === 'none') setPhotoMode('');
         else {
-          selection.select(null);
-          doc.edit((draft) => designs.applyDesign(draft, draft.card.design, designs.detailsOf(draft), options()), 'none');
-          history.commit();
-          surface.syncAll();
-          renderPanel();
+          // Only the frame comes back, where the design puts it, behind the rest: the user's
+          // fonts, colours and places stay as they are (Codex on #3455).
+          const frame = designs.roleItem(state.collage, 'photo', options());
+          if (frame) {
+            selection.select(null);
+            doc.edit((draft) => { draft.items = [{ ...frame, id: doc.newItemId() }, ...draft.items]; }, 'none');
+            history.commit();
+            surface.syncAll();
+            renderPanel();
+          }
         }
       }
       const frame = state.collage.items.find((item) => item.role === 'photo' && item.kind === 'slot');
