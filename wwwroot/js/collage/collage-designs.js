@@ -463,9 +463,11 @@
   }
 
   /** Whether a design follows the unit's colours. */
+  /** Whether a design follows the unit's colours: a part's colour is one of 'band1' to 'band3'. */
   function usesColours(designKey) {
     const design = DESIGNS[designKey];
-    return Boolean(design && JSON.stringify(design.portrait).includes('"band'));
+    if (!design) return false;
+    return [...design.portrait, ...(design.landscape || [])].some((part) => ['fill', 'stroke', 'color'].some((prop) => /^band[123]$/.test(part.look?.[prop] || '')));
   }
 
   /** Whether a page this shape takes a design's portrait arrangement (square counts as portrait). */
@@ -705,7 +707,8 @@
     const { back, side, ...rest } = front;
     // The back's fields are no longer on the card: their words, as they are now on the card
     // (typed in Card details or in an item's Words box), are kept for a new back.
-    if (rest.card) rest.card = { ...rest.card, details: detailsOf(front), placed: (rest.card.placed || []).filter((field) => !BACK_FIELDS.includes(field)) };
+    // A field the design shows on the front (a programme card's programme) stays tracked.
+    if (rest.card) rest.card = { ...rest.card, details: detailsOf(front), placed: (rest.card.placed || []).filter((field) => !isBackField(rest, field)) };
     return rest;
   }
 

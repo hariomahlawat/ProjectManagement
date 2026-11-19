@@ -354,3 +354,14 @@ test('a programme card with a back has its programme once; a logo is kept throug
   const back = designs.applyDesign(reply, 'pass', designs.detailsOf(reply), { measure, newId });
   assert.equal(back.items.find((item) => item.role === 'logo').photo, 'p1');
 });
+
+test('the car pass offers no unit colours; deleting the back of a programme card keeps the programme on its front tracked', () => {
+  assert.equal(designs.usesColours('pass'), false);
+  assert.equal(designs.usesColours('regimental'), true);
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a7p'), 'programmecard', {}, { measure, newId }), { measure, newId });
+  const single = designs.deleteBack(card);
+  assert.ok(single.card.placed.includes('programme'), 'still tracked');
+  // The front's programme deleted on the page stays deleted.
+  const without = { ...single, items: single.items.filter((item) => item.field !== 'programme') };
+  assert.equal(designs.detailsOf(without).programme, '');
+});
