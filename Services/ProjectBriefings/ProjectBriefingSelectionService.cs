@@ -97,8 +97,11 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
                 FinancialYearLabel(group.Key),
                 group.Select(listing => listing.ProjectId).Distinct().Count()))
             .ToArray();
-        var completionFinancialYears = (await CompletionsAsync(cancellationToken))
-            .Select(completion => completion.FinancialYearStart)
+        var completions = await CompletionsAsync(cancellationToken);
+        // A year-only completion offers both financial years it may fall in.
+        var completionFinancialYears = completions
+            .SelectMany(completion => new[] { completion.FromFinancialYear, completion.ToFinancialYear })
+            .Distinct()
             .ToArray();
         var thisFinancialYear = FinancialYearOf(DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime));
 
@@ -111,8 +114,8 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
             TechnicalCategories = technicalCategories,
             ArppYears = arppYears,
             MinimumCompletionFinancialYear = completionFinancialYears.Length == 0 ? thisFinancialYear : completionFinancialYears.Min(),
-            CompletionFinancialYears = completionFinancialYears.Distinct().OrderByDescending(year => year).ToArray(),
-            CompletedWithoutDateCount = Math.Max(0, (lifecycleCounts.FirstOrDefault(row => row.Status == ProjectLifecycleStatus.Completed)?.Count ?? 0) - completionFinancialYears.Length),
+            CompletionFinancialYears = completionFinancialYears.OrderByDescending(year => year).ToArray(),
+            CompletedWithoutDateCount = Math.Max(0, (lifecycleCounts.FirstOrDefault(row => row.Status == ProjectLifecycleStatus.Completed)?.Count ?? 0) - completions.Count),
             MaximumCompletionFinancialYear = completionFinancialYears.Length == 0 ? thisFinancialYear : completionFinancialYears.Max()
         };
     }
@@ -226,7 +229,7 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
             }
 
             var completed = (await CompletionsAsync(cancellationToken))
-                .Where(completion => completion.FinancialYearStart >= from && completion.FinancialYearStart <= to)
+                .Where(completion => completion.FromFinancialYear <= to && completion.ToFinancialYear >= from)
                 .Select(completion => completion.ProjectId)
                 .ToArray();
             query = query.Where(project => completed.Contains(project.Id));
@@ -281,8 +284,10 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
     }
 
     // Each completed project's financial year of completion: from its completion date, else its
-    // recorded month and year; a year recorded without a month counts as the financial year that
-    // starts in it.
+    // recorded month and year. CompletedYear is a calendar year (owner, 19 Nov 2026), so a year
+    // recorded without a month may fall in either of two financial years: January to March ends
+    // the one before, April to December starts the one named. It matches both, rather than being
+    // placed by a guess.
     private async Task<IReadOnlyList<Completion>> CompletionsAsync(CancellationToken cancellationToken)
     {
         var rows = await EligibleProjects()
@@ -292,9 +297,11 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
 
         return rows
             .Select(row => row.CompletedOn.HasValue
-                ? new Completion(row.Id, FinancialYearOf(row.CompletedOn.Value))
+                ? Completion.In(row.Id, FinancialYearOf(row.CompletedOn.Value))
                 : row.CompletedYear.HasValue
-                    ? new Completion(row.Id, row.CompletedMonth is >= 1 and <= 3 ? row.CompletedYear.Value - 1 : row.CompletedYear.Value)
+                    ? row.CompletedMonth is >= 1 and <= 12
+                        ? Completion.In(row.Id, row.CompletedMonth <= 3 ? row.CompletedYear.Value - 1 : row.CompletedYear.Value)
+                        : new Completion(row.Id, row.CompletedYear.Value - 1, row.CompletedYear.Value)
                     : null)
             .Where(completion => completion is not null)
             .Select(completion => completion!)
@@ -599,7 +606,12 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
 
     private sealed record CategoryNode(int Id, int? ParentId);
     private sealed record ArppListing(int ProjectId, int FinancialYearStart);
-    private sealed record Completion(int ProjectId, int FinancialYearStart);
+    // The financial years (by starting year) a completion may fall in: one when the month is
+    // known, two for a calendar year alone.
+    private sealed record Completion(int ProjectId, int FromFinancialYear, int ToFinancialYear)
+    {
+        public static Completion In(int projectId, int financialYear) => new(projectId, financialYear, financialYear);
+    }
     private sealed record CategoryOptionRow(int Id, string Name, int? ParentId, bool IsActive);
 
     private sealed record SearchProjectBaseRow(

@@ -198,7 +198,7 @@ UX 8, code 8; no High. The findings are fixed in one PR.
 - A full deck takes projects it already holds again and refuses a new one.
 
 **Open question for the owner**
-- A completion year with no date counts from April of that year. If `CompletedYear` holds a calendar year, a project finished in January–March lands one financial year late.
+- ~~A completion year with no date counts from April of that year.~~ Answered 19 Nov 2026: `CompletedYear` is a calendar year. A project with only a year (no date or month) may fall in either financial year that calendar year spans, so "Completed between" matches it in both, and both are offered as choices. A recorded month places it exactly (January–March belong to the financial year before).
 
 ## Sixth cold review (19 Nov 2026)
 

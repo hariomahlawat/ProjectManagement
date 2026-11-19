@@ -97,8 +97,8 @@ public sealed class ProjectBriefingProjectFilterTests
         await using var db = await SeedAsync();
         var service = Service(db);
 
-        // 104 completed 15 Feb 2025 (FY 2024-25), 105 on 10 May 2025 (FY 2025-26), 106 in 2023
-        // with no month (FY 2023-24).
+        // 104 completed 15 Feb 2025 (FY 2024-25), 105 on 10 May 2025 (FY 2025-26), 106 in the
+        // calendar year 2023 with no month (FY 2022-23 or 2023-24).
         var fy2025 = await service.FilterAsync(new ProjectBriefingProjectFilter { CompletedFromFinancialYear = 2025, CompletedToFinancialYear = 2025 });
         Assert.Equal(new[] { 105 }, fy2025.Select(row => row.ProjectId));
 
@@ -131,7 +131,8 @@ public sealed class ProjectBriefingProjectFilterTests
         Assert.Equal("FY 2026-27", options.ArppYears[0].Label);
         Assert.Equal(2, options.ArppYears[0].ProjectCount);
         Assert.Equal(1, options.ArppYears[1].ProjectCount);
-        Assert.Equal(2023, options.MinimumCompletionFinancialYear);
+        // 106 has only the calendar year 2023: FY 2022-23 or FY 2023-24.
+        Assert.Equal(2022, options.MinimumCompletionFinancialYear);
         Assert.Equal(2025, options.MaximumCompletionFinancialYear);
     }
 
@@ -225,6 +226,22 @@ public sealed class ProjectBriefingProjectFilterTests
         Assert.Contains(rows, row => row.ProjectId == 106);
     }
 
+    // CompletedYear is a calendar year (owner, 19 Nov 2026): with no month it may be either of the
+    // two financial years it spans, and matches both, but not the years beyond.
+    [Theory]
+    [InlineData(2022, true)]
+    [InlineData(2023, true)]
+    [InlineData(2021, false)]
+    [InlineData(2024, false)]
+    public async Task CompletedBetween_AYearWithNoMonthMatchesBothFinancialYearsItSpans(int financialYear, bool matched)
+    {
+        await using var db = await SeedAsync();
+
+        var rows = await Service(db).FilterAsync(new ProjectBriefingProjectFilter { CompletedFromFinancialYear = financialYear, CompletedToFinancialYear = financialYear });
+
+        Assert.Equal(matched, rows.Any(row => row.ProjectId == 106));
+    }
+
     [Fact]
     public async Task Options_ListEachCategoryFollowedByItsSubCategories()
     {
@@ -275,7 +292,8 @@ public sealed class ProjectBriefingProjectFilterTests
 
         var options = await Service(db).GetOptionsAsync();
 
-        Assert.Equal(new[] { 2025, 2024, 1990 }, options.CompletionFinancialYears);
+        // 1990 alone, a calendar year, may be FY 1989-90 or FY 1990-91.
+        Assert.Equal(new[] { 2025, 2024, 1990, 1989 }, options.CompletionFinancialYears);
     }
 
     // "%" and "_" typed in the search box are matched as themselves (cold review 3).

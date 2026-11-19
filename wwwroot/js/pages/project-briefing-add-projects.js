@@ -266,9 +266,9 @@ export function initAddProjects(deps) {
       }
       filterPanel.append(panelDone());
       const undated = filterOptions.completedWithoutDateCount;
-      // A project recorded with a year but no date or month is counted from April of that year
-      // (cold review 4): the note says so.
-      filterPanel.append(panelNote(`Financial years, April to March. A completion year with no date counts from April of that year.${undated
+      // A project recorded with a calendar year but no date or month may fall in either of two
+      // financial years, and matches both (owner, 19 Nov 2026): the note says so.
+      filterPanel.append(panelNote(`Financial years, April to March. A project with only a completion year matches both financial years that year spans.${undated
         ? ` ${undated} completed ${undated === 1 ? 'project has' : 'projects have'} no completion date or year and ${undated === 1 ? 'is' : 'are'} not matched.`
         : ''}`));
       return;
