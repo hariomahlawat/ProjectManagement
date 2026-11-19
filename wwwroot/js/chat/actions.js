@@ -115,9 +115,8 @@
    * tall message leaves no room either side. Decided as the pointer or focus arrives.
    */
   ChatApp.prototype.bindActionPlacement = function (win) {
-    const place = (event) => {
-      const item = event.target && event.target.closest ? event.target.closest('.pm-chat__msg') : null;
-      if (!item || !win.body.contains(item)) return;
+    let active = null; // the message whose toolbar was placed last (pointer or focus in it)
+    const place = (item) => {
       const bar = Array.from(item.children).find((child) => child.classList.contains('pm-chat__actions'));
       if (!bar) return;
       const view = win.body.getBoundingClientRect();
@@ -132,8 +131,20 @@
       bar.classList.toggle('is-pinned', pinned);
       bar.style.top = pinned ? `${Math.max(0, view.top - box.top) + 4}px` : '';
     };
-    win.log.addEventListener('mouseover', place);
-    win.log.addEventListener('focusin', place);
+    const arrive = (event) => {
+      const item = event.target && event.target.closest ? event.target.closest('.pm-chat__msg') : null;
+      if (!item || !win.body.contains(item)) return;
+      active = item;
+      place(item);
+    };
+    win.log.addEventListener('mouseover', arrive);
+    win.log.addEventListener('focusin', arrive);
+    // Scrolling moves the message under a still pointer (or a focused toolbar) without either
+    // event: place its toolbar again, so a pinned one follows the visible part of the message.
+    win.body.addEventListener('scroll', () => {
+      if (active && active.isConnected) place(active);
+      else active = null;
+    }, { passive: true });
   };
 
   ChatApp.prototype.actionBar = function (win, message, mine, who) {

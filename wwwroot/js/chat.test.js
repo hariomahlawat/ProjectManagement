@@ -4766,6 +4766,10 @@ test('the message toolbar goes below a message with no room above it in the wind
     assert.ok(firstBar.classList.contains('is-pinned'));
     assert.ok(!firstBar.classList.contains('is-below'));
     assert.equal(firstBar.style.top, '44px');
+    // Scrolling within the message (pointer still over it, no new event) moves the pinned toolbar.
+    first.getBoundingClientRect = () => ({ top: -40, bottom: 420, left: 0, right: 300, width: 300, height: 460 });
+    win.body.dispatchEvent(new window.Event('scroll'));
+    assert.equal(firstBar.style.top, '144px');
     // Room above again: back to the usual place.
     first.getBoundingClientRect = () => rect(200);
     first.querySelector('.pm-chat__bubble').dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
