@@ -218,6 +218,39 @@ This plan touches the same files. So:
 Each PR is merged only when Codex has no findings on its latest commit and CI is green. Each
 comes with tests that fail without it.
 
+### Status (19 Nov 2026)
+
+- **Merged:**
+  - PR 0, the HD logo (#3428);
+  - PR 1, this plan (#3429);
+  - PR 2, keep what's not understood (#3431);
+  - PR 3, shapes (#3433);
+  - PR 4, card sizes, SDD logo and fitting (#3435);
+  - PR 4b, designs as data (#3436);
+  - PR 5, start screen and Card details (#3437). This needed nine rounds of Codex findings,
+    each fixed with a test: held edits replacing controls under the pointer, deleted or
+    duplicated fields, turned pages, locks, Undo with a button focused;
+  - PR 5b, custom size (#3438); PR 6, more designs and unit colours (#3439); PR 7, logos
+    (#3440); PR 8, two sides (#3441); PR 9, print sheets (#3442); PR 9b, pocket cards (#3443);
+    PR 10, guest list (#3446); PR 11, posters (#3449); PR 9c, folded cards (#3450);
+  - the two fonts, Cinzel and Pinyon Script, on their own (#3447).
+- **Opening one at a time,** each stacked on the one before: this docs PR, 12, then the fixes
+  from the cold reviews (see PR 13).
+- **Changes to the plan, made while building:**
+  - PR 4 was split into 4 and 4b;
+  - PR 9b was split into 9b (pocket cards) and 9c (folded cards);
+  - 10 (guest list) and 11 (posters) were built before 9c, being of more use;
+  - the custom card size moved to its own PR, 5b.
+- **Fonts (owner approved, 19 Nov):** Cinzel (Engraved) and Pinyon Script (Formal script) were
+  downloaded from @fontsource 5.3.0 and shipped to master on their own (#3447).
+- **Sheet counts:** on A4, with 8 mm margins and 4 mm gaps, 2 A6, 4 A7 or 10 car passes fit;
+  A5 is exactly half of A4, so one fits.
+- **Release order (owner agreed, 19 Nov):** PR 2 reaches production a release before PR 3 and
+  later (see Deployment). If they went in one release, a user on a cached tab during the
+  change-over could lose a card's shapes from a draft.
+- **After the last PR:** a cold, independent review (PR 13), with fixes until it scores 8.5 or
+  above.
+
 | PR | What | Done when |
 | --- | --- | --- |
 | 0 | HD SDD logo `wwwroot/img/logos/sdd-hd.webp` (#3428) | Merged |
