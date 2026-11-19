@@ -1376,9 +1376,9 @@
     return (items || []).some((other) => other !== item && other.kind === 'photo' && !other.hidden && coveredShare(frame, other) > LOCK_COVER_LIMIT);
   }
 
-  /** Whether a frame is a card's or poster's place for a logo (role 'logo' or 'logo2'). */
+  /** Whether a frame is a place for a logo: the front's ('logo', 'logo2') or the back's ('backlogo'). */
   function isLogoPlace(item) {
-    return /^logo2?$/.test(item?.role || '');
+    return /^(logo2?|backlogo)$/.test(item?.role || '');
   }
 
   function bestSlotFor(items, aspect) {

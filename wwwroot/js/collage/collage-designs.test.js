@@ -432,4 +432,8 @@ test('a photo added without a chosen frame never goes in a logo place', () => {
   assert.equal(core.bestSlotFor([logo], 0.6), null);
   assert.equal(core.isLogoPlace(logo), true);
   assert.equal(core.isLogoPlace(frame), false);
+  // The back's small logo place too (Codex on PR 11).
+  const backLogo = { ...core.slotItem('b', { x: 100, y: 900, width: 60, aspect: 0.6 }), role: 'backlogo' };
+  const backPhoto = { ...core.slotItem('q', { x: 500, y: 400, width: 300, aspect: 1.5 }), role: 'backphoto' };
+  assert.equal(core.bestSlotFor([backLogo, backPhoto], 0.6).id, 'q');
 });
