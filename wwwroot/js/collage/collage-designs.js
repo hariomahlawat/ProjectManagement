@@ -62,8 +62,20 @@
     // A design with a photo frame (Ceremonial photo, the two photo posters): '' keeps the frame,
     // 'none' is "No photo": the frame goes and the design closes the gap (UX review 8). An older
     // PRISM ignores it and shows the frame, as before.
-    photoMode: ''
+    photoMode: '',
+    // A folded card's front cover title (cold review 9, M2): empty is "the occasion", and the
+    // cover follows the occasion until other words are typed here. The occasion itself is inside,
+    // so the opened card reads as a whole invitation. An older PRISM ignores it.
+    coverTitle: ''
   });
+  /**
+   * Fields whose words, while empty, are another field's (FALLBACKS[field] names it): a folded
+   * card's cover title shows the occasion. A fallback field the user deleted on the page holds a
+   * single space, so the cover stays without one.
+   */
+  const FALLBACKS = Object.freeze({ coverTitle: 'occasion' });
+  /** A field's words on the card: its own, or (a fallback field left empty) the field it follows. */
+  const wordsFor = (wording, field) => (FALLBACKS[field] && wording[field] === '' ? String(wording[FALLBACKS[field]] ?? '') : String(wording[field] ?? ''));
   /** What a new poster starts with: the same fields, a poster's wording. */
   const POSTER_DETAILS = Object.freeze({ ...DEFAULT_DETAILS, when: '20 – 22 December 2026 · 0700 h onwards', venue: 'Unit Sports Ground' });
   /** The fields on the back of the card. */
@@ -676,8 +688,15 @@
     // never placed (the page was turned since, say) keeps its words for when it is. Words on
     // either side count.
     for (const field of collage?.card?.placed || []) if (FIELDS.includes(field)) details[field] = '';
+    const onCard = new Set();
     for (const item of [...(collage?.items || []), ...(collage?.back?.items || [])]) {
-      if (item.kind === 'text' && FIELDS.includes(item.field)) details[item.field] = item.text;
+      if (item.kind === 'text' && FIELDS.includes(item.field)) { details[item.field] = item.text; onCard.add(item.field); }
+    }
+    // A cover title showing the occasion's words follows the occasion (empty); one deleted on the
+    // page stays deleted (a space), so a design change does not bring it back.
+    for (const [field, from] of Object.entries(FALLBACKS)) {
+      if (onCard.has(field) && details[field] === details[from]) details[field] = '';
+      else if (!onCard.has(field) && (collage?.card?.placed || []).includes(field)) details[field] = ' ';
     }
     return details;
   }
@@ -715,6 +734,19 @@
     if (fieldsIn(parts.front).includes(field)) return 'front';
     if (collage?.back && fieldsIn(parts.back).includes(field)) return 'back';
     return null;
+  }
+
+  /**
+   * The edge a design field's words are set by when they change (code review 9, H1): 'left' or
+   * 'right' for a part the design sets by that edge, null for one it centres. A left-aligned block
+   * the design centres (the back's programme) keeps its middle as it grows, so a longer line
+   * never pushes it past the border. A field the design does not place: null.
+   */
+  function fieldAnchor(collage, field) {
+    const parts = partsFor(collage?.card?.design, collage?.size);
+    const where = sideOf(collage, field);
+    const part = (where === 'back' ? parts.back : parts.front).find((each) => each.kind === 'text' && each.field === field);
+    return part?.anchor || null;
   }
 
   /** Every field the card shows words for, on either side. */
@@ -851,7 +883,7 @@
         const w = part.w * 1000 * unit;
         made.push(core.stickerItem(newId(), part.sticker, { x: part.x * width, y: part.y * height, width: w, aspect: part.aspect }, { role: part.role }));
       } else {
-        const text = String(wording[part.field] ?? '').slice(0, core.TEXT_LIMITS.maxLength);
+        const text = wordsFor(wording, part.field).slice(0, core.TEXT_LIMITS.maxLength);
         if (!text.trim()) continue;
         const item = core.textItem(newId(), text, { x: part.x * width, y: part.y * height }, {
           ...look,
@@ -1227,12 +1259,12 @@
     ])
   ];
 
-  // What each panel carries (UX review 8, M2). The front cover: the logo and the occasion, the
-  // card's title. The inside left: the host, the invitation line and the guest's line, so the
-  // opened card reads "The Commandant and Officers request the pleasure of the company of ____".
-  // The inside right: the date, venue, dress and R.S.V.P. Each field is on one side only, and
-  // "at the" is left out: with the occasion on the cover it would end the left page dangling.
-  // Both inside pages are centred at about the same height, so neither is left half empty.
+  // What each panel carries (UX review 8, M2; cold review 9, M2). The front cover: the logo and
+  // the cover title, which shows the occasion until other words are typed for it (coverTitle,
+  // FALLBACKS). The inside left: the whole invitation, "The Commandant and Officers request the
+  // pleasure of the company of ____ at the Raising Day Dinner". The inside right: the date,
+  // venue, dress and R.S.V.P. Each field is on one side only. Both inside pages are centred on
+  // the panel's middle and fill it, so neither is top-heavy.
 
   /** Classic ivory and Navy and gold: a double border on every panel, engraved host, formal script. */
   function formalFold(c) {
@@ -1245,7 +1277,7 @@
           // A light tile behind a dark crest on a dark design (M3); hidden for the SDD logo.
           ...(c.tile ? [logoTile(0.5, 0.29, 0.12, c.tile)] : []),
           logo(0.5, 0.29, 0.12),
-          words('occasion', 0.5, 0.54, 0.76, 40, { font: 'elegant', color: c.title, bold: true }, { lines: 3 }),
+          words('coverTitle', 0.5, 0.54, 0.76, 40, { font: 'elegant', color: c.title, bold: true }, { lines: 3 }),
           rule('coverrule', 0.5, 0.68, 0.2, c.accent, 2)
         ])
       ],
@@ -1253,17 +1285,20 @@
         ...frames('left', 'innerborder'),
         ...frames('right', 'innerborder2'),
         ...onAll('left', [
-          words('host', 0.5, 0.32, 0.76, 22, c.host, { lines: 3 }),
-          words('invite', 0.5, 0.48, 0.76, 30, { font: 'formal', color: c.invite, bold: false }, { lines: 2 }),
-          rule('guestline', 0.5, 0.665, 0.66, c.ink, 1.5),
-          words('guest', 0.5, 0.645, 0.66, 28, { font: 'script', color: c.ink, bold: false }, { lines: 1 })
+          words('host', 0.5, 0.26, 0.76, 24, c.host, { lines: 3 }),
+          words('invite', 0.5, 0.39, 0.76, 32, { font: 'formal', color: c.invite, bold: false }, { lines: 2 }),
+          rule('guestline', 0.5, 0.525, 0.66, c.ink, 1.5),
+          words('guest', 0.5, 0.505, 0.66, 30, { font: 'script', color: c.ink, bold: false }, { lines: 1 }),
+          words('at', 0.5, 0.6, 0.4, 22, { font: 'elegant', color: c.ink, bold: false, italic: true }),
+          words('occasion', 0.5, 0.705, 0.8, 40, { font: 'elegant', color: c.title, bold: true }, { lines: 3 }),
+          rule('leftrule', 0.5, 0.83, 0.2, c.accent, 2)
         ]),
         ...onAll('right', [
-          words('when', 0.5, 0.34, 0.78, 22, { font: 'clean', color: c.ink, bold: true }, { lines: 2 }),
-          words('venue', 0.5, 0.43, 0.78, 21, { font: 'clean', color: c.ink, bold: false }, { lines: 2 }),
-          words('dress', 0.5, 0.515, 0.78, 20, { font: 'clean', color: c.accent, bold: true }, { lines: 1 }),
-          rule('innerrule', 0.5, 0.6, 0.2, c.accent, 2),
-          words('rsvp', 0.5, 0.69, 0.78, 17, { font: 'clean', color: c.ink, bold: false }, { lines: 2 })
+          words('when', 0.5, 0.32, 0.78, 25, { font: 'clean', color: c.ink, bold: true }, { lines: 2 }),
+          words('venue', 0.5, 0.425, 0.78, 24, { font: 'clean', color: c.ink, bold: false }, { lines: 2 }),
+          words('dress', 0.5, 0.52, 0.78, 23, { font: 'clean', color: c.accent, bold: true }, { lines: 1 }),
+          rule('innerrule', 0.5, 0.61, 0.2, c.accent, 2),
+          words('rsvp', 0.5, 0.7, 0.78, 20, { font: 'clean', color: c.ink, bold: false }, { lines: 2 })
         ])
       ]
     };
@@ -1284,7 +1319,7 @@
         ...onAll('cover', [
           roundel('roundel', 'ellipse', 0.5, 0.35, 0.19, 0.72, { fill: '#ffffff', stroke: 'band2', strokeWidth: 3 }),
           logo(0.5, 0.35, 0.11),
-          words('occasion', 0.5, 0.6, 0.78, 38, { font: 'elegant', color: 'band3', bold: true }, { lines: 3 }),
+          words('coverTitle', 0.5, 0.6, 0.78, 38, { font: 'elegant', color: 'band3', bold: true }, { lines: 3 }),
           rule('coverrule', 0.5, 0.74, 0.5, 'band2', 3)
         ])
       ],
@@ -1292,17 +1327,20 @@
         frame('left', 'innerborder'),
         frame('right', 'innerborder2'),
         ...onAll('left', [
-          words('host', 0.5, 0.32, 0.78, 22, { font: 'engraved', color: 'band1', bold: true, spacing: 8 }, { lines: 3 }),
-          words('invite', 0.5, 0.48, 0.76, 30, { font: 'formal', color: INK, bold: false }, { lines: 2 }),
-          rule('guestline', 0.5, 0.665, 0.66, INK, 1.5),
-          words('guest', 0.5, 0.645, 0.66, 28, { font: 'script', color: INK, bold: false }, { lines: 1 })
+          words('host', 0.5, 0.26, 0.78, 24, { font: 'engraved', color: 'band1', bold: true, spacing: 8 }, { lines: 3 }),
+          words('invite', 0.5, 0.39, 0.76, 32, { font: 'formal', color: INK, bold: false }, { lines: 2 }),
+          rule('guestline', 0.5, 0.525, 0.66, INK, 1.5),
+          words('guest', 0.5, 0.505, 0.66, 30, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+          words('at', 0.5, 0.6, 0.4, 22, { font: 'elegant', color: INK, bold: false, italic: true }),
+          words('occasion', 0.5, 0.705, 0.8, 40, { font: 'elegant', color: 'band3', bold: true }, { lines: 3 }),
+          rule('leftrule', 0.5, 0.83, 0.5, 'band2', 3)
         ]),
         ...onAll('right', [
-          words('when', 0.5, 0.34, 0.78, 22, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
-          words('venue', 0.5, 0.43, 0.78, 21, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
-          words('dress', 0.5, 0.515, 0.78, 20, { font: 'clean', color: 'band1', bold: true }, { lines: 1 }),
-          rule('innerrule', 0.5, 0.6, 0.7, 'band2', 3),
-          words('rsvp', 0.5, 0.69, 0.78, 17, { font: 'clean', color: INK, bold: false }, { lines: 2 })
+          words('when', 0.5, 0.32, 0.78, 25, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
+          words('venue', 0.5, 0.425, 0.78, 24, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
+          words('dress', 0.5, 0.52, 0.78, 23, { font: 'clean', color: 'band1', bold: true }, { lines: 1 }),
+          rule('innerrule', 0.5, 0.61, 0.7, 'band2', 3),
+          words('rsvp', 0.5, 0.7, 0.78, 20, { font: 'clean', color: INK, bold: false }, { lines: 2 })
         ])
       ]
     };
@@ -1326,24 +1364,27 @@
           { ...block('logobox', 0.25, 0.505, 0.22, 0.155, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }), noPhoto: { y: 0.385 } },
           { ...logo(0.25, 0.505, 0.1), noPhoto: { y: 0.385 } },
           { ...vline('coveraccent', 0.14, 0.715, 0.12, MAROON, 3), noPhoto: { y: 0.6 } },
-          left('occasion', 0.18, 0.715, 0.72, 34, { font: 'elegant', color: MAROON, bold: true }, 3, { noPhoto: { y: 0.6 } })
+          left('coverTitle', 0.18, 0.715, 0.72, 34, { font: 'elegant', color: MAROON, bold: true }, 3, { noPhoto: { y: 0.6 } })
         ])
       ],
       inside: [
         frame('left', 'innerborder'),
         frame('right', 'innerborder2'),
         ...onAll('left', [
-          left('host', 0.14, 0.32, 0.76, 22, { font: 'clean', color: INK, bold: true }, 3),
-          left('invite', 0.14, 0.47, 0.76, 22, { font: 'elegant', color: INK, bold: false, italic: true }, 2),
-          rule('guestline', 0.52, 0.645, 0.76, INK, 1.5),
-          left('guest', 0.14, 0.625, 0.76, 28, { font: 'script', color: INK, bold: false }, 1)
+          left('host', 0.14, 0.26, 0.76, 24, { font: 'clean', color: INK, bold: true }, 3),
+          left('invite', 0.14, 0.38, 0.76, 24, { font: 'elegant', color: INK, bold: false, italic: true }, 2),
+          rule('guestline', 0.52, 0.515, 0.76, INK, 1.5),
+          left('guest', 0.14, 0.495, 0.76, 30, { font: 'script', color: INK, bold: false }, 1),
+          left('at', 0.14, 0.59, 0.5, 21, { font: 'elegant', color: INK, bold: false, italic: true }, 1),
+          vline('leftaccent', 0.14, 0.715, 0.13, MAROON, 3),
+          left('occasion', 0.18, 0.715, 0.72, 36, { font: 'elegant', color: MAROON, bold: true }, 3)
         ]),
         ...onAll('right', [
-          vline('accent', 0.14, 0.43, 0.2, MAROON, 3),
-          left('when', 0.18, 0.355, 0.72, 22, { font: 'clean', color: INK, bold: true }, 2),
-          left('venue', 0.18, 0.43, 0.72, 21, { font: 'clean', color: INK, bold: false }, 2),
-          left('dress', 0.18, 0.505, 0.72, 20, { font: 'clean', color: MAROON, bold: true }, 1),
-          left('rsvp', 0.14, 0.69, 0.76, 17, { font: 'clean', color: INK, bold: false }, 2)
+          vline('accent', 0.14, 0.43, 0.22, MAROON, 3),
+          left('when', 0.18, 0.345, 0.72, 25, { font: 'clean', color: INK, bold: true }, 2),
+          left('venue', 0.18, 0.43, 0.72, 24, { font: 'clean', color: INK, bold: false }, 2),
+          left('dress', 0.18, 0.515, 0.72, 23, { font: 'clean', color: MAROON, bold: true }, 1),
+          left('rsvp', 0.14, 0.69, 0.76, 20, { font: 'clean', color: INK, bold: false }, 2)
         ])
       ]
     };
@@ -1360,27 +1401,29 @@
           logo(0.5, 0.24, 0.1),
           words('occasionHi', 0.5, 0.46, 0.8, 32, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
           rule('coverrule', 0.5, 0.555, 0.14, GOLD, 1.2),
-          words('occasion', 0.5, 0.64, 0.8, 30, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 })
+          words('coverTitle', 0.5, 0.64, 0.8, 30, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 })
         ])
       ],
+      // The Hindi occasion is on the cover; the English one ends the invitation inside.
       inside: [
         frame('left', 'innerborder'),
         frame('right', 'innerborder2'),
         ...onAll('left', [
-          words('hostHi', 0.5, 0.22, 0.8, 21, { font: 'hindiFormal', color: INK, bold: true }, { lines: 3 }),
-          words('host', 0.5, 0.33, 0.8, 19, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
-          rule('innerrule', 0.5, 0.41, 0.14, GOLD, 1.2),
-          words('inviteHi', 0.5, 0.47, 0.8, 21, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
-          words('invite', 0.5, 0.55, 0.8, 20, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
-          rule('guestline', 0.5, 0.695, 0.66, INK, 1.5),
-          words('guest', 0.5, 0.675, 0.66, 28, { font: 'script', color: INK, bold: false }, { lines: 1 })
+          words('hostHi', 0.5, 0.18, 0.8, 21, { font: 'hindiFormal', color: INK, bold: true }, { lines: 3 }),
+          words('host', 0.5, 0.285, 0.8, 19, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
+          rule('innerrule', 0.5, 0.355, 0.14, GOLD, 1.2),
+          words('inviteHi', 0.5, 0.41, 0.8, 21, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
+          words('invite', 0.5, 0.48, 0.8, 20, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
+          rule('guestline', 0.5, 0.605, 0.66, INK, 1.5),
+          words('guest', 0.5, 0.585, 0.66, 28, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+          words('occasion', 0.5, 0.74, 0.8, 34, { font: 'elegant', color: MAROON, bold: true }, { lines: 3 })
         ]),
         ...onAll('right', [
-          words('when', 0.5, 0.33, 0.78, 22, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
-          words('venue', 0.5, 0.42, 0.78, 21, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
-          words('dress', 0.5, 0.505, 0.78, 20, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
-          rule('innerrule2', 0.5, 0.59, 0.16, GOLD, 1.2),
-          words('rsvp', 0.5, 0.68, 0.78, 17, { font: 'clean', color: INK, bold: false }, { lines: 2 })
+          words('when', 0.5, 0.32, 0.78, 25, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
+          words('venue', 0.5, 0.425, 0.78, 24, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
+          words('dress', 0.5, 0.52, 0.78, 23, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
+          rule('innerrule2', 0.5, 0.61, 0.16, GOLD, 1.2),
+          words('rsvp', 0.5, 0.7, 0.78, 20, { font: 'clean', color: INK, bold: false }, { lines: 2 })
         ])
       ]
     };
@@ -1398,7 +1441,7 @@
         ...onAll('cover', [
           logo(0.8, 0.18, 0.08),
           rule('coverrule', 0.25, 0.58, 0.22, NAVY, 4),
-          left('occasion', 0.14, 0.7, 0.74, 40, { font: 'clean', color: NAVY, bold: true }, 3)
+          left('coverTitle', 0.14, 0.7, 0.74, 40, { font: 'clean', color: NAVY, bold: true }, 3)
         ])
       ],
       inside: [
@@ -1406,17 +1449,20 @@
         frame('left', 'innerborder'),
         frame('right', 'innerborder2'),
         ...onAll('left', [
-          left('host', 0.16, 0.32, 0.72, 20, { font: 'clean', color: GREY, bold: true, spacing: 4 }, 3),
-          left('invite', 0.16, 0.47, 0.72, 21, { font: 'clean', color: GREY, bold: false }, 2),
-          rule('guestline', 0.52, 0.645, 0.72, INK, 1.5),
-          left('guest', 0.16, 0.625, 0.72, 26, { font: 'clean', color: INK, bold: true }, 1)
+          left('host', 0.16, 0.26, 0.72, 22, { font: 'clean', color: GREY, bold: true, spacing: 4 }, 3),
+          left('invite', 0.16, 0.38, 0.72, 23, { font: 'clean', color: GREY, bold: false }, 2),
+          rule('guestline', 0.52, 0.515, 0.72, INK, 1.5),
+          left('guest', 0.16, 0.495, 0.72, 28, { font: 'clean', color: INK, bold: true }, 1),
+          left('at', 0.16, 0.59, 0.5, 21, { font: 'clean', color: GREY, bold: false, italic: true }, 1),
+          left('occasion', 0.16, 0.705, 0.72, 40, { font: 'clean', color: NAVY, bold: true }, 3),
+          rule('leftrule', 0.27, 0.82, 0.22, NAVY, 4)
         ]),
         ...onAll('right', [
-          left('when', 0.14, 0.34, 0.76, 22, { font: 'clean', color: INK, bold: true }, 2),
-          left('venue', 0.14, 0.43, 0.76, 21, { font: 'clean', color: INK, bold: false }, 2),
-          left('dress', 0.14, 0.515, 0.76, 20, { font: 'clean', color: NAVY, bold: true }, 1),
-          rule('innerrule', 0.25, 0.6, 0.22, NAVY, 4),
-          left('rsvp', 0.14, 0.69, 0.76, 17, { font: 'clean', color: GREY, bold: false }, 2)
+          left('when', 0.14, 0.32, 0.76, 25, { font: 'clean', color: INK, bold: true }, 2),
+          left('venue', 0.14, 0.425, 0.76, 24, { font: 'clean', color: INK, bold: false }, 2),
+          left('dress', 0.14, 0.52, 0.76, 23, { font: 'clean', color: NAVY, bold: true }, 1),
+          rule('innerrule', 0.25, 0.61, 0.22, NAVY, 4),
+          left('rsvp', 0.14, 0.7, 0.76, 20, { font: 'clean', color: GREY, bold: false }, 2)
         ])
       ]
     };
@@ -1817,5 +1863,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, followLogo, roleItemOn, designOnSize, hindiInStep });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, followLogo, roleItemOn, designOnSize, hindiInStep, fieldAnchor, FALLBACKS });
 });

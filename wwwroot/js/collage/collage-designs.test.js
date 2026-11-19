@@ -274,15 +274,24 @@ test('a card gets a back in its design, turns over, keeps both sides through a d
   assert.equal(designs.fieldItem(card, 'backNote', { backNote: 'x' }, { measure, newId }), null, 'no back, no back field');
 });
 
+// A long programme (code review 9, H1): twelve lines, some too long for one line.
+const LONG_PROGRAMME = Array.from({ length: 12 }, (_, i) => (i % 3 === 1 ? `${1800 + i * 15} h · Change of Command Parade, Main Parade Ground, with the band` : `${1800 + i * 15} h · Item ${i + 1}`)).join(String.fromCharCode(10));
+
 test('every design\'s back stays on the page with no overlapping words at every card size', () => {
   for (const key of Object.keys(designs.DESIGNS).filter((each) => !designs.DESIGNS[each].pocket && !designs.DESIGNS[each].poster)) {
-    for (const size of cardSizes) {
-      const card = designs.addBack(designs.applyDesign(core.newCollage(size), key, {}, { measure, newId }), { measure, newId });
+    for (const size of cardSizes) for (const programme of [undefined, LONG_PROGRAMME]) {
+      const card = designs.addBack(designs.applyDesign(core.newCollage(size), key, programme ? { programme } : {}, { measure, newId }), { measure, newId });
       const height = core.pageHeight(size);
+      // Every word inside the back's border, with a margin, and the programme centred on the page.
+      const frame = box(card.back.items.find((item) => item.role === 'backborder'));
       for (const item of card.back.items) {
         const b = box(item);
         assert.ok(b.left >= -0.5 && b.right <= core.PAGE_WIDTH + 0.5 && b.top >= -0.5 && b.bottom <= height + 0.5, `${key} ${size}: back ${item.role} off the page`);
+        if (item.kind === 'text') assert.ok(b.left > frame.left + 8 && b.right < frame.right - 8 && b.top > frame.top + 8 && b.bottom < frame.bottom - 8, `${key} ${size}: back ${item.field} crosses the border ${JSON.stringify(b)}`);
       }
+      const block = card.back.items.find((item) => item.field === 'programme');
+      assert.ok(Math.abs(block.x - core.PAGE_WIDTH / 2) < 1, `${key} ${size}: the programme is centred`);
+      if (programme) assert.ok(core.layoutText(block, measure).width <= block.maxWidth + 0.5, `${key} ${size}: the long programme fits its width`);
       const texts = card.back.items.filter((item) => item.kind === 'text');
       for (let i = 0; i < texts.length; i += 1) for (let j = i + 1; j < texts.length; j += 1) {
         assert.ok(!overlap(box(texts[i]), box(texts[j])), `${key} ${size}: back ${texts[i].field} overlaps ${texts[j].field}`);
@@ -454,9 +463,12 @@ test('a folded card has an outside and an inside in every design, each panel wit
     for (const size of ['fold6', 'fold5']) {
       const card = designs.applyDesign(core.newCollage(size), key, {}, { measure, newId });
       assert.ok(card.back, `${key} ${size}: both sides`);
-      // UX review 8, M2: the occasion is the cover's title; the host opens the inside.
-      const occasion = card.items.find((item) => item.field === 'occasion');
-      assert.ok(occasion.x > core.PAGE_WIDTH / 2, `${key}: the occasion on the front cover, the right panel`);
+      // UX review 8, M2; cold review 9, M2: the cover's title shows the occasion; the host opens
+      // the inside, and the occasion ends the invitation there.
+      const title = card.items.find((item) => item.field === 'coverTitle');
+      assert.ok(title.x > core.PAGE_WIDTH / 2, `${key}: the cover title on the front cover, the right panel`);
+      assert.equal(title.text, designs.DEFAULT_DETAILS.occasion, `${key}: the cover title is the occasion`);
+      assert.ok(card.back.items.some((item) => item.field === 'occasion' && item.x < core.PAGE_WIDTH / 2), `${key}: the occasion inside on the left`);
       assert.ok(card.back.items.some((item) => item.field === 'host'), `${key}: the host inside`);
       assert.ok(card.back.items.some((item) => item.field === 'when'), `${key}: the details inside`);
       // No words cross the fold.
@@ -482,7 +494,8 @@ test('a field\'s side comes from the design: a programme card\'s programme is on
   assert.equal(designs.fieldItem(card, 'programme', { ...designs.detailsOf(card), programme: '1900 h · Arrival' }, { measure, newId }).text, '1900 h · Arrival');
   const folded = designs.applyDesign(core.newCollage('fold6'), 'classic', {}, { measure, newId });
   assert.equal(designs.sideOf(folded, 'guest'), 'back');
-  assert.equal(designs.sideOf(folded, 'occasion'), 'front');
+  assert.equal(designs.sideOf(folded, 'occasion'), 'back');
+  assert.equal(designs.sideOf(folded, 'coverTitle'), 'front');
   assert.equal(designs.sideOf(folded, 'host'), 'back');
   assert.ok(designs.fieldsOnCard(folded).includes('when'));
   const flat = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
@@ -596,10 +609,12 @@ test('folded cards: the cover is the outside sheet\'s right half, and inside rea
       const outside = card.items;
       const inside = card.back.items;
       for (const role of ['logo']) assert.ok(outside.find((item) => item.role === role).x > half, `${key} ${size}: the ${role} on the cover`);
-      assert.ok(outside.find((item) => item.field === 'occasion').x > half, `${key} ${size}: the occasion on the cover`);
-      for (const field of ['host', 'invite']) assert.ok(inside.find((item) => item.field === field).x < half, `${key} ${size}: ${field} on the left panel`);
+      assert.ok(outside.find((item) => item.field === 'coverTitle').x > half, `${key} ${size}: the cover title on the cover`);
+      for (const field of ['host', 'invite', 'occasion']) assert.ok(inside.find((item) => item.field === field).x < half, `${key} ${size}: ${field} on the left panel`);
       assert.ok(inside.find((item) => item.role === 'guestline').x < half, `${key} ${size}: the guest's line on the left panel`);
-      assert.ok(!inside.some((item) => item.field === 'at') && !outside.some((item) => item.field === 'at'), `${key} ${size}: no dangling "at the"`);
+      // "at the" leads into the occasion inside (no design but Bilingual leaves it out); never on the cover.
+      assert.ok(!outside.some((item) => item.field === 'at'), `${key} ${size}: no "at the" on the cover`);
+      if (key !== 'bilingual') assert.ok(inside.find((item) => item.field === 'at').y < inside.find((item) => item.field === 'occasion').y, `${key} ${size}: "at the" before the occasion`);
       for (const field of ['when', 'venue', 'dress', 'rsvp']) assert.ok(inside.find((item) => item.field === field).x > half, `${key} ${size}: ${field} on the right panel`);
       for (const item of [...outside, ...inside].filter((each) => each.kind === 'text')) {
         const b = box(item);
@@ -1023,7 +1038,7 @@ test('a folded card\'s front cover carries its design: bands, bar, photo frame, 
     const modern = make('modern');
     const bar = modern.items.find((item) => item.role === 'bar');
     assert.ok(bar && box(bar).left >= half - 0.5 && box(bar).right <= half + 20, `${size}: Modern's bar along the cover's spine`);
-    assert.equal(modern.items.find((item) => item.field === 'occasion').align, 'left');
+    assert.equal(modern.items.find((item) => item.field === 'coverTitle').align, 'left');
     assert.ok(box(modern.back.items.find((item) => item.role === 'bar')).left <= 0.5, `${size}: Modern's bar on the inside's outer edge`);
     for (const field of ['host', 'invite', 'when']) assert.equal(modern.back.items.find((item) => item.field === field).align, 'left', `${size}: Modern's ${field} set left`);
     // Ceremonial: a frame for the user's photo on the cover, the logo in its white box.
@@ -1241,15 +1256,15 @@ test('folded cards: the cover has the occasion, the inside reads host, invitatio
       const back = parts.back.filter((part) => part.kind === 'text').map((part) => part.field);
       assert.deepEqual(back.filter((field) => front.has(field)), [], `${key} ${size}: a field on both sides`);
       const cover = card.items.filter((item) => item.kind === 'text' && box(item).left >= half - 0.5);
-      assert.ok(cover.some((item) => item.field === 'occasion'), `${key} ${size}: the occasion on the cover`);
+      assert.ok(cover.some((item) => item.field === 'coverTitle'), `${key} ${size}: the cover title on the cover`);
       assert.ok(!cover.some((item) => ['host', 'invite', 'guest', 'when'].includes(item.field)), `${key} ${size}: only the title on the cover`);
       const texts = card.back.items.filter((item) => item.kind === 'text' && !item.hidden);
       const leftPage = texts.filter((item) => box(item).right <= half + 0.5);
       const rightPage = texts.filter((item) => box(item).left >= half - 0.5);
       // The left page reads in order: host, invitation, guest; then the right page's details.
       const y = (field) => texts.find((item) => item.field === field).y;
-      assert.ok(y('host') < y('invite') && y('invite') < y('guest'), `${key} ${size}: host, invitation, guest in order`);
-      assert.deepEqual(leftPage.map((item) => item.field).filter((field) => ['host', 'invite', 'guest'].includes(field)).sort(), ['guest', 'host', 'invite']);
+      assert.ok(y('host') < y('invite') && y('invite') < y('guest') && y('guest') < y('occasion'), `${key} ${size}: host, invitation, guest, occasion in order`);
+      assert.deepEqual(leftPage.map((item) => item.field).filter((field) => ['host', 'invite', 'guest', 'occasion'].includes(field)).sort(), ['guest', 'host', 'invite', 'occasion']);
       for (const field of ['when', 'venue', 'dress', 'rsvp']) assert.ok(rightPage.some((item) => item.field === field), `${key} ${size}: ${field} on the right`);
       // Balanced: each page's words fill at least a third of its height, and their middles are
       // within 8% of the page's height of each other; no page is half empty at the bottom.
@@ -1259,10 +1274,14 @@ test('folded cards: the cover has the occasion, the inside reads host, invitatio
       };
       const l = span(leftPage);
       const r = span(rightPage);
+      // Cold review 9, M2: centred on the page's middle (within 6%), the left page filling
+      // more than half of it, and neither empty below 70%.
       for (const [name, s] of [['left', l], ['right', r]]) {
         assert.ok(s.bottom - s.top >= height / 3, `${key} ${size}: the ${name} page's words fill a third of it`);
-        assert.ok(s.bottom >= height * 0.6, `${key} ${size}: the ${name} page is not empty below ${Math.round((s.bottom / height) * 100)}%`);
+        assert.ok(s.bottom >= height * 0.7, `${key} ${size}: the ${name} page is not empty below ${Math.round((s.bottom / height) * 100)}%`);
+        assert.ok(Math.abs((s.top + s.bottom) / 2 - height / 2) <= height * 0.06, `${key} ${size}: the ${name} page is centred (${Math.round(((s.top + s.bottom) / 2 / height) * 100)}%)`);
       }
+      assert.ok(l.bottom - l.top >= height / 2, `${key} ${size}: the left page's words fill half of it`);
       assert.ok(Math.abs((l.top + l.bottom) / 2 - (r.top + r.bottom) / 2) <= height * 0.08, `${key} ${size}: the two inside pages are balanced`);
     }
   }
@@ -1332,9 +1351,9 @@ test('No photo on Ceremonial: one left edge and an even rhythm, portrait, landsc
       const logoBox = box(find(card.items, (item) => item.role === 'logobox'));
       const accent = find(card.items, (item) => item.role === 'coveraccent');
       assert.ok(Math.abs(logoBox.left - accent.x) < 1.5, `${size}: the logo's box and the accent line up`);
-      assert.ok(box(find(card.items, (item) => item.field === 'occasion')).top > logoBox.bottom, `${size}: the occasion under the logo's box`);
+      assert.ok(box(find(card.items, (item) => item.field === 'coverTitle')).top > logoBox.bottom, `${size}: the cover title under the logo's box`);
       const inside = card.back.items;
-      const lefts = ['host', 'invite', 'guest'].map((field) => box(find(inside, (item) => item.field === field)).left);
+      const lefts = ['host', 'invite', 'guest', 'at'].map((field) => box(find(inside, (item) => item.field === field)).left);
       assert.ok(Math.max(...lefts) - Math.min(...lefts) < 1.5, `${size}: the inside left page shares one left edge`);
       continue;
     }

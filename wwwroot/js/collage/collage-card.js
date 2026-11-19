@@ -23,6 +23,8 @@
     ['at', 'Before the occasion'],
     ['occasion', 'Occasion'],
     ['occasionHi', 'Occasion in Hindi'],
+    // A folded card's cover (cold review 9, M2): empty shows the occasion.
+    ['coverTitle', 'Front cover title'],
     ['when', 'Date and time'],
     ['venue', 'Venue'],
     ['dress', 'Dress'],
@@ -445,7 +447,7 @@
         const value = escapeHtml(details[field] || '');
         const input = long
           ? `<textarea class="form-control form-control-sm" id="${id}" rows="${field === 'programme' ? 5 : field === 'host' ? 3 : 2}" maxlength="${core.TEXT_LIMITS.maxLength}" data-card-field="${field}">${value}</textarea>`
-          : `<input class="form-control form-control-sm" id="${id}" type="text" maxlength="${core.TEXT_LIMITS.maxLength}" value="${value}" data-card-field="${field}" autocomplete="off">`;
+          : `<input class="form-control form-control-sm" id="${id}" type="text" maxlength="${core.TEXT_LIMITS.maxLength}" value="${value}" data-card-field="${field}" autocomplete="off"${designs.FALLBACKS[field] ? ' placeholder="Same as the occasion"' : ''}>`;
         const picks = field === 'occasion' ? OCCASIONS : field === 'dress' ? DRESSES : null;
         const chips = picks ? `<div class="clg-chips clg-card-picks">${picks.map((pick) => `<button type="button" class="clg-chip" data-card-pick="${field}" data-value="${escapeHtml(pick)}" aria-pressed="${(details[field] || '') === pick}">${escapeHtml(pick.replace(/^Dress: /, ''))}</button>`).join('')}</div>` : '';
         const note = field === 'occasionHi' ? '<p class="clg-hint clg-card-hindi-note">An occasion quick pick fills this in too. Other English is not translated: an old Hindi line is emptied for you to type.</p>'
@@ -1104,7 +1106,14 @@
         return;
       }
       const details = { ...designs.detailsOf(collage), [field]: text };
-      const fresh = !textFor(collage, field) && text.trim() ? designs.fieldItem(collage, field, details, options()) : null;
+      // A cover title emptied shows the occasion again (cold review 9, M2): its item takes the
+      // occasion's words rather than going. Fields that follow this one (the cover title, while it
+      // shows the occasion) take the new words too.
+      const from = designs.FALLBACKS[field];
+      const shown = from && !text.trim() ? String(details[from] || '') : text;
+      if (from && !text.trim()) details[field] = '';
+      const followers = Object.keys(designs.FALLBACKS).filter((each) => designs.FALLBACKS[each] === field && details[each] === '' && text.trim());
+      const fresh = !textFor(collage, field) && shown.trim() ? designs.fieldItem(collage, field, details, options()) : null;
       let removed = null;
       let edited = null;
       doc.edit((draft) => {
@@ -1113,18 +1122,28 @@
         draft.card = { ...draft.card, design: draft.card?.design || 'classic', details, placed };
         const list = fieldsHere(draft, field);
         const index = list.findIndex((item) => item.kind === 'text' && item.field === field);
-        if (index >= 0 && !text.trim()) {
+        // Words keep the edge the design sets them by; a block the design centres (the back's
+        // left-aligned programme) keeps its middle, so it never grows past the border (code
+        // review 9, H1). A field the design does not place keeps the edge it is aligned to.
+        const retext = (target, words) => {
+          const left = target.x - target.width / 2;
+          const right = target.x + target.width / 2;
+          target.text = words;
+          surface.layoutTextItem(target);
+          const edge = designs.DESIGNS[draft.card?.design] && designs.fieldsOnCard(draft).includes(target.field) ? designs.fieldAnchor(draft, target.field) : target.align;
+          if (edge === 'left') target.x = left + target.width / 2;
+          if (edge === 'right') target.x = right - target.width / 2;
+        };
+        for (const follower of followers) {
+          const item = textFor(draft, follower);
+          if (item && !item.locked) retext(item, text);
+        }
+        if (index >= 0 && !shown.trim()) {
           removed = list[index].id;
           list.splice(index, 1);
         } else if (index >= 0) {
-          const target = list[index];
-          edited = target.id;
-          const left = target.x - target.width / 2;
-          const right = target.x + target.width / 2;
-          target.text = text;
-          surface.layoutTextItem(target);
-          if (target.align === 'left') target.x = left + target.width / 2;
-          if (target.align === 'right') target.x = right - target.width / 2;
+          edited = list[index].id;
+          retext(list[index], shown);
         } else if (fresh) {
           // Among the design's parts, behind anything the user added.
           const own = list.findIndex((item) => !item.role);
@@ -1135,7 +1154,7 @@
       // The selected item's Words box shows the words just typed here, unless it is being typed in.
       if (edited && state.selectedId === edited) {
         const words = ui.props.querySelector('[data-text]');
-        if (words && document.activeElement !== words) words.value = text;
+        if (words && document.activeElement !== words) words.value = shown;
       }
       surface.syncPage();
       history.holdEdit();
