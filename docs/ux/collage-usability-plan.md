@@ -193,4 +193,8 @@ same way. Each can be reverted on its own.
 - PR 5: one place to type a card's words. Settings show the field's name and **Edit in Card
   details** instead of a Words box, with the style under **Style**; a double-click or Enter on the
   words goes to the field too. Five card browser tests that typed in the Words box now type in
-  Card details; a phone test covers the field being focused and in view.
+  Card details; a phone test covers the field being focused and in view. #3470, merged 19 Nov
+  2026.
+- PR 6: help that fits the page. The "How to" list became one line (`helpLine()` in
+  `collage-panels.js`) with a **Tips** button opening a dialog (`data-help-dialog`) that keeps
+  every tip, grouped, with the keys.

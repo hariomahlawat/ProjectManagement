@@ -1147,6 +1147,27 @@ details.clg-custom-size[open] > summary {
     margin: 0.3rem 0;
 }
 
+/* One line of help and a Tips button, while nothing is selected (docs/ux/collage-usability-plan.md, PR 6). */
+.clg-help-line .clg-hint {
+    margin-bottom: 0.25rem;
+}
+
+.clg-help-open {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* The Tips dialog's groups. */
+.clg-help__heading {
+    margin: 0.85rem 0 0.2rem;
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+
+[data-help-dialog] .clg-tips {
+    color: var(--bs-body-color);
+}
+
 /* ---------- Messages ---------- */
 
 .clg-alert {

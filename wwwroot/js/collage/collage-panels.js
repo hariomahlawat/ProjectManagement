@@ -245,6 +245,17 @@
       if (event.key === 'Enter' && event.target.matches('[data-custom-size]')) { event.preventDefault(); useCustomSize(); }
     });
 
+    /**
+     * One line of help for what is open, shown while nothing is selected; every tip is in the Tips
+     * dialog (docs/ux/collage-usability-plan.md, PR 6).
+     */
+    function helpLine() {
+      if (state.collage.card) {
+        return `<p class="clg-hint" data-help-line>Type the words in Card details, or <span class="clg-for-mouse">click</span><span class="clg-for-touch">tap</span> anything on the card to move or restyle it.</p>`;
+      }
+      return `<p class="clg-hint" data-help-line><span class="clg-for-mouse">Click a photo to change it; drag it to move it.</span><span class="clg-for-touch">Tap a photo to change it; drag it to move it.</span></p>`;
+    }
+
     function renderPropsBody() {
       const item = doc.selectedItem();
       if (!item) {
@@ -254,23 +265,9 @@
             <select class="form-select form-select-sm" data-page-size>${core.sizesByGroup().map((group) => `<optgroup label="${escapeHtml(group.label)}">${group.keys
               .map((key) => `<option value="${key}"${key === state.collage.size ? ' selected' : ''}>${escapeHtml(core.SIZES[key].label)} · ${escapeHtml(core.SIZES[key].note)}</option>`).join('')}</optgroup>`).join('')}${core.SIZES[state.collage.size] ? '' : `<optgroup label="Custom"><option value="${escapeHtml(state.collage.size)}" selected>${escapeHtml(core.sizeOf(state.collage.size).label)}</option></optgroup>`}</select></label>
           ${customSizeFields()}
-          <div class="clg-section">
-            <p class="clg-section__title">How to</p>
-            ${state.collage.card ? '<p class="clg-hint">On a card or poster, type the words in Card details; click any words or the logo on the page to move, resize or restyle them.</p>' : ''}
-            <ul class="clg-tips clg-for-mouse">
-              <li>Click a photo to change it; drag it to move it.</li>
-              <li>Drag a corner to resize, or the middle of a side to change the frame's shape. Drag the round handle above it to turn it; it clicks to straight and 45°, and Shift gives 15° steps.</li>
-              <li>Double-click a photo to move it inside its frame.</li>
-              <li>Pink lines show when a photo lines up with the page or another photo. Hold Alt to move freely.</li>
-              <li>Ctrl+Z undoes, Delete removes, Ctrl+D duplicates, and the arrow keys nudge.</li>
-            </ul>
-            <ul class="clg-tips clg-for-touch">
-              <li>Tap a photo to change it; drag it with one finger to move it.</li>
-              <li>Drag a corner to resize it, and the round handle above it to turn it.</li>
-              <li>Tap a photo twice to move it inside its frame.</li>
-              <li>Two fingers on the page zoom in and out.</li>
-              <li>The arrows at the top undo and redo.</li>
-            </ul>
+          <div class="clg-section clg-help-line">
+            ${helpLine()}
+            <button type="button" class="btn btn-link btn-sm clg-help-open" data-action="help" aria-haspopup="dialog"><i class="bi bi-question-circle" aria-hidden="true"></i> Tips</button>
           </div>`;
         return;
       }
