@@ -668,28 +668,20 @@ test('a programme card\'s programme typed in Card details is the programme on th
 });
 
 // Codex on PR 11: the contact line is in Poster details; a poster's back logo follows No logo.
-test('Poster details changes the contact line; Remove logo takes the back logo too', async ({ page }) => {
+test('Poster details changes the contact line; Remove logo leaves No logo', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
   await page.locator('[data-start-poster="notice"]').click();
   const contact = page.locator('[data-card-field="contact"]');
-  await expect(contact).toHaveValue('Sports Officer · Ext 2210');
+  // The design's sample contact shows, to be changed.
+  await expect(contact).toHaveValue(/Ext \d+/);
   await contact.fill('Adjutant · Ext 2201');
   await contact.blur();
   await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'contact')?.text).toBe('Adjutant · Ext 2201');
-
+  // A poster offers no back (a back logo follows No logo where a draft has one: designs tests).
+  await expect(page.locator('[data-card-side="add"]')).toHaveCount(0);
   await page.locator('[data-card-logo-use="logo:sdd"]').click();
-  await page.locator('[data-card-side="add"]').click();
-  await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
-  const backLogo = async () => {
-    const model = (await newestDraft(page))?.model;
-    const back = model?.side === 'back' ? model.items : model?.back?.items;
-    return (back || []).some((item) => item.role === 'backlogo');
-  };
-  await expect.poll(backLogo).toBe(true);
-  await page.locator('[data-card-side="front"]').click();
   await page.locator('[data-card-logo="remove"]').click();
   await expect.poll(async () => (await newestDraft(page))?.model?.items?.some((item) => item.role === 'logo')).toBe(false);
-  await expect.poll(backLogo).toBe(false);
   expect(errors).toEqual([]);
 });
