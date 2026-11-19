@@ -1075,3 +1075,149 @@ test('a folded card\'s back cover has a border and its note in the middle of the
     }
   }
 });
+
+// UX review 8: a photo design saved without a photo left a hole. "No photo" leaves the frame out
+// and the parts round it move into its space.
+const NO_PHOTO_CASES = [
+  ...['a5p', 'a5l', 'a6p', 'a6l', 'dlp', 'dll', 'sq5', 'sq6', 'in57p', 'in57l', 'mm:120x180', 'mm:180x120', 'mm:150x150'].map((size) => ['ceremonial', size]),
+  ['ceremonial', 'fold6'], ['ceremonial', 'fold5'],
+  ...['a3p', 'a4p', 'a4l'].flatMap((size) => [['photoposter', size], ['talk', size]])
+];
+const startFor = (key) => ({ ...designs.startDetails(key), guest: 'Brig P. Singh, SM and Mrs Singh' });
+for (const [key, size] of NO_PHOTO_CASES) {
+  test(`No photo: ${key} at ${size} has no frame, every part on the page, no words overlapping, and the parts move into the space`, () => {
+    const opts = { measure, newId };
+    const poster = designs.DESIGNS[key].poster;
+    const withPhoto = designs.applyDesign(core.newCollage(size), key, startFor(key), opts);
+    assert.ok(designs.hasPhotoFrame(withPhoto), 'the design has a photo frame');
+    const frame = withPhoto.items.find((item) => item.role === 'photo' && item.kind === 'slot');
+    assert.ok(frame, 'an empty frame to start with');
+    const none = designs.setPhotoMode(withPhoto, 'none', opts);
+    const fresh = designs.applyDesign(core.newCollage(size), key, { ...startFor(key), photoMode: 'none' }, opts);
+    for (const card of [none, fresh]) {
+      assert.equal(card.card.details.photoMode, 'none');
+      assert.ok(!card.items.some((item) => item.kind === 'slot' && item.role === 'photo'), 'no photo frame');
+      const height = core.pageHeight(size);
+      const slack = poster ? core.PAGE_WIDTH * 0.12 : 0;
+      for (const item of card.items) {
+        const b = box(item);
+        assert.ok(b.left >= -0.5 - slack && b.right <= core.PAGE_WIDTH + slack + 0.5 && b.top >= -0.5 && b.bottom <= height + 0.5, `${key} ${size}: ${item.role} off the page ${JSON.stringify(b)}`);
+      }
+      const texts = card.items.filter((item) => item.kind === 'text');
+      for (let i = 0; i < texts.length; i += 1) for (let j = i + 1; j < texts.length; j += 1) {
+        assert.ok(!overlap(box(texts[i]), box(texts[j])), `${key} ${size}: ${texts[i].field} overlaps ${texts[j].field}`);
+      }
+      const logo = card.items.find((item) => item.role === 'logo' && item.kind !== 'slot');
+      if (logo) for (const words of texts) assert.ok(!overlap(box(logo), box(words)), `${key} ${size}: the logo covers ${words.field}`);
+    }
+    // Choosing No photo on the page lays it out as a card started with No photo.
+    const placeOf = (card) => Object.fromEntries(card.items.filter((item) => item.role).map((item) => [item.role, [Math.round(item.x), Math.round(item.y), Math.round(item.width)]]));
+    assert.deepEqual(placeOf(none), placeOf(fresh));
+    // The parts round the frame moved into its space: up, or across and wider beside it.
+    const moved = withPhoto.items.filter((item) => item.kind === 'text').filter((item) => {
+      const after = none.items.find((each) => each.field === item.field);
+      return after && (after.y < item.y - 1 || Math.abs(after.x - item.x) > 1 || after.width > item.width + 1);
+    });
+    assert.ok(moved.length >= 1, `${key} ${size}: something moved into the space`);
+    for (const item of moved) {
+      const after = none.items.find((each) => each.field === item.field);
+      // Words beside the photo move across into its place; the rest only ever move up.
+      if (Math.abs(after.x - item.x) <= 1) assert.ok(after.y <= item.y + 1, `${key} ${size}: ${item.field} never moves down`);
+    }
+    // A photo added afterwards brings the frame back where it was, and the parts back round it.
+    const back = designs.setPhotoMode(none, '', opts);
+    const again = back.items.find((item) => item.role === 'photo');
+    assert.equal(again.kind, 'slot');
+    assert.deepEqual([again.x, again.y, again.width], [frame.x, frame.y, frame.width]);
+    assert.deepEqual(placeOf(back), placeOf(withPhoto));
+    assert.equal(back.items.length, withPhoto.items.length, 'nothing extra left behind');
+  });
+}
+
+test('No photo keeps the user edits: fonts, colours, places, deleted and locked parts; a photo in the frame stays', () => {
+  const opts = { measure, newId };
+  const card = designs.applyDesign(core.newCollage('a5p'), 'ceremonial', startFor('ceremonial'), opts);
+  const venue = (c) => c.items.find((item) => item.field === 'venue');
+  const mine = {
+    ...card,
+    background: { type: 'color', value: '#fafafa' },
+    items: card.items
+      .filter((item) => item.field !== 'dress')
+      .map((item) => (item.field === 'venue' ? { ...item, font: 'typewriter', color: '#123456', x: item.x + 30 } : item.field === 'note' ? { ...item, locked: true } : item))
+  };
+  const none = designs.setPhotoMode(mine, 'none', opts);
+  const fresh = designs.setPhotoMode(card, 'none', opts);
+  assert.deepEqual(none.background, mine.background);
+  assert.equal(venue(none).font, 'typewriter');
+  assert.equal(venue(none).color, '#123456');
+  assert.ok(venue(none).y < venue(mine).y - 1, 'moved up into the space');
+  assert.ok(Math.abs((venue(none).x - venue(mine).x) - (venue(fresh).x - venue(card).x)) < 1, 'moved by as much as the design moved it, from where the user put it');
+  assert.ok(!none.items.some((item) => item.field === 'dress'), 'a deleted part stays deleted');
+  const note = (c) => c.items.find((item) => item.field === 'note');
+  assert.deepEqual(note(none), note(mine), 'a locked part stays exactly as it is');
+  // The band that stands in for the photo is added, and goes when the frame comes back.
+  assert.ok(none.items.some((item) => item.role === 'photoband'));
+  const back = designs.setPhotoMode(none, '', opts);
+  assert.ok(!back.items.some((item) => item.role === 'photoband'));
+  assert.equal(venue(back).font, 'typewriter');
+  assert.ok(Math.abs(venue(back).y - venue(mine).y) < 1, 'back where it was');
+
+  // A photo in the frame: No photo leaves it, and a design change keeps it in the frame.
+  const filled = { ...card, items: card.items.map((item) => (item.role === 'photo' ? core.fillSlot(item, 'p1') : item)) };
+  const kept = designs.setPhotoMode(filled, 'none', opts);
+  assert.equal(kept.items.find((item) => item.role === 'photo').photo, 'p1');
+  const redrawn = designs.applyDesign(kept, 'ceremonial', designs.detailsOf(kept), opts);
+  assert.equal(redrawn.items.find((item) => item.role === 'photo').photo, 'p1');
+  // A design change keeps No photo: back to Ceremonial from Classic, still no frame.
+  const classic = designs.applyDesign(none, 'classic', designs.detailsOf(none), opts);
+  const ceremonial = designs.applyDesign(classic, 'ceremonial', designs.detailsOf(classic), opts);
+  assert.ok(!ceremonial.items.some((item) => item.role === 'photo'));
+  // A logo put back after No photo goes in the box where it is with no photo.
+  const logoPlace = designs.roleItem(none, 'logo', opts);
+  const logoBox = none.items.find((item) => item.role === 'logobox');
+  assert.ok(Math.abs(logoPlace.y - logoBox.y) < 1);
+});
+
+test('No photo: a poster logo choice afterwards keeps No photo; a folded card shows its inside and still changes its cover', () => {
+  const opts = { measure, newId };
+  const poster = designs.setPhotoMode(designs.applyDesign(core.newCollage('a3p'), 'photoposter', startFor('photoposter'), opts), 'none', opts);
+  const noLogo = designs.setLogoMode(poster, 'none', opts);
+  assert.ok(!noLogo.items.some((item) => item.role === 'photo' || item.role === 'logo'));
+  assert.equal(noLogo.card.details.photoMode, 'none');
+  const folded = designs.applyDesign(core.newCollage('fold6'), 'ceremonial', startFor('ceremonial'), opts);
+  const inside = core.flipSide({ ...folded, side: 'front' });
+  const none = designs.setPhotoMode(inside, 'none', opts);
+  assert.equal(none.side, 'back', 'still shows its inside');
+  assert.ok(!none.back.items.some((item) => item.role === 'photo'), 'the cover has no frame');
+  assert.ok(none.back.items.some((item) => item.role === 'photoband'));
+});
+
+test('No photo: an older draft with no photoMode opens as before, and the detail survives draft reading', () => {
+  const opts = { measure, newId };
+  const old = designs.applyDesign(core.newCollage('a5p'), 'ceremonial', designs.startDetails('ceremonial'), opts);
+  const { photoMode, ...olderDetails } = old.card.details;
+  const older = { ...old, card: { ...old.card, details: olderDetails } };
+  const opened = designs.applyDesign(older, 'ceremonial', designs.detailsOf(older), opts);
+  assert.ok(opened.items.some((item) => item.role === 'photo' && item.kind === 'slot'), 'the frame as before');
+  const none = designs.setPhotoMode(old, 'none', opts);
+  const read = core.readDraftModel(JSON.parse(JSON.stringify({ version: 1, ...none })), []);
+  assert.equal(read.card.details.photoMode, 'none');
+  assert.ok(!read.items.some((item) => item.role === 'photo'), 'opened with no frame');
+  assert.ok(read.items.some((item) => item.role === 'photoband'), 'and with the band in the photo place');
+});
+
+// Code review 8, H1: with No photo recorded but the frame still on the page, a guest's name and a
+// field typed back go where the photo arrangement puts them.
+test('a field made for a page that still has its frame follows the photo arrangement, whatever photoMode says', () => {
+  const opts = { measure, newId };
+  const card = designs.applyDesign(core.newCollage('a5p'), 'ceremonial', {}, opts);
+  const framedButNone = { ...card, card: { ...card.card, details: { ...card.card.details, photoMode: 'none' } } };
+  const line = card.items.find((item) => item.role === 'guestline');
+  const guest = designs.fieldItem(framedButNone, 'guest', { ...designs.detailsOf(framedButNone), guest: 'Maj A' }, opts);
+  const withPhoto = designs.fieldItem(card, 'guest', { ...designs.detailsOf(card), guest: 'Maj A' }, opts);
+  assert.ok(Math.abs(guest.y - withPhoto.y) < 1, 'the name where the photo arrangement has it');
+  assert.ok(guest.y < line.y + 1 && guest.y > line.y - 120, 'just above its line');
+  const occasion = designs.fieldItem(framedButNone, 'occasion', designs.detailsOf(framedButNone), opts);
+  const frame = card.items.find((item) => item.role === 'photo');
+  assert.ok(occasion.y - core.itemHeight(occasion) / 2 >= frame.y + core.itemHeight(frame) / 2 - 1, 'the occasion below the frame, not in it');
+});

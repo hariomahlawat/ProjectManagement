@@ -1525,3 +1525,13 @@ test('a draft keeps a newer PRISM camelCase fields on the collage, the card and 
   const keys = Object.keys(collage.readDraftModel({ ...raw, ['__proto__']: { bad: 1 } }).kept?.fields || {});
   assert.ok(!keys.includes('__proto__'));
 });
+
+// Code review 8, M1: a shape's rounded corners up to half its shorter side survive a reopened draft.
+test('a rounded band keeps its full corners when its draft is reopened', () => {
+  const band = { id: 'r', kind: 'shape', form: 'rect', x: 500, y: 100, width: 600, aspect: 600 / 236, radius: 118, fill: '#ffffff', stroke: '#000000', strokeWidth: 3 };
+  const read = collage.readDraftModel({ version: 1, size: 'a5p', background: { type: 'color', value: '#ffffff' }, items: [band] }, []);
+  assert.equal(read.items[0].radius, 118);
+  // Never past half its shorter side.
+  const over = collage.readDraftModel({ version: 1, size: 'a5p', background: { type: 'color', value: '#ffffff' }, items: [{ ...band, radius: 900 }] }, []);
+  assert.equal(over.items[0].radius, 118);
+});

@@ -58,7 +58,11 @@
     subtitle: 'Inter-section championship',
     lines: 'Athletics · Volleyball · Tug of war' + String.fromCharCode(10) + 'Families welcome' + String.fromCharCode(10) + 'Prize distribution on 22 December, 1600 h',
     contact: 'Sports Officer · Ext 2210',
-    logoMode: ''
+    logoMode: '',
+    // A design with a photo frame (Ceremonial photo, the two photo posters): '' keeps the frame,
+    // 'none' is "No photo": the frame goes and the design closes the gap (UX review 8). An older
+    // PRISM ignores it and shows the frame, as before.
+    photoMode: ''
   });
   /** What a new poster starts with: the same fields, a poster's wording. */
   const POSTER_DETAILS = Object.freeze({ ...DEFAULT_DETAILS, when: '20 – 22 December 2026 · 0700 h onwards', venue: 'Unit Sports Ground' });
@@ -230,37 +234,43 @@
       label: 'Ceremonial photo',
       note: 'Your photo at the top',
       background: { type: 'color', value: '#ffffff' },
+      // `noPhoto` is where a part goes with "No photo" (UX review 8): a maroon band takes the
+      // photo's place, the logo's box sits on its edge as it sat on the photo's, and the words
+      // move up and grow into the space. `onlyNoPhoto` parts are there only then.
       portrait: [
         photo(0.5, 0.2, 1, 0.4),
-        block('logobox', 0.15, 0.4, 0.17, 0.135, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }),
-        logo(0.15, 0.4, 0.1),
-        words('occasion', 0.27, 0.465, 0.66, 46, { font: 'elegant', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
-        words('host', 0.08, 0.565, 0.84, 22, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
-        words('invite', 0.08, 0.63, 0.84, 22, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left' }),
-        rule('guestline', 0.4, 0.695, 0.64, INK, 1.5),
-        words('guest', 0.08, 0.68, 0.64, 30, { font: 'script', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
-        vline('accent', 0.075, 0.8, 0.11, MAROON, 3),
-        words('when', 0.1, 0.76, 0.8, 23, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('venue', 0.1, 0.8, 0.8, 22, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('dress', 0.1, 0.84, 0.8, 21, { font: 'clean', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
+        { ...block('photoband', 0.5, 0.07, 1, 0.14, { fill: MAROON, stroke: '' }), onlyNoPhoto: true },
+        { ...block('logobox', 0.15, 0.4, 0.17, 0.135, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }), noPhoto: { y: 0.14 } },
+        { ...logo(0.15, 0.4, 0.1), noPhoto: { y: 0.14 } },
+        words('occasion', 0.27, 0.465, 0.66, 46, { font: 'elegant', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { y: 0.225, size: 54 } }),
+        words('host', 0.08, 0.565, 0.84, 22, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { y: 0.355, size: 25 } }),
+        words('invite', 0.08, 0.63, 0.84, 22, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left', noPhoto: { y: 0.435, size: 25 } }),
+        { ...rule('guestline', 0.4, 0.695, 0.64, INK, 1.5), noPhoto: { y: 0.53 } },
+        words('guest', 0.08, 0.68, 0.64, 30, { font: 'script', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { y: 0.512, size: 34 } }),
+        { ...vline('accent', 0.075, 0.8, 0.11, MAROON, 3), noPhoto: { y: 0.695, len: 0.14 } },
+        words('when', 0.1, 0.76, 0.8, 23, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { y: 0.645, size: 26 } }),
+        words('venue', 0.1, 0.8, 0.8, 22, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { y: 0.695, size: 25 } }),
+        words('dress', 0.1, 0.84, 0.8, 21, { font: 'clean', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { y: 0.745, size: 24 } }),
+        { ...rule('photofoot', 0.5, 0.875, 0.84, '#d9d4c7', 1.2), onlyNoPhoto: true },
         words('rsvp', 0.08, 0.92, 0.44, 18, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 2 }),
         words('note', 0.92, 0.92, 0.38, 18, { font: 'elegant', color: INK, bold: false, italic: true, align: 'right' }, { anchor: 'right', lines: 2 })
       ],
       landscape: [
         photo(0.25, 0.5, 0.5, 1),
-        block('logobox', 0.58, 0.16, 0.12, 0.2, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }),
-        logo(0.58, 0.16, 0.1),
-        words('occasion', 0.66, 0.16, 0.3, 36, { font: 'elegant', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
-        words('host', 0.54, 0.36, 0.42, 20, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
-        words('invite', 0.54, 0.46, 0.42, 20, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left' }),
-        rule('guestline', 0.75, 0.55, 0.42, INK, 1.5),
-        words('guest', 0.54, 0.53, 0.42, 26, { font: 'script', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
-        vline('accent', 0.535, 0.7, 0.18, MAROON, 3),
-        words('when', 0.555, 0.64, 0.4, 20, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('venue', 0.555, 0.7, 0.4, 19, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('dress', 0.555, 0.76, 0.4, 18, { font: 'clean', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('rsvp', 0.54, 0.9, 0.42, 16, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('note', 0.54, 0.945, 0.42, 16, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left', lines: 1 })
+        { ...block('photoband', 0.035, 0.5, 0.07, 1, { fill: MAROON, stroke: '' }), onlyNoPhoto: true },
+        { ...block('logobox', 0.58, 0.16, 0.12, 0.2, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }), noPhoto: { x: 0.19, y: 0.19 } },
+        { ...logo(0.58, 0.16, 0.1), noPhoto: { x: 0.19, y: 0.19 } },
+        words('occasion', 0.66, 0.16, 0.3, 36, { font: 'elegant', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { x: 0.28, w: 0.64, size: 44 } }),
+        words('host', 0.54, 0.36, 0.42, 20, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { x: 0.13, y: 0.4, w: 0.79, size: 21 } }),
+        words('invite', 0.54, 0.46, 0.42, 20, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left', noPhoto: { x: 0.13, y: 0.495, w: 0.79, size: 21 } }),
+        { ...rule('guestline', 0.75, 0.55, 0.42, INK, 1.5), noPhoto: { x: 0.405, y: 0.595, w: 0.55 } },
+        words('guest', 0.54, 0.53, 0.42, 26, { font: 'script', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.13, y: 0.575, w: 0.55, size: 28 } }),
+        { ...vline('accent', 0.535, 0.7, 0.18, MAROON, 3), noPhoto: { x: 0.125, y: 0.745, len: 0.17 } },
+        words('when', 0.555, 0.64, 0.4, 20, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.145, y: 0.69, w: 0.77 } }),
+        words('venue', 0.555, 0.7, 0.4, 19, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.145, y: 0.745, w: 0.77 } }),
+        words('dress', 0.555, 0.76, 0.4, 18, { font: 'clean', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.145, y: 0.8, w: 0.77 } }),
+        words('rsvp', 0.54, 0.9, 0.42, 16, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.13, y: 0.915, w: 0.44 } }),
+        words('note', 0.54, 0.945, 0.42, 16, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.62, y: 0.915, w: 0.3 } })
       ]
     }),
     bilingual: Object.freeze({
@@ -272,13 +282,13 @@
         border('border', 0.03, GOLD, 1.5),
         logo(0.5, 0.11, 0.09),
         vline('divider', 0.5, 0.3, 0.17, GOLD, 1.2),
-        words('hostHi', 0.26, 0.26, 0.42, 22, { font: 'hindiFormal', color: INK, bold: false }, { lines: 3 }),
+        words('hostHi', 0.26, 0.26, 0.42, 22, { font: 'hindiFormal', color: INK, bold: true }, { lines: 3 }),
         words('inviteHi', 0.26, 0.35, 0.42, 20, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
         words('host', 0.74, 0.26, 0.42, 19, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
         words('invite', 0.74, 0.35, 0.42, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
         rule('guestline', 0.5, 0.45, 0.62, INK, 1.5),
         words('guest', 0.5, 0.435, 0.62, 30, { font: 'script', color: INK, bold: false }, { lines: 1 }),
-        words('at', 0.5, 0.5, 0.3, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
+        // No "at the": it would stand under the English alone (UX review 8); the columns read without it.
         vline('divider2', 0.5, 0.6, 0.1, GOLD, 1.2),
         words('occasionHi', 0.26, 0.6, 0.42, 34, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 3 }),
         words('occasion', 0.74, 0.6, 0.42, 30, { font: 'elegant', color: MAROON, bold: true }, { lines: 3 }),
@@ -292,14 +302,13 @@
         border('border', 0.03, GOLD, 1.5),
         logo(0.5, 0.14, 0.11),
         vline('divider', 0.5, 0.355, 0.17, GOLD, 1.2),
-        words('hostHi', 0.27, 0.29, 0.4, 20, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
+        words('hostHi', 0.27, 0.29, 0.4, 20, { font: 'hindiFormal', color: INK, bold: true }, { lines: 2 }),
         words('inviteHi', 0.27, 0.4, 0.4, 18, { font: 'hindiFormal', color: INK, bold: false }, { lines: 1 }),
         words('host', 0.73, 0.29, 0.4, 18, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
         words('invite', 0.73, 0.4, 0.4, 18, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
         // The guest's name across both columns, then "at the" before the occasion, as in portrait.
         rule('guestline', 0.5, 0.49, 0.5, INK, 1.2),
         words('guest', 0.5, 0.473, 0.5, 24, { font: 'script', color: INK, bold: false }, { lines: 1 }),
-        words('at', 0.73, 0.535, 0.3, 16, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
         vline('divider2', 0.5, 0.635, 0.1, GOLD, 1.2),
         words('occasionHi', 0.27, 0.635, 0.4, 26, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
         words('occasion', 0.73, 0.635, 0.4, 24, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
@@ -358,10 +367,14 @@
       portrait: [
         logoPlace(0.5, 0.07, 0.1, 0.6),
         { ...photo(0.5, 0.33, 0.72, 0.36), angle: -2 },
-        words('title', 0.5, 0.61, 0.86, 88, { font: 'script', color: MAROON, bold: false }, { lines: 2 }),
-        words('subtitle', 0.5, 0.72, 0.84, 30, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
-        words('when', 0.5, 0.785, 0.84, 28, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
-        words('venue', 0.5, 0.83, 0.84, 26, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
+        // With "No photo" (UX review 8) the heading grows into the photo's space, between two
+        // gold rules, and the details follow it up.
+        { ...rule('photorule', 0.5, 0.23, 0.24, GOLD, 2.5), onlyNoPhoto: true },
+        words('title', 0.5, 0.61, 0.86, 88, { font: 'script', color: MAROON, bold: false }, { lines: 2, noPhoto: { y: 0.36, size: 150 } }),
+        { ...rule('photorule2', 0.5, 0.5, 0.24, GOLD, 2.5), onlyNoPhoto: true },
+        words('subtitle', 0.5, 0.72, 0.84, 30, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2, noPhoto: { y: 0.58, size: 40 } }),
+        words('when', 0.5, 0.785, 0.84, 28, { font: 'clean', color: INK, bold: true }, { lines: 1, noPhoto: { y: 0.69, size: 36 } }),
+        words('venue', 0.5, 0.83, 0.84, 26, { font: 'clean', color: INK, bold: false }, { lines: 1, noPhoto: { y: 0.75, size: 34 } }),
         words('contact', 0.5, 0.94, 0.84, 20, { font: 'clean', color: '#6b5a44', bold: false }, { lines: 1 })
       ]
     }),
@@ -379,7 +392,9 @@
         words('title', 0.08, 0.2, 0.74, 78, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 3, yNoLogo: 0.19 }),
         words('subtitle', 0.08, 0.33, 0.84, 30, { font: 'clean', color: '#55607a', bold: false, align: 'left' }, { anchor: 'left', lines: 2 }),
         { ...photo(0.2, 0.47, 0.24, 0.17), radius: 999 },
-        words('lines', 0.38, 0.47, 0.56, 26, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 5 }),
+        // With "No photo" (UX review 8) the points take the photo's place, the page's width.
+        { ...vline('photoaccent', 0.08, 0.47, 0.13, NAVY, 4), onlyNoPhoto: true },
+        words('lines', 0.38, 0.47, 0.56, 26, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 5, noPhoto: { x: 0.11, w: 0.81, size: 34 } }),
         rule('rule', 0.5, 0.64, 0.84, NAVY, 3),
         words('when', 0.08, 0.69, 0.84, 32, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
         words('venue', 0.08, 0.745, 0.84, 30, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
@@ -560,12 +575,24 @@
    * Where the card's design puts a part (its logo, say), as an item made from the details:
    * for a logo put back after it was removed. Null when the design has no such part.
    */
+  /**
+   * The one rule for "No photo" (code review 8): it applies only while the page has no design
+   * frame. A page that still has its frame (a photo in it, an empty one, one the user locked, or
+   * one an older PRISM put back) keeps the photo arrangement, whatever the details say. Returns
+   * the details to lay a part out with, for a page built afresh from `items`.
+   */
+  function photoDetails(items, details) {
+    const framed = (items || []).some((item) => item.role === 'photo');
+    return framed && details?.photoMode === 'none' ? { ...details, photoMode: '' } : details;
+  }
+
   function roleItem(collage, role, opts) {
     const key = collage?.card?.design;
     if (!DESIGNS[key]) return null;
     const { card, back, side, ...rest } = collage;
-    // Where the design puts it with a logo wanted (a poster set to "No logo" still has a place).
-    const made = applyDesign({ ...rest, items: [] }, key, { ...detailsOf(collage), logoMode: '' }, opts);
+    // Where the design puts it with a logo wanted (a poster set to "No logo" still has a place),
+    // with or without its photo as the page is (photoDetails).
+    const made = applyDesign({ ...rest, items: [] }, key, photoDetails(collage.items, { ...detailsOf(collage), logoMode: '' }), opts);
     return made.items.find((item) => item.role === role) || null;
   }
 
@@ -739,8 +766,16 @@
     // A poster with "No logo" (or a logo place it has no logo for) moves parts up into the space.
     const chosenLogo = (items || []).find((item) => item.role === 'logo' && item.kind !== 'slot');
     const noLogo = wording.logoMode === 'none' && !chosenLogo;
+    // "No photo" (UX review 8): the design's frame is left out and the parts that say where they
+    // go without it (`noPhoto`) move into its space. A photo in the frame, or a frame the user
+    // locked, or an empty frame still on the page (a photo taken out of it), keeps the photo
+    // arrangement: the frame shows where a photo is wanted.
+    const noPhoto = wording.photoMode === 'none' && !(items || []).some((item) => item.role === frameRole);
     for (const raw of parts) {
-      const part = noLogo && raw.yNoLogo !== undefined ? { ...raw, y: raw.yNoLogo } : raw;
+      if (raw.onlyNoPhoto && !noPhoto) continue;
+      let part = noLogo && raw.yNoLogo !== undefined ? { ...raw, y: raw.yNoLogo } : raw;
+      if (noPhoto && part.kind === 'slot') continue;
+      if (noPhoto && raw.noPhoto) part = { ...part, ...raw.noPhoto };
       if (lockedRoles.has(part.role)) {
         const kept = lockedByRole.get(part.role);
         if (kept && !placedLocked.has(kept.id)) { made.push(kept); placedLocked.add(kept.id); }
@@ -1065,10 +1100,13 @@
         frame('cover', 'coverborder'),
         ...onAll('cover', [
           photo(0.5, 0.285, 0.84, 0.44),
-          block('logobox', 0.22, 0.505, 0.22, 0.155, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }),
-          logo(0.22, 0.505, 0.1),
-          vline('coveraccent', 0.11, 0.72, 0.13, MAROON, 3),
-          left('host', 0.15, 0.72, 0.76, 22, { font: 'clean', color: INK, bold: true }, 3)
+          // With "No photo" (UX review 8) a maroon band takes the photo's place and the logo's
+          // box sits on its edge, as it sat on the photo's; the host moves up under it.
+          { ...block('photoband', 0.5, 0.225, 0.84, 0.32, { fill: MAROON, stroke: '' }), onlyNoPhoto: true },
+          { ...block('logobox', 0.22, 0.505, 0.22, 0.155, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }), noPhoto: { y: 0.385 } },
+          { ...logo(0.22, 0.505, 0.1), noPhoto: { y: 0.385 } },
+          { ...vline('coveraccent', 0.11, 0.72, 0.13, MAROON, 3), noPhoto: { y: 0.64 } },
+          { ...left('host', 0.15, 0.72, 0.76, 22, { font: 'clean', color: INK, bold: true }, 3), noPhoto: { y: 0.64 } }
         ])
       ],
       inside: [
@@ -1101,7 +1139,7 @@
         frame('cover', 'coverborder'),
         ...onAll('cover', [
           logo(0.5, 0.22, 0.1),
-          words('hostHi', 0.5, 0.45, 0.8, 24, { font: 'hindiFormal', color: INK, bold: false }, { lines: 3 }),
+          words('hostHi', 0.5, 0.45, 0.8, 24, { font: 'hindiFormal', color: INK, bold: true }, { lines: 3 }),
           rule('coverrule', 0.5, 0.545, 0.14, GOLD, 1.2),
           words('host', 0.5, 0.63, 0.8, 21, { font: 'elegant', color: INK, bold: true }, { lines: 3 })
         ])
@@ -1113,8 +1151,7 @@
           words('inviteHi', 0.5, 0.27, 0.8, 23, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
           words('invite', 0.5, 0.36, 0.8, 21, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
           rule('guestline', 0.5, 0.51, 0.66, INK, 1.5),
-          words('guest', 0.5, 0.49, 0.66, 28, { font: 'script', color: INK, bold: false }, { lines: 1 }),
-          words('at', 0.5, 0.62, 0.5, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 })
+          words('guest', 0.5, 0.49, 0.66, 28, { font: 'script', color: INK, bold: false }, { lines: 1 })
         ]),
         ...onAll('right', [
           words('occasionHi', 0.5, 0.21, 0.82, 28, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
@@ -1317,24 +1354,61 @@
    * are. The logo itself is left to the caller.
    */
   function moveForLogo(previous, collage, opts) {
+    return moveParts(previous, collage, opts, (role) => /^logo2?$/.test(role));
+  }
+
+  /**
+   * The design's parts moved from where the design put them for `previous` to where it puts them
+   * for `collage`, by as much, from wherever the user put each one; `leftAlone(role)` names the
+   * roles the caller looks after itself. A part the user has not resized (its width, and a text's
+   * size and width limit, still the design's) also takes its new size: "No photo" widens the words
+   * beside a photo's place. Fonts, colours, words, the background, deleted and locked parts stay.
+   */
+  function moveParts(previous, collage, opts, leftAlone) {
     const design = collage.card?.design;
     if (!DESIGNS[design]) return collage;
     const before = applyDesign(previous, design, detailsOf(previous), opts);
     const after = applyDesign(collage, design, detailsOf(collage), opts);
-    const keyOf = (item) => (item.field ? `field:${item.field}` : item.role && !/^logo/.test(item.role) ? `role:${item.role}` : null);
+    const keyOf = (item) => (item.field ? `field:${item.field}` : item.role && !leftAlone(item.role) ? `role:${item.role}` : null);
     const placeOf = (items) => new Map(items.filter(keyOf).map((item) => [keyOf(item), item]));
     const was = placeOf(before.items);
     const now = placeOf(after.items);
+    const same = (x, y) => Math.abs((x ?? 0) - (y ?? 0)) < 1e-6;
+    // A shape the design has only one way (a band that stands in for the photo) comes or goes
+    // with it: one the user locked stays.
+    const onlyOneWay = (key, item) => key.startsWith('role:') && item.kind === 'shape';
+    let kept = collage.items.filter((item) => {
+      const key = keyOf(item);
+      return !(key && !item.locked && onlyOneWay(key, item) && was.has(key) && !now.has(key));
+    });
+    for (const [key, item] of now) {
+      if (was.has(key) || !onlyOneWay(key, item) || kept.some((each) => keyOf(each) === key)) continue;
+      // In the design's stacking order: before the part that follows it there.
+      const following = after.items.slice(after.items.indexOf(item) + 1).map(keyOf).filter(Boolean);
+      let index = kept.findIndex((each) => following.includes(keyOf(each)));
+      if (index < 0) index = kept.findIndex((each) => !each.role);
+      const added = { ...item, id: opts.newId() };
+      kept = index < 0 ? [...kept, added] : [...kept.slice(0, index), added, ...kept.slice(index)];
+    }
     return {
       ...collage,
-      items: collage.items.map((item) => {
+      items: kept.map((item) => {
         const key = keyOf(item);
         const a = key && was.get(key);
         const b = key && now.get(key);
         if (!a || !b || item.locked) return item;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
-        return Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6 ? item : { ...item, x: item.x + dx, y: item.y + dy };
+        const resized = !same(item.width, a.width) || !same(item.aspect, a.aspect) || (item.kind === 'text' && (!same(item.size, a.size) || !same(item.maxWidth, a.maxWidth)));
+        const grows = !resized && (!same(a.width, b.width) || !same(a.aspect, b.aspect) || (item.kind === 'text' && (!same(a.size, b.size) || !same(a.maxWidth, b.maxWidth) || a.maxLines !== b.maxLines)));
+        if (same(dx, 0) && same(dy, 0) && !grows) return item;
+        const moved = { ...item, x: item.x + dx, y: item.y + dy };
+        if (grows) {
+          moved.width = b.width;
+          moved.aspect = b.aspect;
+          if (item.kind === 'text') Object.assign(moved, { size: b.size, maxWidth: b.maxWidth, maxLines: b.maxLines });
+        }
+        return moved;
       })
     };
   }
@@ -1353,6 +1427,44 @@
     }
     const next = { ...collage, items, card: { ...collage.card, details: { ...collage.card.details, logoMode: mode } } };
     return moveForLogo(collage, next, opts);
+  }
+
+  /** Whether the card's design has a photo frame on its front (Ceremonial photo, a photo poster). */
+  function hasPhotoFrame(collage) {
+    const front = frontOf(collage);
+    if (!front?.card || !DESIGNS[front.card.design]) return false;
+    return partsFor(front.card.design, front.size).front.some((part) => part.kind === 'slot');
+  }
+
+  /**
+   * The design's photo frame (UX review 8): 'none' is "No photo", the empty frame goes and the
+   * parts around it move into its space; '' brings an empty frame back in the design's place and
+   * the parts back round it. Only the frame and the parts it moves change: the user's fonts,
+   * colours, places, deleted and locked parts stay, and a photo in the frame stays in it. Works
+   * on the front, whichever side shows.
+   */
+  function setPhotoMode(collage, mode, opts) {
+    const front = frontOf(collage);
+    if (!front?.card) return collage;
+    const details = { ...(front.card.details || {}), photoMode: mode };
+    let items = front.items;
+    if (mode === 'none') items = items.filter((item) => !(item.role === 'photo' && item.kind === 'slot' && !item.locked));
+    else if (!items.some((item) => item.role === 'photo')) {
+      // The design laid out with its frame, for the frame's place and its place in the stacking
+      // order: before the part that comes after it in the design (the Ceremonial logo's box).
+      const { back, side, ...rest } = front;
+      const made = applyDesign({ ...rest, items: [] }, front.card.design, { ...detailsOf(front), photoMode: '' }, opts).items;
+      const at = made.findIndex((item) => item.role === 'photo');
+      if (at >= 0) {
+        const place = { ...made[at], id: opts.newId() };
+        const nextRoles = made.slice(at + 1).map((item) => item.role).filter(Boolean);
+        let index = items.findIndex((item) => item.role && nextRoles.includes(item.role));
+        if (index < 0) index = items.findIndex((item) => !item.role);
+        items = index < 0 ? [...items, place] : [...items.slice(0, index), place, ...items.slice(index)];
+      }
+    }
+    const next = { ...front, items, card: { ...front.card, details } };
+    return asShown(collage, moveParts(front, next, opts, (role) => role === 'photo'));
   }
 
   /** An item's box on the page (not turned): left, right, top and bottom. */
@@ -1478,9 +1590,10 @@
       return backPage(front, key, details, opts).items.find((item) => item.field === field) || null;
     }
     const { back, side, ...front } = collage;
-    const made = applyDesign({ ...front, items: [] }, key, details, opts);
+    // Placed as the page is laid out: with its photo arrangement while its frame is there.
+    const made = applyDesign({ ...front, items: [] }, key, photoDetails(collage.items, details), opts);
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, followLogo, roleItemOn, designOnSize, hindiInStep });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, followLogo, roleItemOn, designOnSize, hindiInStep });
 });

@@ -63,6 +63,9 @@ test('Save says what it leaves out: empty frames and hidden items (docs/ux/colla
   assert.equal(save.leftOutLine(0, 1), '1 hidden item left out; show it from Layers to keep it.');
   assert.equal(save.leftOutLine(0, 2), '2 hidden items left out; show them from Layers to keep them.');
   assert.equal(save.leftOutLine(2, 2), 'The 2 empty frames are left out of the saved picture, so their places stay blank. Add photos to them, or remove them in Layers. 2 hidden items left out; show them from Layers to keep them.');
+  // A design's photo frame points to No photo, where the design closes the gap (UX review 8).
+  assert.equal(save.leftOutLine(1, 0, 1, 'Poster'), "The design's photo frame is empty, so its place stays blank in the saved picture. Add a photo to it, or choose No photo in Poster details and the design closes the gap.");
+  assert.match(save.leftOutLine(2, 0, 1), /No photo in Card details.*Another empty frame is left out/);
 });
 
 // Save's print rules (cold review 2): the sides chosen, which side gets each guest's name, the

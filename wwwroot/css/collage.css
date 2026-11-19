@@ -223,7 +223,8 @@
     font-size: 0.86rem;
 }
 
-.clg-card-question {
+.clg-card-question,
+.clg-card-photo {
     margin: 0 0 0.6rem;
     padding: 0.55rem 0.7rem;
     border-left: 3px solid var(--clg-accent);
@@ -762,7 +763,8 @@ details.clg-custom-size[open] > summary {
 }
 
 /* The poster's logo question is a section too, with its own inner room (cold review 6). */
-.clg-section.clg-card-question {
+.clg-section.clg-card-question,
+.clg-section.clg-card-photo {
     padding: 0.55rem 0.7rem;
 }
 

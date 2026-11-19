@@ -241,6 +241,20 @@ its npm package by hand; the libman entry records the version.
   - With **No logo** (also **Remove logo** on a poster) the design moves the heading up into the
     space (`yNoLogo`). A logo picked afterwards brings the place back. The choice is the card's
     `logoMode` detail ('' asks, 'later', 'none').
+- **No photo** (UX review 8). A design with a photo frame (Ceremonial photo, flat or folded, and
+  the posters With a photo and Talk or seminar) shows a short **Photo** prompt in Card or Poster
+  details while the frame is empty: **Add a photo…** or **No photo**. It never blocks anything.
+  With No photo the frame goes and the design closes the gap: Ceremonial gets a maroon band in
+  the photo's place (a band down the left in landscape) with the logo's box on its edge and the
+  words moved up or across and a little larger; With a photo sets the heading larger between
+  two gold rules; Talk or seminar sets the points across the page beside a navy line. **Add a
+  photo…** afterwards brings the frame back and the parts back round it. Only the frame and the
+  parts it moves change: the user's fonts, colours, places, deleted and locked parts stay. A
+  photo in the frame, a locked frame, or an empty frame on the page (a photo taken out of it)
+  keeps the photo arrangement. Save's empty-frame line points to No photo for a design's frame.
+  The choice is the card's `photoMode` detail ('' or 'none'); parts say where they go without a
+  photo in `noPhoto`, and parts only there then have `onlyNoPhoto`. A draft without `photoMode`
+  opens as before, and an older PRISM ignores it and opens the card's items as saved.
 - **Card sizes** ([ux/invitations-posters.md](ux/invitations-posters.md), PR 4). The page size
   menu (top bar and Page settings) groups every size: **Pages and screens** (the seven above),
   **Cards** and **Pocket cards**. Every card size is a true paper size, both ways round:
@@ -343,7 +357,7 @@ its npm package by hand; the libman entry records the version.
     capitals (Cinzel, the Engraved font) and the invitation line in formal script (Pinyon Script,
     Formal script), on flat and folded cards;
   - **Regimental**: three bands in the unit's colours with the logo in a roundel. The host's words, the dress and the rules follow the same colours, set under **Unit colours** in Card details and kept in the card's `colours` detail. Each part that follows a colour records which in `tint`;
-  - **Ceremonial photo**: a frame for the user's own photo, `role: "photo"`. A photo put in it moves to the next design's frame with its crop, or stays as the user's own when that design has none. An emptied frame stays the design's;
+  - **Ceremonial photo**: a frame for the user's own photo, `role: "photo"`. A photo put in it moves to the next design's frame with its crop, or stays as the user's own when that design has none. An emptied frame stays the design's. **No photo** leaves the frame out and closes the gap (`photoMode`);
   - **Bilingual**: Hindi and English side by side, with `hostHi`, `inviteHi` and `occasionHi`. Card details shows those fields only for this design; it shows only the fields the current design uses;
   - **Modern**;
   - pocket cards (PR 9b), offered only for the pocket sizes: **Entry card or car pass** (a

@@ -1676,6 +1676,13 @@
     else delete clean.tint;
   }
 
+  /** The largest corner a shape can have: half its shorter side, from its saved size. */
+  function shapeRadiusMax(item) {
+    const width = clampWidth(item.width);
+    const aspect = Math.min(ASPECT_LIMITS[1], Math.max(ASPECT_LIMITS[0], item.aspect));
+    return Math.max(LAYOUT_LIMITS.radiusMax, Math.min(width, width / aspect) / 2);
+  }
+
   // Marks a draft already turned front first while being read, so it is not turned twice.
   const SHOWN_FRONT_FIRST = Symbol('front first');
 
@@ -1727,7 +1734,9 @@
         aspect: Math.min(ASPECT_LIMITS[1], Math.max(ASPECT_LIMITS[0], item.aspect)),
         angle: normaliseAngle(isNumber(item.angle) ? item.angle : 0),
         opacity: Math.min(100, Math.max(10, isNumber(item.opacity) ? item.opacity : 100)),
-        radius: Math.min(LAYOUT_LIMITS.radiusMax, Math.max(0, isNumber(item.radius) ? item.radius : 0)),
+        // A shape's corners go up to half its shorter side (a rounded band round two logos);
+        // a photo's to the layout's limit (code review 8).
+        radius: Math.min(item.kind === 'shape' ? shapeRadiusMax(item) : LAYOUT_LIMITS.radiusMax, Math.max(0, isNumber(item.radius) ? item.radius : 0)),
         hidden: item.hidden === true,
         locked: item.locked === true
       };

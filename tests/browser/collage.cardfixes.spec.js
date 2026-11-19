@@ -237,6 +237,49 @@ test('every card design saves with its words drawn, the Bilingual Hindi included
   expect(errors).toEqual([]);
 });
 
+// UX review 8: a photo design saved without a photo left a hole; No photo closes the gap.
+test('No photo: the Ceremonial card offers it while its frame is empty, closes the gap, and saves with nothing left out', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="ceremonial"]').click();
+  await expect(page.locator('.clg-card-photo')).toContainText('The photo frame is empty');
+  // Save says so, and points to No photo rather than to Layers.
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-empty]')).toContainText('choose No photo in Card details');
+  await page.keyboard.press('Escape');
+  await page.locator('[data-card-photo="none"]').click();
+  await expect(page.locator('[data-card-photo-name]')).toContainText('No photo on this card');
+  await expect.poll(async () => (await newestDraft(page))?.model?.card?.details?.photoMode).toBe('none');
+  const model = (await newestDraft(page)).model;
+  expect(model.items.some((item) => item.role === 'photo')).toBe(false);
+  expect(model.items.some((item) => item.role === 'photoband')).toBe(true);
+  const { ink, result } = await saveAndCountInk(page);
+  expect(ink).toBeGreaterThan(2000);
+  expect(result).not.toMatch(/empty frame|left out|could not/);
+  // Add a photo… brings the frame back, waiting for the photo.
+  const chooser = page.waitForEvent('filechooser');
+  await page.locator('[data-card-photo="add"]').click();
+  await chooser;
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'photo')?.kind).toBe('slot');
+  expect((await newestDraft(page)).model.items.some((item) => item.role === 'photoband')).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('No photo on the talk poster: the points take the photo place and nothing is left out', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-poster="talk"]').click();
+  await page.locator('.clg-card-question [data-card-logo="none"]').click();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-empty]')).toContainText('choose No photo in Poster details');
+  await page.keyboard.press('Escape');
+  await page.locator('[data-card-photo="none"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.card?.details?.photoMode).toBe('none');
+  const { result } = await saveAndCountInk(page);
+  expect(result).not.toMatch(/empty frame|left out|could not/);
+  expect(errors).toEqual([]);
+});
+
 test('a poster with No logo saves with nothing left out', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
@@ -1102,5 +1145,28 @@ test('guest cards follow the list order and print at full resolution', async ({ 
   const plain = await pictures(await download);
   await page.keyboard.press('Escape');
   expect(forward[0].width).toBe(plain[0].width);
+  expect(errors).toEqual([]);
+});
+
+// Codex on #3455: Add a photo after the design's frame was deleted brings back only the frame.
+test('Add a photo after deleting the frame brings back the frame and keeps the user\'s changes', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="ceremonial"]').click();
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  // The occasion in the typewriter font.
+  await page.locator('[data-layer-select]', { hasText: 'Raising Day Dinner' }).click();
+  await page.locator('.clg-props [data-props-tab="settings"]').click();
+  await page.locator('.clg-props [data-text-set="font"][data-value="typewriter"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'occasion')?.font).toBe('typewriter');
+  // The empty frame deleted.
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator('[data-layer-select]', { hasText: 'Empty frame' }).click();
+  await page.keyboard.press('Delete');
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.some((item) => item.role === 'photo')).toBe(false);
+  // The Card panel is open beside the page: its Photo prompt offers the frame back.
+  await page.locator('[data-card-photo="add"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.some((item) => item.role === 'photo' && item.kind === 'slot')).toBe(true);
+  expect((await newestDraft(page)).model.items.find((item) => item.field === 'occasion').font).toBe('typewriter');
+  await page.keyboard.press('Escape');
   expect(errors).toEqual([]);
 });
