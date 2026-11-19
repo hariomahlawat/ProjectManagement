@@ -265,6 +265,82 @@
     display: none;
 }
 
+/* Photos first (docs/ux/collage-usability-plan.md, PR 3): one wide drop area at the top of the
+   Collage section; the layouts and blank pages follow as other ways in. */
+.clg-start-drop {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    padding: 1.1rem 1.25rem;
+    border: 2px dashed var(--pdft-border);
+    border-radius: 14px;
+    background: var(--pdft-surface);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.clg-start-drop.is-over {
+    border-color: var(--clg-accent);
+    box-shadow: var(--pdft-shadow);
+}
+
+.clg-start-drop > .bi {
+    flex: none;
+    color: var(--clg-accent);
+    font-size: 2rem;
+}
+
+.clg-start-drop__text {
+    flex: 1;
+    min-width: 0;
+}
+
+.clg-start-drop__title {
+    margin: 0 0 0.2rem;
+    font-size: 1.05rem;
+    font-weight: 800;
+}
+
+.clg-start-drop__text p {
+    margin: 0;
+    color: var(--pdft-muted);
+    font-size: 0.88rem;
+}
+
+.clg-start-drop .btn {
+    flex: none;
+}
+
+/* A layout with a frame for each photo the collage has (PR 3). */
+.clg-layout-fit {
+    display: block;
+    color: var(--clg-accent);
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.clg-layout-fit[hidden] {
+    display: none;
+}
+
+@media (max-width: 575.98px) {
+    .clg-start-drop {
+        flex-wrap: wrap;
+        gap: 0.6rem 0.85rem;
+        margin-top: 1rem;
+        padding: 0.9rem 1rem;
+    }
+
+    .clg-start-drop > .bi {
+        font-size: 1.6rem;
+    }
+
+    .clg-start-drop .btn {
+        width: 100%;
+    }
+}
+
 /* Phones: one row of three compact buttons, so the chosen section starts on the first screen. */
 @media (max-width: 575.98px) {
     .clg-start-choices {

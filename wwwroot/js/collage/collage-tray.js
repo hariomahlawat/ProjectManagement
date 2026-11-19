@@ -167,11 +167,13 @@
           setTarget(null);
           history.commit();
         }
-        // Photos past the layout's frames wait in the tray rather than sit loose on the grid.
+        // Photos past the layout's frames wait in the tray rather than sit loose on the grid. The
+        // message offers the layout made for every photo there is (docs/ux/collage-usability-plan.md, PR 3).
+        const fit = waiting.length ? fitOffer() : null;
         const fitNote = waiting.length
-          ? `${waiting.length === 1 ? 'One photo' : `${waiting.length} photos`} did not fit the layout's frames and ${waiting.length === 1 ? 'is' : 'are'} in Photos: drag ${waiting.length === 1 ? 'it' : 'one'} onto a frame, or choose a layout with more frames.`
+          ? `${waiting.length === 1 ? 'One photo' : `${waiting.length} photos`} did not fit the layout's frames and ${waiting.length === 1 ? 'is' : 'are'} in Photos: ${fit ? `use ${fit.text}, or ` : ''}drag ${waiting.length === 1 ? 'it' : 'one'} onto a frame.`
           : '';
-        messages.showAlert([core.refusedMessage(refused), fitNote].filter(Boolean).join(' '));
+        messages.showAlert([core.refusedMessage(refused), fitNote].filter(Boolean).join(' '), { action: fit?.action || null });
         if (placing.length) messages.announce(placing.length === 1 ? 'Photo added.' : `${placing.length} photos added.`);
       } finally {
         messages.busy('');
@@ -197,9 +199,59 @@
       currentAlert: () => ui.$('[data-alert-text]').textContent
     });
 
+    /**
+     * The layout made for every photo the collage has, as a button for a message, or null when
+     * the page already has it or there is none bigger (docs/ux/collage-usability-plan.md, PR 3).
+     */
+    function fitOffer() {
+      const count = photosInCollage();
+      const key = core.layoutForCount(count);
+      if (!key || state.collage.layout?.key === key || state.collage.card) return null;
+      const frames = core.LAYOUTS[key].cells.length;
+      const text = `a ${frames}-photo layout`;
+      return { key, text, action: { label: `Use ${text}`, run: () => screens.applyLayoutKey(key) } };
+    }
+
+    /**
+     * Photos chosen or dropped on the start screen (PR 3): a new collage opens on the layout made
+     * for that many photos, and they go into its frames. One photo fills the page in one frame.
+     */
+    async function startWithPhotos(fileList) {
+      const files = [...fileList];
+      if (!files.length) return;
+      const layout = core.layoutForCount(core.photoFileCount(files));
+      await screens.startCollage(core.DEFAULT_SIZE, layout, null, { pageFrame: !layout });
+      // The editor did not open (another draft was being opened meanwhile): nothing is added.
+      if (ui.views.editor.hidden) return;
+      await addFiles(files);
+    }
+
+    const startDrop = ui.$('[data-start-drop]');
+    if (startDrop) {
+      const hasFiles = (event) => [...(event.dataTransfer?.types || [])].includes('Files');
+      startDrop.addEventListener('dragover', (event) => {
+        if (!hasFiles(event)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        startDrop.classList.add('is-over');
+      });
+      startDrop.addEventListener('dragleave', (event) => {
+        if (!startDrop.contains(event.relatedTarget)) startDrop.classList.remove('is-over');
+      });
+      startDrop.addEventListener('drop', (event) => {
+        if (!hasFiles(event)) return;
+        event.preventDefault();
+        startDrop.classList.remove('is-over');
+        if (ui.views.start.inert) return;
+        startWithPhotos(event.dataTransfer.files);
+      });
+    }
+
     ui.fileInput.addEventListener('change', () => {
       const files = [...ui.fileInput.files];
       ui.fileInput.value = '';
+      // Chosen from the start screen: a new collage made for them (PR 3).
+      if (!ui.views.start.hidden) { startWithPhotos(files); return; }
       // An empty frame that is selected takes the photo, as it does from the tray or a paste.
       const selected = doc.selectedItem();
       addFiles(files, { frameId: state.targetId || (selected?.kind === 'slot' ? selected.id : null) });

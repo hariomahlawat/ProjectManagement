@@ -90,15 +90,16 @@ same way. Each can be reverted on its own.
 
 ### PR 3: add photos first, and layouts that fit (F2)
 
-- The Collage section starts with an **Add photos** area: click to choose, drop, or paste. The
+- The Collage section starts with an **Add photos** area: click to choose, or drop. The
   photos open in the layout made for their number. Today's layouts have 2, 3, 4, 5, 6, 7, 8, 9
   and 12 frames. Where none has exactly that many (10 or 11 photos), the next larger one is used.
-  One photo fills an A4 landscape page. Where two layouts have the same count, the one whose
-  frame shapes best match the photos is used. More than 12 photos use "12 grid", and the rest
-  wait in Photos, as now.
+  One photo fills an A4 landscape page in one frame. Where two layouts have the same count, the
+  plain one is used ("1 big, 2 small", "4 grid"): the layout is chosen before the photos are
+  read, and photos are still matched to its frames as they come in. More than 12 photos use
+  "12 grid", and the rest wait in Photos, as now.
 - Starting from a layout or a blank page still works as it does today.
 - **Layouts panel:** layouts with as many frames as the collage has photos are marked
-  "Fits your 6 photos".
+  "Fits all 6" (short, so it stays on one line; the button's name says "fits your 6 photos").
 - **When photos are left out**, the message gets a button such as "Use a 6-photo layout". One
   click applies it, and one Undo returns.
 - Done when six photos dropped on the Collage section open as a full 6-photo collage with
@@ -177,4 +178,9 @@ same way. Each can be reverted on its own.
 - PR 1: this plan, #3461, merged 19 Nov 2026. It corrected one finding: five photo groups were
   already folded (F5).
 - PR 2: the three choices on the start page, with the pocket cards moved under the card
-  designs. The remembered choice uses the `localStorage` key `prism-collage-start`.
+  designs. The remembered choice uses the `localStorage` key `prism-collage-start`. #3466,
+  merged 19 Nov 2026.
+- PR 3: photos first. The Collage section's **Start with your photos** area (choose or drop)
+  opens the layout made for their number (`layoutForCount` in `collage-core.js`), one photo in
+  one frame filling the page (`withPageFrame`). Layouts marks the ones that fit
+  (`layoutsThatFit`), and both "did not fit" messages carry a **Use a 6-photo layout** button.

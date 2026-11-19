@@ -69,8 +69,27 @@
 
     function renderLayoutPanelNow() {
       const current = state.collage.layout;
+      // Layouts with a frame for each photo the collage has are marked (docs/ux/collage-usability-plan.md, PR 3).
+      let count = 0;
+      for (const photo of doc.photos.values()) if (!photo.removed) count += 1;
+      const fits = new Set(core.layoutsThatFit(count));
       for (const button of ui.layoutGrid.querySelectorAll('[data-layout]')) {
         button.setAttribute('aria-pressed', String(current?.key === button.dataset.layout));
+        const fit = fits.has(button.dataset.layout);
+        let mark = button.querySelector('[data-layout-fit]');
+        if (fit && !mark) {
+          mark = document.createElement('small');
+          mark.className = 'clg-layout-fit';
+          mark.dataset.layoutFit = '';
+          button.appendChild(mark);
+        }
+        if (mark) {
+          mark.hidden = !fit;
+          // Short, to stay on one line in the narrow buttons; the button's name says it in full.
+          mark.textContent = fit ? `Fits all ${count}` : '';
+        }
+        const entry = core.LAYOUTS[button.dataset.layout];
+        if (entry) button.setAttribute('aria-label', `${entry.label}, ${entry.cells.length} photos${fit ? `; fits your ${count} photos` : ''}`);
       }
       const gap = current ? current.gap : core.LAYOUT_LIMITS.defaultGap;
       const radius = current ? current.radius : (doc.selectedItem()?.radius ?? 0);

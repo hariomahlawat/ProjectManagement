@@ -25,14 +25,18 @@
     let alertToast = null;
     let alertShown = 0;
 
-    function showAlert(text) {
+    /**
+     * `action` is an optional { label, run }: one button on the toast that puts the problem right
+     * (docs/ux/collage-usability-plan.md, PR 3). Without the toasts the text alone is shown.
+     */
+    function showAlert(text, { action = null } = {}) {
       alertToast?.dismiss();
       alertToast = null;
       $('[data-alert-text]').textContent = text;
       alertShown = text ? Date.now() : 0;
       if (text && window.PrismToast) {
         alertBox.hidden = true;
-        const toast = window.PrismToast.show({ tone: 'warning', text, life: ALERT_LIFE });
+        const toast = window.PrismToast.show({ tone: 'warning', text, life: ALERT_LIFE, ...(action ? { action } : {}) });
         alertToast = toast;
         // The toast decides when it goes (it waits while the tab is hidden or someone reads it); the
         // page's own text follows it.

@@ -117,10 +117,19 @@
                 </div>
                 <div class="clg-design-grid" data-start-posters></div>
             </section>
-            <section class="clg-start-collage" id="clgStartCollage" data-start-section="collage" aria-labelledby="clgLayoutsStartTitle" hidden>
-                <h2 class="clg-start__heading" id="clgLayoutsStartTitle">Start with a layout <small>A4 landscape; the size can be changed later</small></h2>
+            <section class="clg-start-collage" id="clgStartCollage" data-start-section="collage" aria-labelledby="clgPhotosStartTitle" hidden>
+                @* Photos first: a layout with a frame for each (docs/ux/collage-usability-plan.md, PR 3). *@
+                <div class="clg-start-drop" data-start-drop>
+                    <i class="bi bi-images" aria-hidden="true"></i>
+                    <div class="clg-start-drop__text">
+                        <h2 class="clg-start-drop__title" id="clgPhotosStartTitle">Start with your photos</h2>
+                        <p><span class="clg-for-mouse">Choose them, or drop them here. </span>They open in a layout with a frame for each, up to 12; A4 landscape, which can be changed later.</p>
+                    </div>
+                    <button type="button" class="btn btn-primary" data-action="choose"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add photos</button>
+                </div>
+                <h2 class="clg-start__heading">Or start with a layout <small>A4 landscape; the size can be changed later</small></h2>
                 <div class="clg-layouts" data-start-layouts></div>
-                <h2 class="clg-start__heading">Start with a blank page</h2>
+                <h2 class="clg-start__heading">Or start with a blank page</h2>
                 <div class="clg-sizes" data-sizes></div>
             </section>
             <p class="clg-credits-link"><button type="button" class="btn btn-link btn-sm" data-action="credits">Credits for the fonts, stickers and libraries</button></p>
