@@ -88,7 +88,8 @@
       } finally {
         backPhoto?.source.close?.();
       }
-      await fontsReady();
+      // The page being drawn may hold words the card does not (a guest's name made for Save).
+      await fontsReady(collage.items);
       const stickerPictures = new Map();
       for (const item of core.itemsToSave(collage)) {
         if (item.kind === 'sticker') stickerPictures.set(item.id, await stickerImage(item, true));

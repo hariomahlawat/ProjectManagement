@@ -975,3 +975,24 @@ test('a roundel the user hid stays hidden; one hidden for want of a logo comes b
   designs.fitRoundel(old, { width: roundel.width, aspect: roundel.aspect }, { hadLogo: false });
   assert.ok(!old[0].hidden);
 });
+
+// UX review 7, M5: two logos on Regimental sit in a rounded band that holds both clear of its edge.
+test('two logos sit in a rounded band; one logo keeps its oval', () => {
+  const items = [
+    { id: 'r', role: 'roundel', kind: 'shape', form: 'ellipse', x: 500, y: 100, width: 170, aspect: 0.72 },
+    { id: 'l', role: 'logo', kind: 'sticker', x: 440, y: 100, width: 100, aspect: 0.6 },
+    { id: 'm', role: 'logo2', kind: 'photo', x: 600, y: 100, width: 160, aspect: 4 }
+  ];
+  designs.fitRoundel(items, { width: 170, aspect: 0.72 });
+  const roundel = items[0];
+  assert.equal(roundel.form, 'rect');
+  assert.ok(roundel.radius > 0);
+  for (const logo of items.slice(1)) {
+    assert.ok(logo.x - logo.width / 2 >= roundel.x - roundel.width / 2, `${logo.id} inside on the left`);
+    assert.ok(logo.x + logo.width / 2 <= roundel.x + roundel.width / 2, `${logo.id} inside on the right`);
+  }
+  const one = [{ ...items[0] }, items[1]];
+  designs.fitRoundel(one, { width: 170, aspect: 0.72 });
+  assert.equal(one[0].form, 'ellipse');
+  assert.equal(one[0].radius, undefined);
+});

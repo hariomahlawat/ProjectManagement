@@ -997,5 +997,51 @@ test('naming a card opened from a design keeps its draft', async ({ page }) => {
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-name]').fill('Signals Raising Day 2026');
   await expect.poll(async () => (await newestDraft(page))?.name || (await newestDraft(page))?.title || '', { timeout: 10000 }).toContain('Signals Raising Day 2026');
+});
+
+// Code review 7, M1: a long guest PDF says which card it is making, and Esc stops it.
+test('guest cards show their progress, and Esc stops them with nothing saved', async ({ page }) => {
+  test.setTimeout(120000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a5p');
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-guests]').fill(Array.from({ length: 150 }, (_, i) => `Officer ${i + 1}`).join('\n'));
+  await page.locator('[data-card-guests]').blur();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await page.locator('[data-save-sheet] input[value="card"]').check();
+  let downloaded = false;
+  page.on('download', () => { downloaded = true; });
+  await page.locator('[data-action="save-go"]').click();
+  await expect(page.locator('[data-save-result]')).toContainText(/Making the guest cards: \d+ of 150/);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-save-result]')).toContainText('Stopped: the guest cards were not saved.');
+  await expect(page.locator('[data-save-dialog]')).toBeVisible();
+  expect(downloaded).toBe(false);
+  // Saved again, it runs to the end.
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  await download;
+  await expect(page.locator('[data-save-result]')).toContainText('150 guest cards on 150 pages', { timeout: 60000 });
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});
+
+// UX review 7, M4: Save says when a Bilingual card's Hindi line is empty.
+test('Save says when a Bilingual card has an empty Hindi line', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="bilingual"]').click();
+  const occasion = page.locator('[data-card-field="occasion"]');
+  await occasion.fill('Annual Mess Night of the Corps of Signals');
+  await occasion.blur();
+  await expect(page.locator('[data-card-field="occasionHi"]')).toHaveValue('');
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-empty]')).toContainText('The Hindi occasion is empty');
+  await page.keyboard.press('Escape');
+  await page.locator('[data-card-field="occasionHi"]').fill('वार्षिक मेस नाइट');
+  await page.locator('[data-card-field="occasionHi"]').blur();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-empty]')).toBeHidden();
+  await page.keyboard.press('Escape');
   expect(errors).toEqual([]);
 });

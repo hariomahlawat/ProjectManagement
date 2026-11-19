@@ -56,14 +56,13 @@
     kicker: 'SDD TALK SERIES',
     title: 'Annual Sports Meet 2026',
     subtitle: 'Inter-section championship',
-    lines: 'Athletics · Volleyball · Tug of war' + String.fromCharCode(10) + 'Families welcome' + String.fromCharCode(10) + 'Prize distribution on 22 January, 1600 h',
+    lines: 'Athletics · Volleyball · Tug of war' + String.fromCharCode(10) + 'Families welcome' + String.fromCharCode(10) + 'Prize distribution on 22 December, 1600 h',
     contact: 'Sports Officer · Ext 2210',
     logoMode: ''
   });
   /** What a new poster starts with: the same fields, a poster's wording. */
   const POSTER_DETAILS = Object.freeze({ ...DEFAULT_DETAILS, when: '20 – 22 December 2026 · 0700 h onwards', venue: 'Unit Sports Ground' });
   /** The fields on the back of the card. */
-  const BACK_FIELDS = Object.freeze(['programmeTitle', 'programme', 'backNote']);
   /** Fields that are not words on the card: they set something else about it. */
   const SETTINGS = Object.freeze(['colours']);
   /** The fields, in the order the Card details form shows them. */
@@ -688,16 +687,19 @@
     return [...new Set([...fieldsIn(parts.front), ...(collage?.back ? fieldsIn(parts.back) : [])])];
   }
 
-  /** The fields a design shows words for: on a page of this size, or in either arrangement. */
+  /**
+   * The fields a design shows words for: on a page of this size, both sides, from partsFor (the
+   * one place that says which parts a card has: code review 7); with no size, in either
+   * arrangement of its front.
+   */
   function fieldsOf(designKey, sizeKey) {
     const design = DESIGNS[designKey];
     if (!design) return [];
-    const landscape = design.landscape || design.portrait;
-    if (sizeKey && isFolded(sizeKey)) {
-      return [...new Set([...foldedParts(designKey, 'outside'), ...foldedParts(designKey, 'inside')].filter((part) => part.kind === 'text').map((part) => part.field))];
+    if (sizeKey) {
+      const parts = partsFor(designKey, sizeKey);
+      return [...new Set([...fieldsIn(parts.front), ...fieldsIn(parts.back)])];
     }
-    const parts = sizeKey ? (isPortrait(sizeKey) ? design.portrait : landscape) : [...design.portrait, ...landscape];
-    return [...new Set(parts.filter((part) => part.kind === 'text').map((part) => part.field))];
+    return [...new Set([...design.portrait, ...(design.landscape || [])].filter((part) => part.kind === 'text').map((part) => part.field))];
   }
 
   /**
@@ -1025,6 +1027,15 @@
     roundel.x = logos.length > 1 ? (left + right) / 2 : logos[0].x;
     roundel.width = width;
     roundel.aspect = width / height;
+    // Two logos sit in a rounded band, not a stretched oval whose narrowing ends touched them
+    // (UX review 7); one logo keeps its oval.
+    if (logos.length > 1) {
+      roundel.form = 'rect';
+      roundel.radius = height / 2;
+    } else {
+      roundel.form = 'ellipse';
+      delete roundel.radius;
+    }
   }
 
   /** The smallest a design's words print, in points: smaller is hard to read on a card. */
@@ -1273,5 +1284,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, followLogo, roleItemOn, designOnSize, hindiInStep });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, followLogo, roleItemOn, designOnSize, hindiInStep });
 });
