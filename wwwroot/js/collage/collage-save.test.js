@@ -119,3 +119,29 @@ test('the name of a guest moves with the line drawn to write on', () => {
   assert.deepEqual(save.onTheLine(name, { x: 500, y: 740 }, { x: 500, y: 620 }), { x: 500, y: 720, text: 'Maj A' });
   assert.equal(save.onTheLine(name, null, { x: 1, y: 1 }), name);
 });
+
+// Cold review 5: a long guest name breaks before its "and", not in the middle of a name.
+test('a guest name too long for one line breaks before its "and"', () => {
+  // Ten units a letter, 200 wide: a line holds 20 letters.
+  const layout = (item) => {
+    const lines = String(item.text).split(String.fromCharCode(10)).flatMap((line) => {
+      const out = [];
+      let current = '';
+      for (const word of line.split(' ')) {
+        const next = current ? `${current} ${word}` : word;
+        if (next.length * 10 > item.maxWidth && current) { out.push(current); current = word; } else current = next;
+      }
+      return [...out, current];
+    });
+    return { lines: lines.length, width: Math.max(...lines.map((line) => line.length * 10)), height: lines.length * 12 };
+  };
+  const item = { maxWidth: 200 };
+  const nl = String.fromCharCode(10);
+  assert.equal(save.guestText(item, 'Maj A Rao and Mrs Rao', layout), 'Maj A Rao and Mrs Rao'.replace(' and ', nl + 'and '));
+  assert.equal(save.guestText(item, 'Col R. Mehta & Mrs Mehta', layout), 'Col R. Mehta' + nl + '& Mrs Mehta');
+  assert.equal(save.guestText(item, 'Maj A and Mrs B', layout), 'Maj A and Mrs B', 'one line stays one line');
+  assert.equal(save.guestText(item, 'Brig P. Singh Commander', layout), 'Brig P. Singh Commander', 'no "and", no change');
+  // Breaking at "and" would take a third line where the words wrap to two: they wrap as they would.
+  const long = 'Maj A and Mrs Bhattacharya Rao';
+  assert.equal(save.guestText(item, long, layout), long);
+});

@@ -230,3 +230,28 @@ test('a "Name & Appointment" column is the name column', () => {
   assert.deepEqual(print.guestNames(['S No,Name & Appointment', '1,Brig P. Singh Cdr 50 Bde', '2,Col D. Nair'].join(nl), { csv: true }), ['Brig P. Singh Cdr 50 Bde', 'Col D. Nair']);
   assert.deepEqual(print.guestNames(['S No,Rank & Name,Appointment', '1,Brig P. Singh,Cdr 50 Bde'].join(nl), { csv: true }), ['Brig P. Singh']);
 });
+
+// Cold review 5: a folded card shows where to fold.
+test('fold marks: down the middle of a folded card, in the gaps on a sheet, inside the edges on its own page', () => {
+  assert.deepEqual(print.foldMarks('a5p'), []);
+  const own = print.foldMarks('fold6');
+  assert.deepEqual(own, [[105, 0, 105, 3.5], [105, 144.5, 105, 148]]);
+  const layout = print.sheetLayout('fold6', 'a3');
+  assert.equal(layout.count, 2);
+  const marks = print.foldMarks('fold6', layout);
+  assert.equal(marks.length, 4);
+  for (const [i, card] of layout.cards.entries()) {
+    const [top, bottom] = marks.slice(i * 2, i * 2 + 2);
+    assert.equal(top[0], card.x + card.w / 2);
+    // Outside the card, never on it.
+    assert.ok(Math.max(top[1], top[3]) < card.y);
+    assert.ok(Math.min(bottom[1], bottom[3]) > card.y + card.h);
+  }
+  // Edge to edge there are no gaps: the marks are just inside each card's edges.
+  const edge = print.sheetLayout('fold6', 'a4edge');
+  for (const [i, card] of edge.cards.entries()) {
+    const [top, bottom] = print.foldMarks('fold6', edge).slice(i * 2, i * 2 + 2);
+    assert.ok(top[1] >= card.y && top[3] <= card.y + card.h);
+    assert.ok(bottom[1] >= card.y && bottom[3] <= card.y + card.h);
+  }
+});

@@ -114,6 +114,20 @@
    * laid out as `layout` says, and it stays set by the same edge as the field (left, right or
    * the middle).
    */
+  /**
+   * A guest's name as it is set in `item` (cold review 5): a name too long for one line breaks
+   * before its "and" or "&" ("Brig P. Singh, VSM / and Mrs Singh") when that takes no more lines
+   * than the words would wrap to anyway. `layout` is core.layoutText.
+   */
+  function guestText(item, name, layout) {
+    const joined = /\s+(and|&)\s+/i;
+    if (!joined.test(name)) return name;
+    const plain = layout({ ...item, text: name });
+    if (plain.lines < 2) return name;
+    const broken = name.replace(joined, (_, word) => `${String.fromCharCode(10)}${word} `);
+    return layout({ ...item, text: broken }).lines <= Math.max(2, plain.lines) ? broken : name;
+  }
+
   function nameInField(field, name, layout) {
     const named = { ...field, text: name, width: layout.width, aspect: layout.width / layout.height };
     // A guest's card shows the name, even where the empty line was hidden.
@@ -372,15 +386,20 @@
     function namedPage(page, name) {
       if (!page) return null;
       const linked = page.items.find((item) => item.field === 'guest');
+      const layout = (item) => core.layoutText(item, measureText);
       if (linked) {
-        const named = nameInField(linked, name, core.layoutText({ ...linked, text: name }, measureText));
+        const text = guestText(linked, name, layout);
+        const named = nameInField(linked, text, layout({ ...linked, text }));
         return { ...page, items: page.items.map((item) => (item === linked ? named : item)) };
       }
       // A design that leaves a line to write on: the name in the place its design has for it.
       let n = 0;
       const opts = { measure: measureText, newId: () => `guest${++n}` };
-      const made = designs?.fieldItem(getCollage(), 'guest', { ...designs.detailsOf(getCollage()), guest: name }, opts);
+      const makeWith = (guest) => designs?.fieldItem(getCollage(), 'guest', { ...designs.detailsOf(getCollage()), guest }, opts);
+      let made = makeWith(name);
       if (!made) return page;
+      const text = guestText(made, name, layout);
+      if (text !== name) made = makeWith(text) || made;
       // On the line drawn to write on, wherever the user moved it: the name moves with it.
       const line = page.items.find((item) => item.role === 'guestline');
       const designLine = line && designs.roleItemOn(getCollage(), 'guestline', designs.sideOf(getCollage(), 'guest') || 'front', opts);
@@ -402,8 +421,23 @@
       const grey = window.PDFLib.rgb(0.35, 0.35, 0.35);
       // Marks only round the cards the sheet has (the last sheet of guests may not be full).
       const filled = { ...layout, cards: layout.cards.filter((_, i) => images[i]) };
-      for (const [x1, y1, x2, y2] of print.cutMarks(filled)) {
+      for (const [x1, y1, x2, y2] of [...print.cutMarks(filled), ...print.foldMarks(getCollage().size, filled)]) {
         sheet.drawLine({ start: { x: x1 * pt, y: (sh - y1) * pt }, end: { x: x2 * pt, y: (sh - y2) * pt }, thickness: 0.4, color: grey });
+      }
+    }
+
+    /** One card on its own PDF page; a folded card has fold marks at the top and bottom of its fold. */
+    function addCardPage(pdf, image) {
+      const size = core.pdfPage(getCollage().size);
+      const page = pdf.addPage([size.width, size.height]);
+      page.drawImage(image, { x: 0, y: 0, width: size.width, height: size.height });
+      const marks = print.foldMarks(getCollage().size);
+      if (!marks.length) return;
+      // The page's own height in mm, from its points, so the marks meet its edges exactly.
+      const pt = size.width / core.sizeOf(getCollage().size).mm[0];
+      const grey = window.PDFLib.rgb(0.35, 0.35, 0.35);
+      for (const [x1, y1, x2, y2] of marks) {
+        page.drawLine({ start: { x: x1 * pt, y: size.height - y1 * pt }, end: { x: x2 * pt, y: size.height - y2 * pt }, thickness: 0.4, color: grey });
       }
     }
 
@@ -431,11 +465,8 @@
       };
       const layout = sheetKey ? print.sheetLayout(getCollage().size, sheetKey) : null;
       if (!layout?.count) {
-        const size = core.pdfPage(getCollage().size);
         for (const card of cards) {
-          for (const page of [card.front, card.back].filter(Boolean)) {
-            pdf.addPage([size.width, size.height]).drawImage(await imageOf(page), { x: 0, y: 0, width: size.width, height: size.height });
-          }
+          for (const page of [card.front, card.back].filter(Boolean)) addCardPage(pdf, await imageOf(page));
         }
         return;
       }
@@ -556,8 +587,7 @@
               // As many as fit, with cut marks in the gaps.
               addSheet(pdf, layout, layout.cards.map(() => image), names[index] === 'back');
             } else {
-              const page = core.pdfPage(getCollage().size);
-              pdf.addPage([page.width, page.height]).drawImage(image, { x: 0, y: 0, width: page.width, height: page.height });
+              addCardPage(pdf, image);
             }
           }
           renderer.release(canvas);
@@ -599,5 +629,5 @@
     });
   }
 
-  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops, chosenSides, guestCards, guestSheets, nameInField, onTheLine });
+  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops, chosenSides, guestCards, guestSheets, nameInField, guestText, onTheLine });
 });

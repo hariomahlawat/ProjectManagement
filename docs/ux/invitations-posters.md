@@ -102,8 +102,9 @@ Cards and posters are drafts like any collage. They're listed under Drafts with 
 ### Card editor
 
 - **Card details** opens on the left (on a phone, as a sheet from the rail). It holds:
-  - occasion, with quick picks for Raising Day Dinner, Regimental Dinner, Change of Command,
-    Farewell, Barakhana, At Home, Ladies' Night and Passing Out Parade;
+  - occasion, with quick picks for Raising Day Dinner, Regimental Dinner, Change of Command
+    Parade, Farewell Dinner, Barakhana, At Home ("at an At Home"), Ladies' Night and Passing Out
+    Parade;
   - host and invitation line;
   - guest's name, either a blank line or from a guest list;
   - date, time and venue;

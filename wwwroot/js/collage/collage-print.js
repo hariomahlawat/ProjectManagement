@@ -106,6 +106,32 @@
     return lines;
   }
 
+  /**
+   * Fold marks for a folded card (cold review 5), in mm from the page's top-left: a short line at
+   * the top and bottom of the fold, down the middle of the flat card. On a sheet with gaps they sit
+   * in the gaps, never on a card; a card on its own page or edge to edge has them just inside its
+   * top and bottom edges. A card that is not folded has none.
+   */
+  function foldMarks(sizeKey, layout) {
+    const size = core.sizeOf(sizeKey);
+    if (size?.group !== 'folded' || !size.mm) return [];
+    const { mark } = SHEET_SPACE;
+    const inside = !layout || layout.edge;
+    const cards = layout ? layout.cards : [{ x: 0, y: 0, w: size.mm[0], h: size.mm[1] }];
+    const lines = [];
+    for (const card of cards) {
+      const x = card.x + card.w / 2;
+      if (inside) {
+        lines.push([x, card.y, x, card.y + 1 + mark]);
+        lines.push([x, card.y + card.h - 1 - mark, x, card.y + card.h]);
+      } else {
+        lines.push([x, card.y - 1, x, card.y - 1 - mark]);
+        lines.push([x, card.y + card.h + 1, x, card.y + card.h + 1 + mark]);
+      }
+    }
+    return lines;
+  }
+
   // ---------------------------------------------------------------------------
   // Guest lists
   // ---------------------------------------------------------------------------
@@ -223,5 +249,5 @@
     return { names, over, firstColumnOnly, extraCells };
   }
 
-  return Object.freeze({ SHEETS, SHEET_SPACE, sheetLayout, sheetPlacements, PT_PER_MM, cutMarks, csvRows, readGuests, guestNames });
+  return Object.freeze({ SHEETS, SHEET_SPACE, sheetLayout, sheetPlacements, PT_PER_MM, cutMarks, foldMarks, csvRows, readGuests, guestNames });
 });

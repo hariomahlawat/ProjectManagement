@@ -106,7 +106,12 @@ its npm package by hand; the libman entry records the version.
     or programme card); it shows the first three names as they will print. A list's Honours
     column follows each name after a comma. A visiting-card size does not offer the pocket
     invitation, which would be too small to read. The start screen says the pocket designs come
-    with a pocket size.
+    with a pocket size. A custom size smaller than A6 offers the pocket designs first, then the
+    others. Changing a card to a size its design does not suit (a full invitation to a pocket
+    card) moves it to the nearest design offered (the pocket invitation, or the car pass where
+    that does not fit; a pocket card to Classic ivory), says so, and offers Undo.
+  - **Occasion quick picks** read as English after "at the": Change of Command Parade, Farewell
+    Dinner; At Home makes the words before it "at an" (words typed there stay as typed).
   - **Drafts** list a card or poster as such, and reopen it on Card details.
   - **Drafts:** a card or poster opened from a design is kept as a draft from its first change,
     so looking through the designs keeps none. Tab after typing in Card details goes to the next
@@ -148,7 +153,9 @@ its npm package by hand; the libman entry records the version.
     - There are 8 mm margins and 4 mm gaps. On A4 that's 2 A6, 4 A7 or 10 visiting-card passes;
       A5 is exactly half of A4, so one A5 goes on an A4 sheet.
     - The sheet is turned whichever way holds more.
-    - Thin cut marks sit in the gaps at each card's corners.
+    - Thin cut marks sit in the gaps at each card's corners. A folded card also has fold marks:
+      short lines above and below the middle of the flat card, in the gaps (just inside its top
+      and bottom edges when it is on its own page or edge to edge), on both sides.
     - With a back, the back sheet follows the front sheet, mirrored so each back lands behind
       its front when the printer flips on the long edge: across an upright sheet, top to bottom
       on a turned one. On a turned sheet each back is also drawn turned 180°, so a cut card
@@ -170,7 +177,8 @@ its npm package by hand; the libman entry records the version.
     this browser only, and stay through design changes.
 
     Saved as a PDF, **One card for each guest** puts each guest's name in the guest field (or in
-    the place the design has for it, where it leaves a line), in the list's order. Each card goes
+    the place the design has for it, where it leaves a line), in the list's order. A name too long
+    for one line breaks before its "and" or "&" when that takes no more lines. Each card goes
     on its own page (with the back after it), or fills the chosen A4 or A3 sheets, each sheet of
     fronts followed by its sheet of backs. Cards are drawn one canvas at a time, each let go before
     the next, and a page all guests share (the back) is drawn once; each card's picture stays in
