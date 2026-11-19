@@ -131,7 +131,18 @@
         case 'save-open': parts.saveAs.open(); break;
         case 'credits': ui.root.querySelector('[data-credits]').showModal(); break;
         // Every tip, from the one line of help (docs/ux/collage-usability-plan.md, PR 6).
-        case 'help': ui.root.querySelector('[data-help-dialog]').showModal(); break;
+        case 'help': {
+          // Tips lead with what is open: cards and posters first on one, photos first on a collage (round 2, PR 5).
+          const dialog = ui.root.querySelector('[data-help-dialog]');
+          const cards = dialog.querySelector('[data-help-group="cards"]');
+          const photos = dialog.querySelector('[data-help-group="photos"]');
+          if (cards && photos) {
+            const [first, second] = state.collage.card ? [cards, photos] : [photos, cards];
+            first.parentNode.insertBefore(first, second);
+          }
+          dialog.showModal();
+          break;
+        }
         case 'help-close': ui.root.querySelector('[data-help-dialog]').close(); break;
         case 'drafts-all': change.toggleDraftsExpanded(); screens.renderDrafts(); break;
         case 'keep-draft':

@@ -251,7 +251,10 @@
      */
     function helpLine() {
       if (state.collage.card) {
-        return `<p class="clg-hint" data-help-line>Type the words in Card details, or <span class="clg-for-mouse">click</span><span class="clg-for-touch">tap</span> anything on the card to move or restyle it.</p>`;
+        // A poster's panel is Poster details (round 2, PR 5).
+        const poster = Boolean(window.PrismCollageDesigns?.DESIGNS?.[state.collage.card.design]?.poster);
+        const word = poster ? 'poster' : 'card';
+        return `<p class="clg-hint" data-help-line>Type the words in ${poster ? 'Poster' : 'Card'} details, or <span class="clg-for-mouse">click</span><span class="clg-for-touch">tap</span> anything on the ${word} to move or restyle it.</p>`;
       }
       return `<p class="clg-hint" data-help-line><span class="clg-for-mouse">Click a photo to change it; drag it to move it.</span><span class="clg-for-touch">Tap a photo to change it; drag it to move it.</span></p>`;
     }
