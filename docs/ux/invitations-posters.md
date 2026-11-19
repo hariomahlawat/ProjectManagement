@@ -309,6 +309,14 @@ comes with tests that fail without it.
     collages with their photos, text and logos. Shapes and the back page are kept in the draft
     but not shown, and come back if the feature returns.
   - Reverting PR 2 as well is not advised once cards exist, for the reason above.
+  - What a rollback still loses (cold review 6), as a page reads the values it knows with its own
+    limits:
+    - a text longer than the older page allows (300 characters before the cold review fixes,
+      1000 after) is cut to its limit, and an autosave writes the cut text back: a long
+      programme on a card's back is the likely case;
+    - a card size the older page does not know (a folded or pocket size, a size in mm) opens as
+      the default page size, A4 landscape, and is saved so.
+    Such a card is best saved as a PDF before the rollback, and made again at its size after.
   - A finished card is never only in a draft: Save makes the PNG, JPG or PDF, which no version
     change affects. The guide tells users to save the PDF of a card they need to keep.
 

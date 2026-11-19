@@ -167,9 +167,11 @@ its npm package by hand; the libman entry records the version.
 
     **Guest list** (PR 10): Card details has a **Guest list**. Names can be pasted or typed one
     a line, or read from a .txt file (whole lines) or a .csv file. In a CSV whose first row has
-    headings, a guest's name is made from the rank and name columns in their order (Rank, Name,
-    Unit gives "Brig P. Singh, SM"; First name, Surname gives both); with no headings, it is the
-    first column. Quoted cells may hold commas and line breaks; a CSV saved with semicolons is
+    headings, a guest's name is made from the rank columns, then the name columns (Rank, Name,
+    Unit or Name, Rank give "Brig P. Singh"; First name, Surname gives both). "Officer", "Guest"
+    and "Invitee" head a name column; a rank column with an unknown heading after it takes that
+    column as the name. With no headings, it is the first column. A file may be UTF-8, UTF-16 (a
+    spreadsheet's "Unicode Text") or ANSI (Windows-1252); control characters never print. Quoted cells may hold commas and line breaks; a CSV saved with semicolons is
     read too. A heading line ("Name", "Guests") is left out; there are at most 300 names of 120
     characters each, and names past 300 are counted and the user is told how many were left out.
     If the side that holds the names is not saved (a folded card's outside, or a flat card's
@@ -407,7 +409,8 @@ sat behind. A text item's font that this page doesn't
 ship keeps its name and draws in the clean font. On opening, the toast says how many parts were
 "made by a newer PRISM" and are kept but not shown. A photo named only inside a kept part stays in
 the draft. The model version stays 1 for such additions; a draft whose version is higher is still
-not opened. Only names a PRISM could write are kept (short, lower case, no markup), up to 500
+not opened. Only names a PRISM could write are kept (short, letters first, no markup; field
+names may be camelCase, as `logoMode` is), up to 500
 items and about 2 million characters.
 
 ### Keys

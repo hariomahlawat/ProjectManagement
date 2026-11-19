@@ -1646,6 +1646,9 @@
   const MODEL_FIELDS = Object.freeze(['version', 'size', 'background', 'layout', 'items', 'kept', 'card', 'back', 'side']);
   // A kind, sticker or font name a newer PRISM may write: short, lower case, no markup.
   const PART_NAME = /^[a-z][a-z0-9:_-]{0,40}$/;
+  // A field's name, which a newer PRISM may write in camelCase as this one does ("logoMode"):
+  // letters first, then letters, digits, "_" or "-" (cold review 6). Never "__proto__".
+  const FIELD_NAME = /^[a-zA-Z][a-zA-Z0-9_-]{0,40}$/;
   // How much a draft may hold that is not understood: well past any real card.
   const KEPT_LIMITS = Object.freeze({ items: 500, chars: 2_000_000 });
 
@@ -1813,7 +1816,7 @@
     const fields = {};
     for (const [key, value] of Object.entries(raw)) {
       const unreadBack = key === 'back' && !model.back && value !== undefined && value !== null;
-      if ((MODEL_FIELDS.includes(key) && !unreadBack) || !PART_NAME.test(key)) continue;
+      if ((MODEL_FIELDS.includes(key) && !unreadBack) || !FIELD_NAME.test(key)) continue;
       const copy = plainCopy(value);
       if (!copy || keptChars + copy.json.length > KEPT_LIMITS.chars) continue;
       keptChars += copy.json.length;
@@ -1846,7 +1849,7 @@
     const newer = {};
     let chars = 0;
     for (const [key, value] of Object.entries(raw)) {
-      if (['design', 'details', 'placed', 'guests'].includes(key) || !PART_NAME.test(key)) continue;
+      if (['design', 'details', 'placed', 'guests'].includes(key) || !FIELD_NAME.test(key)) continue;
       const copy = plainCopy(value);
       if (!copy || chars + copy.json.length > KEPT_LIMITS.chars) continue;
       chars += copy.json.length;
@@ -1867,7 +1870,8 @@
     const names = [];
     for (const raw of list) {
       if (typeof raw !== 'string') continue;
-      const name = raw.replace(/\s+/g, ' ').trim().slice(0, GUEST_LIMITS.length);
+      // Control characters (a NUL from a wrongly read file) are never part of a name.
+      const name = raw.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, GUEST_LIMITS.length);
       if (name) names.push(name);
       if (names.length >= GUEST_LIMITS.names) break;
     }

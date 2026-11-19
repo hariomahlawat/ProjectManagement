@@ -255,3 +255,29 @@ test('fold marks: down the middle of a folded card, in the gaps on a sheet, insi
     assert.ok(bottom[1] >= card.y && bottom[3] <= card.y + card.h);
   }
 });
+
+// Cold review 6: guest files and headings.
+test('a guest file in UTF-16, with or without its mark, reads as names; control characters never print', () => {
+  const text = 'Rank,Name\r\nBrig,P. Singh\r\nCol,D. Nair\r\n';
+  const le = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, 'utf16le')]);
+  const be = Buffer.from(text, 'utf16le').swap16();
+  const noMark = Buffer.from(text, 'utf16le');
+  for (const bytes of [le, Buffer.concat([Buffer.from([0xfe, 0xff]), be]), noMark]) {
+    assert.deepEqual(print.guestNames(print.decodeText(bytes), { csv: true }), ['Brig P. Singh', 'Col D. Nair']);
+  }
+  // UTF-8 and ANSI as before.
+  assert.equal(print.decodeText(Buffer.from('Café', 'utf8')), 'Café');
+  assert.equal(print.decodeText(Buffer.from([0x43, 0x61, 0x66, 0xe9])), 'Café');
+  const nl = String.fromCharCode(10);
+  assert.deepEqual(print.guestNames(['Maj A', String.fromCharCode(0), 'Capt' + String.fromCharCode(0) + ' B'].join(nl)), ['Maj A', 'Capt B']);
+});
+
+test('guest headings: the rank comes first whatever the order; a rank with an unknown name heading', () => {
+  const nl = String.fromCharCode(10);
+  assert.deepEqual(print.guestNames(['Name,Rank', 'P. Singh,Brig'].join(nl), { csv: true }), ['Brig P. Singh']);
+  // "Officer" names a person.
+  assert.deepEqual(print.guestNames(['Rank,Officer,Unit', 'Brig,P. Singh,50 Bde'].join(nl), { csv: true }), ['Brig P. Singh']);
+  // A heading row with a rank and a heading not known as a name: the column after the rank, and
+  // the heading row is not a guest.
+  assert.deepEqual(print.guestNames(['Rank,Full designation,Unit', 'Brig,P. Singh,50 Bde'].join(nl), { csv: true }), ['Brig P. Singh']);
+});

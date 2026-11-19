@@ -1494,3 +1494,19 @@ test('a long file name is cut between words', () => {
   assert.ok(flat.startsWith(stem), stem);
   assert.equal(flat[stem.length], ' ', 'cut at a space');
 });
+
+// Cold review 6: a newer PRISM's fields in camelCase are kept, on the collage, the card and the back.
+test('a draft keeps a newer PRISM camelCase fields on the collage, the card and the back', () => {
+  const raw = {
+    version: collage.MODEL_VERSION, size: 'a5p', background: { type: 'color', value: '#ffffff' }, layout: null, items: [],
+    futureField: { a: 1 },
+    card: { design: 'classic', details: {}, rsvpBy: '2026-12-01' },
+    back: { background: { type: 'color', value: '#ffffff' }, layout: null, items: [], backFuture: 'x' }
+  };
+  const model = collage.readDraftModel(raw);
+  assert.equal(model.card.rsvpBy, '2026-12-01');
+  assert.deepEqual(model.kept.fields.futureField, { a: 1 });
+  assert.equal(model.back.kept.fields.backFuture, 'x');
+  const keys = Object.keys(collage.readDraftModel({ ...raw, ['__proto__']: { bad: 1 } }).kept?.fields || {});
+  assert.ok(!keys.includes('__proto__'));
+});

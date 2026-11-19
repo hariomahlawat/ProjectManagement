@@ -829,3 +829,24 @@ test('typing in a left-aligned field keeps its left edge', async ({ page }) => {
   expect(Math.abs((await left()).edge - before.edge)).toBeLessThan(1);
   expect(errors).toEqual([]);
 });
+
+// Cold review 6, M3: what reading a list found belongs to that list; Undo to another list drops it.
+test('the "names left out" note goes with its list: Undo to a shorter list does not show it', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  const list = page.locator('[data-card-guests]');
+  const hint = page.locator('[data-card-guest-count]');
+  await list.fill('Maj A\nCapt B\nLt C');
+  await list.blur();
+  await expect(hint).toContainText('3 guests');
+  await expect(hint).not.toContainText('left out');
+  await list.fill(Array.from({ length: 305 }, (_, i) => `Officer ${i + 1}`).join('\n'));
+  await list.blur();
+  await expect(page.locator('[data-card-guest-count]')).toContainText('5 names were left out');
+  await page.locator('body').click({ position: { x: 5, y: 5 } }).catch(() => {});
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('[data-card-guest-count]')).toContainText('3 guests');
+  await expect(page.locator('[data-card-guest-count]')).not.toContainText('left out');
+  expect(errors).toEqual([]);
+});

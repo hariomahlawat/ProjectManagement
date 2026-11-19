@@ -200,13 +200,10 @@
       }
       // A card with a guest list, as a PDF, can be one card for each guest (PR 10).
       const guestsBox = $('[data-save-guests]');
-      const guestCount = getCollage().card?.guests?.length || 0;
       if (guestsBox) {
-        // Only a design with a place for the guest's name makes a card for each guest.
-        const hasGuestField = Boolean(designs?.fieldsOnCard(getCollage()).includes('guest'));
-        guestsBox.hidden = !(guestCount && hasGuestField && chosen('format') === 'pdf');
+        guestsBox.hidden = !guestCardsOffered(chosen('format'));
         const label = guestsBox.querySelector('[data-guest-label]');
-        if (label) label.textContent = `One card for each guest (${guestCount})`;
+        if (label) label.textContent = `One card for each guest (${getCollage().card?.guests?.length || 0})`;
       }
       // A card printed as a PDF can go several to an A4 or A3 sheet (PR 9).
       const sheetBox = $('[data-save-sheet]');
@@ -483,6 +480,15 @@
       return layout?.count ? { count: layout.count, label: print.SHEETS[key].label.replace(', edge to edge', ' (edge to edge)') } : null;
     }
 
+    /**
+     * Whether Save offers one card for each guest (PR 10): a PDF of a card with a guest list whose
+     * design has a place for the guest's name. The one rule for the dialog and for Save itself.
+     */
+    function guestCardsOffered(format) {
+      const collage = getCollage();
+      return format === 'pdf' && Boolean(collage.card?.guests?.length) && Boolean(designs?.fieldsOnCard(collage).includes('guest'));
+    }
+
     /** The sheet chosen for a card's PDF (PR 9), or null for each card on its own page. */
     function sheetBoxChoice() {
       const box = $('[data-save-sheet]');
@@ -520,7 +526,7 @@
         let all = core.pagesOf(getCollage());
         const { pages, names } = chosenSides(all, all.length > 1 ? (chosen('sides') || 'both') : 'front');
         // One card for each guest (PR 10): the front once a guest, their name on it, then the back.
-        const guests = format === 'pdf' && !$('[data-save-guests]')?.hidden && chosen('guests') === 'each' ? (getCollage().card?.guests || []) : [];
+        const guests = guestCardsOffered(format) && chosen('guests') === 'each' ? getCollage().card.guests : [];
         // The name goes on the side the design puts the guest's name (a folded card's inside).
         // The side that holds a guest field (one the user locked stays where it is), else the
         // side the design puts it on.

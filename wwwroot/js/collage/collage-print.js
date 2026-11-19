@@ -186,7 +186,7 @@
   // An appointment ("Cdr 50 Bde") is not part of a name on the card; a spouse's column joins the
   // name with "and" ("Brig P. Singh and Mrs Singh").
   const RANK_HEADING = /^\s*(rank|title)\s*$/i;
-  const NAME_WORDS = /\bnames?\b|\bsurname\b|^\s*guests?\s*$|^\s*initials?\s*$/i;
+  const NAME_WORDS = /\bnames?\b|\bsurname\b|^\s*(guests?|initials?|officers?|invitees?|persons?)\s*$/i;
   const NOT_A_PERSON = /\b(unit|regiment|formation|organi[sz]ation|station|place|venue|file|company|establishment)\b/i;
   const SPOUSE_HEADING = /\b(spouse|wife|husband|partner)\b/i;
   // Honours and awards follow the name after a comma ("Lt Gen A. Kumar, PVSM, AVSM").
@@ -202,7 +202,9 @@
    * kept in a draft, where a guest may be called anything).
    */
   function readGuests(text, { csv = false, heading = true } = {}) {
-    const source = String(text || '');
+    // A byte-order mark and control characters (a stray NUL from a wrongly read file) are never
+    // part of a name; tabs and line breaks stay, as they separate columns and names.
+    const source = String(text || '').replace(/^﻿/, '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
     const head = source.split(/\r?\n/).find((line) => line.trim()) || '';
     // Columns pasted from a spreadsheet come with tabs between them; a CSV saved with semicolons
     // (as some spreadsheets do) has them when its first row has no comma.
@@ -219,9 +221,15 @@
     let headed = false;
     let width = 1;
     if (heading && rows.length) {
-      const named = rows[0].map((cell, i) => (NAME_HEADING.test(cell) || RANK_HEADING.test(cell) ? i : -1)).filter((i) => i >= 0);
-      if (named.some((i) => NAME_HEADING.test(rows[0][i]))) {
-        columns = named;
+      // Rank columns first, whatever order the headings are in ("Name, Rank" prints "Brig P. Singh").
+      const ranks = rows[0].map((cell, i) => (RANK_HEADING.test(cell) ? i : -1)).filter((i) => i >= 0);
+      const named = rows[0].map((cell, i) => (NAME_HEADING.test(cell) ? i : -1)).filter((i) => i >= 0);
+      // A heading row with a rank column but no name heading ("Rank, Full designation, Unit"):
+      // the column after the rank is the name, and the heading row is not a guest.
+      const after = ranks.length ? ranks[ranks.length - 1] + 1 : -1;
+      if (!named.length && after > 0 && after < rows[0].length && !NOT_A_PERSON.test(rows[0][after]) && !SPOUSE_HEADING.test(rows[0][after]) && !HONOURS_HEADING.test(rows[0][after])) named.push(after);
+      if (named.length) {
+        columns = [...ranks, ...named];
         spouse = rows[0].findIndex((cell) => SPOUSE_HEADING.test(cell));
         honours = rows[0].findIndex((cell) => HONOURS_HEADING.test(cell));
         width = rows[0].length;
@@ -249,5 +257,24 @@
     return { names, over, firstColumnOnly, extraCells };
   }
 
-  return Object.freeze({ SHEETS, SHEET_SPACE, sheetLayout, sheetPlacements, PT_PER_MM, cutMarks, foldMarks, csvRows, readGuests, guestNames });
+  /**
+   * A guest file's text from its bytes: UTF-16 (a spreadsheet's "Unicode Text", with or without
+   * its byte-order mark), UTF-8, or else Windows-1252 (a spreadsheet's ANSI file).
+   */
+  function decodeText(bytes) {
+    const view = new Uint8Array(bytes);
+    if (view[0] === 0xff && view[1] === 0xfe) return new TextDecoder('utf-16le').decode(view.subarray(2));
+    if (view[0] === 0xfe && view[1] === 0xff) return new TextDecoder('utf-16be').decode(view.subarray(2));
+    // Without a mark, UTF-16 text in Latin letters has a zero in every other byte.
+    const sample = view.subarray(0, 2000);
+    let oddZeros = 0;
+    let evenZeros = 0;
+    for (let i = 0; i < sample.length; i += 1) if (sample[i] === 0) { if (i % 2) oddZeros += 1; else evenZeros += 1; }
+    const half = sample.length / 2;
+    if (sample.length >= 4 && oddZeros > half * 0.3 && oddZeros > evenZeros * 4) return new TextDecoder('utf-16le').decode(view);
+    if (sample.length >= 4 && evenZeros > half * 0.3 && evenZeros > oddZeros * 4) return new TextDecoder('utf-16be').decode(view);
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(view); } catch { return new TextDecoder('windows-1252').decode(view); }
+  }
+
+  return Object.freeze({ SHEETS, SHEET_SPACE, sheetLayout, sheetPlacements, PT_PER_MM, cutMarks, foldMarks, csvRows, readGuests, guestNames, decodeText });
 });

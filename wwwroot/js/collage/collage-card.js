@@ -805,15 +805,15 @@
         </div>`;
     }
 
-    // How many names the last list given had past the limit, and whether it had other columns,
-    // so the panel says so when redrawn.
-    let guestsOver = 0;
-    let guestsFirstColumn = false;
-    let guestsExtraCells = false;
+    // What reading the last list given found: names past the limit, other columns. It belongs to
+    // that list only (cold review 6): another draft, or Undo to another list, shows none of it.
+    let guestNotes = { names: '', over: 0, firstColumn: false, extraCells: false };
+    const notesFor = (names) => (guestNotes.names === (names || []).join(String.fromCharCode(10)) ? guestNotes : { over: 0, firstColumn: false, extraCells: false });
 
     /** The line under the guest list: how many guests, and how many names were left out. */
     function guestCountText(count) {
       if (!count) return 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.';
+      const { over: guestsOver, firstColumn: guestsFirstColumn, extraCells: guestsExtraCells } = notesFor(state.collage.card?.guests);
       const left = guestsOver ? ` Only the first ${core.GUEST_LIMITS.names} are kept: ${guestsOver} name${guestsOver === 1 ? ' was' : 's were'} left out.` : '';
       const column = guestsFirstColumn ? ' Only the first column was used; give the list a heading row (Rank, Name) to join columns.'
         : guestsExtraCells ? ' Some rows have a comma inside a name without quotes ("Col X, VSM"): put such names in quotes so all of it is used.' : '';
@@ -826,8 +826,7 @@
     /** Sets the guest list from text (pasted, typed, or a file's); kept with the draft, recorded for Undo. */
     function setGuests(text, { csv = false, held = false } = {}) {
       const { names: guests, over, firstColumnOnly, extraCells } = print.readGuests(text, { csv });
-      guestsFirstColumn = firstColumnOnly;
-      guestsExtraCells = extraCells;
+      guestNotes = { names: guests.join(String.fromCharCode(10)), over, firstColumn: firstColumnOnly, extraCells };
       doc.edit((draft) => {
         const card = { ...(draft.card || { design: 'classic', details: {} }) };
         if (guests.length) card.guests = guests;
@@ -837,7 +836,6 @@
       if (held) history.holdEdit();
       else history.commit();
       const count = form.querySelector('[data-card-guest-count]');
-      guestsOver = over;
       if (count) count.textContent = guestCountText(guests.length);
       if (over && !held) messages.showAlert(`Only the first ${core.GUEST_LIMITS.names} names are kept. ${over} name${over === 1 ? ' was' : 's were'} left out: make a second card for them.`);
       else if (over) messages.announce(`Only the first ${core.GUEST_LIMITS.names} names are kept. ${over} left out.`);
@@ -859,9 +857,8 @@
       const forCollage = state.collageSession;
       let text = '';
       try {
-        // UTF-8, or a spreadsheet's ANSI file (Windows-1252) when the bytes are not UTF-8.
-        const bytes = await file.arrayBuffer();
-        try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { text = new TextDecoder('windows-1252').decode(bytes); }
+        // UTF-8, UTF-16 (a spreadsheet's "Unicode Text") or ANSI (Windows-1252).
+        text = print.decodeText(await file.arrayBuffer());
       } catch { if (forCollage === state.collageSession) messages.showAlert('That file could not be read.'); return; }
       if (forCollage !== state.collageSession) return;
       const guests = setGuests(text, { csv: /\.csv$/i.test(file.name) || file.type === 'text/csv' });
