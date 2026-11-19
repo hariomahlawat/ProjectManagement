@@ -1147,3 +1147,26 @@ test('guest cards follow the list order and print at full resolution', async ({ 
   expect(forward[0].width).toBe(plain[0].width);
   expect(errors).toEqual([]);
 });
+
+// Codex on #3455: Add a photo after the design's frame was deleted brings back only the frame.
+test('Add a photo after deleting the frame brings back the frame and keeps the user\'s changes', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="ceremonial"]').click();
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  // The occasion in the typewriter font.
+  await page.locator('[data-layer-select]', { hasText: 'Raising Day Dinner' }).click();
+  await page.locator('.clg-props [data-props-tab="settings"]').click();
+  await page.locator('.clg-props [data-text-set="font"][data-value="typewriter"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'occasion')?.font).toBe('typewriter');
+  // The empty frame deleted.
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator('[data-layer-select]', { hasText: 'Empty frame' }).click();
+  await page.keyboard.press('Delete');
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.some((item) => item.role === 'photo')).toBe(false);
+  // The Card panel is open beside the page: its Photo prompt offers the frame back.
+  await page.locator('[data-card-photo="add"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.some((item) => item.role === 'photo' && item.kind === 'slot')).toBe(true);
+  expect((await newestDraft(page)).model.items.find((item) => item.field === 'occasion').font).toBe('typewriter');
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});
