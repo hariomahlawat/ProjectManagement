@@ -270,14 +270,17 @@
       const sidesBox = $('[data-save-sides]');
       if (sidesBox) sidesBox.hidden = !getCollage().back;
       // Which edge to flip on when printing both sides: a folded card and a landscape card on its
-      // own pages flip on the short edge, everything else on the long edge.
-      const flipNote = $('[data-sides-flip]');
-      if (flipNote && getCollage().back) {
+      // own pages flip on the short edge, everything else on the long edge. Said again once the
+      // sheet below is settled, since it depends on it (Codex review on #3478).
+      const syncFlipNote = () => {
+        const flipNote = $('[data-sides-flip]');
+        if (!flipNote || !getCollage().back) return;
         const size = core.sizeOf(getCollage().size);
         const onSheets = Boolean(sheetBoxChoice());
         const short = size.group === 'folded' || (!onSheets && size.mm && size.mm[0] > size.mm[1]);
         flipNote.textContent = `To print both on one card, flip on the ${short ? 'short' : 'long'} edge${size.group === 'folded' ? ', then fold down the middle' : ''}.`;
-      }
+      };
+      syncFlipNote();
       // A card with a guest list, as a PDF, can be one card for each guest (PR 10).
       const guestsBox = $('[data-save-guests]');
       if (guestsBox) {
@@ -326,6 +329,7 @@
           if (!a4.disabled) a4.checked = true;
           else sheetBox.querySelector('input[name="sheet"][value="card"]').checked = true;
         }
+        syncFlipNote();
       }
       const size = core.sizeOf(getCollage().size);
       const pixels = core.savePixels(getCollage().size, 'print');
