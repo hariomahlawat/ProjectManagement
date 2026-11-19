@@ -155,6 +155,36 @@ Cards and posters are drafts like any collage. They're listed under Drafts with 
 - **M6, pocket cards**: a **Pocket cards** row on the start screen opens each pocket design on
   its own pocket size.
 
+#### Cold review 9 fixes (19 Nov)
+
+- **Guest lists, drafts and Save (data and Save dialog):**
+  - **M1, L1, one rule for a name:** `core.cleanGuestName` (with `cleanGuestText` and
+    `isVisibleName`) is used by `print.readGuests` and by `core.keptGuests` for a list read back
+    from a draft: a draft guest of only invisible characters is dropped, so Save never makes a
+    blank card, and a name is cut at 120 letters between whole letters (graphemes).
+  - **M2, headings:** a heading cell is made of heading words only, so "Col R. Names, VSM" is a
+    guest; a Rank heading row with no name column ("Rank, Name of the Unit") makes no guests and
+    says so; a first column of serial numbers is skipped for the next; a first line read as
+    headings is named under the list.
+  - **M3:** a browser test lays out a long guest's card (Classic A5 landscape and A6 portrait)
+    with the real fonts, as Save does (`PrismCollageSave.guestPage`), and checks the name is on
+    the page, clear of the host, the invitation line, "at the" and the occasion, and on its line.
+    It found no overlap.
+  - **L2:** the parts a design hides by itself (`designs.AUTO_PARTS`) and the words for each part
+    that takes a unit colour (`designs.COLOUR_USES`, now with the back's border) live with the
+    designs; Save and Card details read them.
+  - **L3:** `fieldItem` and `roleItem` lay the front out from `frontOf`, so with the back showing
+    a field's place no longer follows the back's items (a Ceremonial card whose frame is kept).
+  - **L4:** a folded card's draft read back with no inside gets its design's inside on opening
+    (never over a back a newer PRISM wrote and this one cannot read).
+  - **UX L2:** Save names every Hindi line on the card left empty while its English is not, by
+    one rule (`save.hindiLine`).
+  - **UX L4:** Save stays in view at the dialog's foot (1440 x 900 with a back, a guest list and
+    Printing).
+  - **UX L5:** a collage's own title, and so its file name, is cut between words.
+  - **UX L7:** saved for printing, a page whose colour runs to its edge (`core.colourToEdge`)
+    gets a hint about office printers' white margin.
+
 ### Save
 
 - Save asks first what it's for, as now. For a card, **Printing** adds:

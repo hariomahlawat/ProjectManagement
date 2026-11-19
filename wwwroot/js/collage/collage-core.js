@@ -1280,6 +1280,38 @@
     return { halfWidth: (width * c + height * s) / 2, halfHeight: (width * s + height * c) / 2 };
   }
 
+  /**
+   * Whether colour runs to the page's edge on either side of it (UX review 9): a background that
+   * is not white or nearly so (Navy and gold), or a coloured band, bar or photo touching an edge
+   * (Regimental, Modern). Most office printers leave a white margin round the page, so Save says
+   * so when it is for printing. The one rule, read from what the page shows.
+   */
+  function colourToEdge(collage) {
+    if (!collage) return false;
+    // A colour a white margin shows against: any of its channels well below white. A cream
+    // paper (#fbf7ee) is not.
+    const strong = (colour) => {
+      const hex = /^#([0-9a-f]{6})$/i.exec(String(colour || ''));
+      if (!hex) return false;
+      const n = parseInt(hex[1], 16);
+      return Math.min(n >> 16, (n >> 8) & 255, n & 255) < 0xe0;
+    };
+    const height = pageHeight(collage.size);
+    const reach = 1;
+    const atEdge = (item) => {
+      const { halfWidth, halfHeight } = turnedHalfBox(item.width, itemHeight(item), item.angle || 0);
+      return item.x - halfWidth <= reach || item.x + halfWidth >= PAGE_WIDTH - reach || item.y - halfHeight <= reach || item.y + halfHeight >= height - reach;
+    };
+    return [collage, collage.back].filter(Boolean).some((side) => {
+      const background = side.background || {};
+      if (background.type === 'color' && strong(background.value)) return true;
+      if (background.type === 'gradient' && (GRADIENTS[background.key]?.stops || []).some(([, colour]) => strong(colour))) return true;
+      if (['pattern', 'texture', 'photo'].includes(background.type)) return true;
+      return (side.items || []).some((item) => !item.hidden && Number.isFinite(item.width) && item.aspect > 0
+        && ((item.kind === 'shape' && strong(item.fill)) || item.kind === 'photo') && atEdge(item));
+    });
+  }
+
   /** An angle as a number of degrees from -180 (not included) to 180. */
   function normaliseAngle(angle) {
     let a = ((Number(angle) || 0) % 360 + 360) % 360;
@@ -1443,6 +1475,17 @@
    * A name for a collage nobody named: the first line of its first text, or the day and time
    * it was started ("Collage, 15 Nov 14:05"), so drafts can be told apart.
    */
+  /**
+   * A title of at most 40 letters: a longer one is cut between words, where it can be, and ends
+   * with "…" (UX review 9: a poster's file name was cut mid-word, "Lessons from th.pdf").
+   */
+  function shortTitle(text) {
+    if (text.length <= 40) return text;
+    const space = text.slice(0, 40).lastIndexOf(' ');
+    const short = space > 0 ? text.slice(0, space) : text.slice(0, 39);
+    return `${short.replace(/[\s,;:.\u2013\u2014-]+$/, '')}…`;
+  }
+
   /** The first line of the collage's first words (not a placeholder), shortened; '' if none. */
   function autoTitleFromText(items) {
     // A card is called by its occasion (docs/ux/invitations-posters.md, PR 5).
@@ -1451,12 +1494,12 @@
     const occasion = heading || (items || []).find((item) => item.kind === 'text' && item.field === 'occasion' && String(item.text || '').trim());
     if (occasion) {
       const named = `${String(occasion.text).split('\n').map((part) => part.trim()).find(Boolean)} ${heading ? 'poster' : 'card'}`;
-      return named.length > 40 ? `${named.slice(0, 39)}…` : named;
+      return shortTitle(named);
     }
     const placeholders = new Set(Object.values(TEXT_PLACEHOLDERS));
     const text = (items || []).find((item) => item.kind === 'text' && String(item.text || '').trim() && !placeholders.has(String(item.text).trim()));
     const line = text ? String(text.text).split('\n').map((part) => part.trim()).find(Boolean) || '' : '';
-    return line.length > 40 ? `${line.slice(0, 39)}…` : line;
+    return shortTitle(line);
   }
 
   function autoTitle(items, startedAt) {
@@ -1881,17 +1924,46 @@
   /** A guest list's limits (docs/ux/invitations-posters.md, PR 10). */
   const GUEST_LIMITS = Object.freeze({ names: 300, length: 120 });
 
+  // The one rule for what a guest's name may hold (code review 9), for a list the user gives
+  // (collage-print.js's readGuests) and one read back from a draft (keptGuests) alike.
+  // A zero-width space, word joiner or byte-order mark (from a copied web page) and control
+  // characters (a NUL from a wrongly read file) are never part of a name; tabs and line breaks
+  // stay in a whole list, as they separate columns and names. The joiner and non-joiner (U+200D,
+  // U+200C) stay, as they shape Hindi letters (Codex on #3454), but alone they print nothing.
+  const NEVER_IN_NAME = /[\u200B\u2060\uFEFF\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+
+  /** A guest list's text without what is never part of a name; tabs and line breaks kept. */
+  function cleanGuestText(text) {
+    return String(text ?? '').replace(NEVER_IN_NAME, '');
+  }
+
+  /** Whether a name (or a cell of a list) shows anything: the joiners alone print nothing. */
+  function isVisibleName(text) {
+    return Boolean(String(text ?? '').replace(/[\u200C\u200D]/g, '').trim());
+  }
+
   /**
-   * A guest list kept in a draft: each a plain name, spaces tidied, at most GUEST_LIMITS.length
-   * letters, at most GUEST_LIMITS.names of them. A guest may be called anything (even "Name");
-   * reading lists the user gives (headings, columns, CSV) is collage-print.js's readGuests.
+   * One guest's name as it prints: what is never part of a name taken out, spaces tidied, at most
+   * GUEST_LIMITS.length letters, cut between whole letters (graphemes) so an emoji or a Hindi
+   * syllable is never split. Empty when nothing in it would show: such a guest is no guest.
+   */
+  function cleanGuestName(raw) {
+    const name = cleanGuestText(raw).replace(/\s+/g, ' ').trim();
+    if (!isVisibleName(name)) return '';
+    const letters = graphemes(name);
+    return letters.length > GUEST_LIMITS.length ? letters.slice(0, GUEST_LIMITS.length).join('').trim() : name;
+  }
+
+  /**
+   * A guest list kept in a draft: each a plain name (cleanGuestName), at most GUEST_LIMITS.names
+   * of them. A guest may be called anything (even "Name"); reading lists the user gives
+   * (headings, columns, CSV) is collage-print.js's readGuests.
    */
   function keptGuests(list) {
     const names = [];
     for (const raw of list) {
       if (typeof raw !== 'string') continue;
-      // Control characters (a NUL from a wrongly read file) are never part of a name.
-      const name = raw.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, GUEST_LIMITS.length);
+      const name = cleanGuestName(raw);
       if (name) names.push(name);
       if (names.length >= GUEST_LIMITS.names) break;
     }
@@ -2184,6 +2256,10 @@
     fitArea,
     pdfPage,
     GUEST_LIMITS,
+    colourToEdge,
+    cleanGuestText,
+    cleanGuestName,
+    isVisibleName,
     smallCard,
     decodeSize,
     itemsToSave,

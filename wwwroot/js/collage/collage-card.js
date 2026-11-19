@@ -955,26 +955,38 @@
 
     // What reading the last list given found: names past the limit, other columns. It belongs to
     // that list only (cold review 6): another draft, or Undo to another list, shows none of it.
-    let guestNotes = { names: '', over: 0, firstColumn: false, extraCells: false };
-    const notesFor = (names) => (guestNotes.names === (names || []).join(String.fromCharCode(10)) ? guestNotes : { over: 0, firstColumn: false, extraCells: false });
+    const NO_NOTES = Object.freeze({ over: 0, firstColumn: false, column: 0, extraCells: false, headings: [], noNameColumn: false });
+    let guestNotes = { names: '', session: null, ...NO_NOTES };
+    const notesFor = (names) => (guestNotes.session === state.collageSession && guestNotes.names === (names || []).join(String.fromCharCode(10)) ? guestNotes : NO_NOTES);
+    const ordinal = (index) => ['first', 'second', 'third', 'fourth', 'fifth'][index] || `number ${index + 1}`;
 
-    /** The line under the guest list: how many guests, and how many names were left out. */
+    /**
+     * The line under the guest list: how many guests, how many names were left out, and what was
+     * taken for headings (code review 9), so a guest read as a heading shows before Save.
+     * Headings and names are the user's (or a file's) words: escaped, never markup.
+     */
     function guestCountText(count) {
-      if (!count) return 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.';
-      const { over: guestsOver, firstColumn: guestsFirstColumn, extraCells: guestsExtraCells } = notesFor(state.collage.card?.guests);
-      const left = guestsOver ? ` Only the first ${core.GUEST_LIMITS.names} are kept: ${guestsOver} name${guestsOver === 1 ? ' was' : 's were'} left out.` : '';
-      const column = guestsFirstColumn ? ' Only the first column was used; give the list a heading row (Rank, Name) to join columns.'
-        : guestsExtraCells ? ' Some rows have a comma inside a name without quotes ("Col X, VSM"): put such names in quotes so all of it is used.' : '';
+      const notes = notesFor(state.collage.card?.guests);
+      const quoted = (list) => list.map((words) => `“${escapeHtml(words)}”`).join(', ');
+      const read = notes.headings.length ? ` First line read as column headings: ${quoted(notes.headings)}.` : '';
+      if (!count) {
+        if (notes.noNameColumn) return `No names were read.${read} None of them is a person's name: head the names' column Name (or Rank and Name), or leave the heading row out.`;
+        return 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.';
+      }
+      const left = notes.over ? ` Only the first ${core.GUEST_LIMITS.names} are kept: ${notes.over} name${notes.over === 1 ? ' was' : 's were'} left out.` : '';
+      const which = notes.column > 0 ? `The first column holds only serial numbers, so the ${ordinal(notes.column)} column was used` : '';
+      const column = notes.firstColumn ? ` ${which || 'Only the first column was used'}; give the list a heading row (Rank, Name) to join columns.`
+        : which ? ` ${which}.`
+        : notes.extraCells ? ' Some rows have a comma inside a name without quotes ("Col X, VSM"): put such names in quotes so all of it is used.' : '';
       // The first names as they will print, so a wrong column shows before Save.
-      // Names are the user's (or a file's) words: escaped, never markup.
-      const first = (state.collage.card?.guests || []).slice(0, 3).map((name) => `“${escapeHtml(name)}”`).join(', ');
-      return `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it. First on the cards: ${first}${count > 3 ? ', …' : '.'}${left}${column} The names stay in this browser.`;
+      const first = quoted((state.collage.card?.guests || []).slice(0, 3));
+      return `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it. First on the cards: ${first}${count > 3 ? ', …' : '.'}${read}${left}${column} The names stay in this browser.`;
     }
 
     /** Sets the guest list from text (pasted, typed, or a file's); kept with the draft, recorded for Undo. */
     function setGuests(text, { csv = false, held = false } = {}) {
-      const { names: guests, over, firstColumnOnly, extraCells } = print.readGuests(text, { csv });
-      guestNotes = { names: guests.join(String.fromCharCode(10)), over, firstColumn: firstColumnOnly, extraCells };
+      const { names: guests, over, firstColumnOnly, column, extraCells, headings, noNameColumn } = print.readGuests(text, { csv });
+      guestNotes = { names: guests.join(String.fromCharCode(10)), session: state.collageSession, over, firstColumn: firstColumnOnly, column, extraCells, headings, noNameColumn };
       doc.edit((draft) => {
         const card = { ...(draft.card || { design: 'classic', details: {} }) };
         if (guests.length) card.guests = guests;
@@ -1027,8 +1039,8 @@
 
     /** For each unit colour, the parts other than the bands that follow it, in plain words. */
     function colourUses(collage) {
-      const frames = 'the frames round the panels';
-      const names = { roundel: 'the ring round the logo', logotile: 'the tile behind the logo', backlogotile: 'the tile behind the logo', rule: 'the line at the bottom', backrule: 'the line on the back', coverrule: 'the line on the cover', innerrule: 'the line inside', backcoverrule: 'the lines on the back cover', backcoverrule2: 'the lines on the back cover', coverborder: frames, backcover: frames, innerborder: frames, innerborder2: frames };
+      // What each part is, in plain words, is the designs' (designs.COLOUR_USES).
+      const names = designs.COLOUR_USES;
       const labels = Object.fromEntries(FORM.map(([field, label]) => [field, label.toLowerCase().replace(/^back: /, 'back ')]));
       const uses = [[], [], []];
       for (const item of [...(collage?.items || []), ...(collage?.back?.items || [])]) {

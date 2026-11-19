@@ -187,30 +187,38 @@
   // name with "and" ("Brig P. Singh and Mrs Singh").
   const RANK_HEADING = /^\s*(rank|title)\s*$/i;
   const NAME_WORDS = /\bnames?\b|\bsurname\b|^\s*(list of\s+)?(guests?|initials?|officers?|invitees?|persons?)\s*$/i;
+  // A heading is made of heading words only ("Rank & Name", "Name of Guest", "Full name"): a
+  // cell with any other word in it ("Col R. Names", a guest whose name has a rank) is a name, not
+  // a heading (code review 9), so a list's first guest is never taken for its heading.
+  const HEADING_WORDS = new Set(['name', 'names', 'surname', 'first', 'last', 'middle', 'full', 'given', 'family', 'rank', 'title', 'guest', 'guests', 'invitee', 'invitees', 'officer', 'officers', 'person', 'persons', 'initials', 'list', 'of', 'the', 'and', 'in', 'english', 'capitals', 'block', 'letters', 'appointment', 'designation', 'dignitary', 'dignitaries', 's', 'sl', 'ser', 'sr', 'no', 'number', 'serial']);
+  const headingLike = (cell) => {
+    const words = String(cell ?? '').toLowerCase().match(/[a-z]+/g);
+    return Boolean(words) && words.every((word) => HEADING_WORDS.has(word));
+  };
+  // A serial number column ("1", "2.", "03)") holds no names.
+  const SERIAL = /^\s*\d{1,5}\s*[.)]?\s*$/;
   const NOT_A_PERSON = /\b(unit|regiment|formation|organi[sz]ation|station|place|venue|file|company|establishment)\b/i;
   const SPOUSE_HEADING = /\b(spouse|wife|husband|partner)\b/i;
   // Honours and awards follow the name after a comma ("Lt Gen A. Kumar, PVSM, AVSM").
   const HONOURS_HEADING = /\b(honours|honors|awards|decorations|post-?nominals)\b/i;
-  const NAME_HEADING = { test: (cell) => NAME_WORDS.test(cell) && !NOT_A_PERSON.test(cell) && !SPOUSE_HEADING.test(cell) };
+  const NAME_HEADING = { test: (cell) => NAME_WORDS.test(cell) && headingLike(cell) && !NOT_A_PERSON.test(cell) && !SPOUSE_HEADING.test(cell) };
 
   /**
    * The guest list read from text, one name a line, with how many names did not fit (past
    * core.GUEST_LIMITS.names). In a CSV whose first row has headings, a guest's name is made from the
    * rank and name columns in their order ("Rank, Name, Unit" gives "Brig P. Singh, SM"; "First
-   * name, Surname" gives both); with no headings, it is the first column. A first line that is a
-   * heading ("Name", "Guests") is left out. `heading: false` reads every line as a name (a list
-   * kept in a draft, where a guest may be called anything).
+   * name, Surname" gives both); with no headings, it is the first column, or the first after a
+   * column of serial numbers. A first line that is a heading ("Name", "Guests") is left out and
+   * returned as `headings`, so the list can say so; a heading row with a rank but no name column
+   * gives no names (`noNameColumn`). `heading: false` reads every line as a name.
+   * Each name follows core.cleanGuestName, the one rule for what a name may hold.
    */
   function readGuests(text, { csv = false, heading = true } = {}) {
-    // A byte-order mark and control characters (a stray NUL from a wrongly read file) are never
-    // part of a name; tabs and line breaks stay, as they separate columns and names.
-    // Line ends from any system, CR alone included (an old Mac file), are one kind of line break.
-    // A zero-width space, word joiner or byte-order mark (from a copied web page) is never part of a
-    // name; the joiner and non-joiner (U+200D, U+200C) stay, as they shape Hindi letters (Codex on
-    // #3454). A line with nothing visible is not a guest (see `visible`).
-    const source = String(text || '').replace(/[\u200B\u2060\uFEFF]/g, '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n?/g, '\n');
-    // What a cell shows: without the joiners, which alone print nothing.
-    const visible = (cell) => String(cell ?? '').replace(/[\u200C\u200D]/g, '').trim();
+    // What is never part of a name goes first (core.cleanGuestText); tabs and line breaks stay, as
+    // they separate columns and names. Line ends from any system, CR alone included (an old Mac
+    // file), are one kind of line break. A line with nothing visible is not a guest.
+    const source = core.cleanGuestText(text).replace(/\r\n?/g, '\n');
+    const visible = core.isVisibleName;
     const head = source.split(/\r?\n/).find((line) => visible(line)) || '';
     // Columns pasted from a spreadsheet come with tabs between them; a CSV saved with semicolons
     // (as some spreadsheets do) has them when its first row has no comma.
@@ -227,6 +235,8 @@
     let spouse = -1;
     let honours = -1;
     let headed = false;
+    let headings = [];
+    let noNameColumn = false;
     let width = 1;
     if (heading && rows.length) {
       // Rank columns first, whatever order the headings are in ("Name, Rank" prints "Brig P. Singh").
@@ -243,11 +253,28 @@
         honours = rows[0].findIndex((cell) => HONOURS_HEADING.test(cell));
         width = rows[0].length;
         headed = true;
-        rows.shift();
+      } else if (ranks.length) {
+        // A row with a Rank heading is a heading row, even with no name column in it ("Rank, Name
+        // of the Unit"): it is not a guest, and no column of it holds a name.
+        columns = [];
+        nameColumns = [];
+        headed = true;
+        noNameColumn = true;
       }
+      if (headed) headings = rows.shift().map((cell) => cell.replace(/\s+/g, ' ').trim()).filter(Boolean);
     }
-    // With no headings, only the first column is a name; the list says when others were there.
-    const firstColumnOnly = !headed && rows.some((cells) => cells.slice(1).some((cell) => cell.trim()));
+    // With no headings, one column is the name: the first, or the first after a column of serial
+    // numbers ("1, Brig A"); the list says when others were there.
+    if (!headed && rows.some((cells) => cells.length > 1)) {
+      const serial = (i) => rows.some((cells) => visible(cells[i])) && rows.every((cells) => !visible(cells[i]) || SERIAL.test(cells[i]));
+      let first = 0;
+      while (serial(first) && rows.some((cells) => cells.slice(first + 1).some((cell) => visible(cell)))) first += 1;
+      columns = [first];
+      nameColumns = [first];
+    }
+    // The one column read with no headings (null with headings).
+    const column = headed ? null : nameColumns[0];
+    const firstColumnOnly = !headed && rows.some((cells) => cells.some((cell, i) => i > column && visible(cell)));
     // A row with more cells than headings had a comma inside a name without quotes ("Col X, VSM"):
     // the list says so, as the part after the comma is not read as the name.
     const extraCells = headed && rows.some((cells) => cells.length > width);
@@ -259,12 +286,12 @@
       const awards = honours >= 0 ? String(cells[honours] ?? '').replace(/\s+/g, ' ').trim() : '';
       const main = person && awards ? `${person}, ${awards}` : person;
       const partner = spouse >= 0 ? String(cells[spouse] ?? '').replace(/\s+/g, ' ').trim() : '';
-      const name = (main && partner ? `${main} and ${partner}` : main).slice(0, core.GUEST_LIMITS.length);
+      const name = core.cleanGuestName(main && partner ? `${main} and ${partner}` : main);
       if (!name) continue;
       if (names.length >= core.GUEST_LIMITS.names) { over += 1; continue; }
       names.push(name);
     }
-    return { names, over, firstColumnOnly, extraCells };
+    return { names, over, firstColumnOnly, column, extraCells, headings, noNameColumn };
   }
 
   /**
