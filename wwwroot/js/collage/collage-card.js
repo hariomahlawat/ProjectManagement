@@ -1161,6 +1161,8 @@
         } else if (index >= 0) {
           edited = list[index].id;
           retext(list[index], shown);
+          // A longer occasion keeps "at the" and its rule clear of it (cold review 9, L3).
+          if (field === 'occasion' || field === 'at') designs.clearOccasion(list, surface.measureText, { shrink: false });
         } else if (fresh) {
           // Among the design's parts, behind anything the user added.
           const own = list.findIndex((item) => !item.role);

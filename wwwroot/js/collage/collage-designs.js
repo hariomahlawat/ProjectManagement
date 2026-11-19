@@ -932,6 +932,8 @@
         if (part.radius && (item.kind === 'slot' || item.kind === 'photo')) item.radius = Math.min(part.radius, core.LAYOUT_LIMITS.radiusMax);
       }
     }
+    // An occasion on two lines keeps "at the" and the accent rule clear (cold review 9, L3).
+    clearOccasion(made, measure);
     // A logo in a white box (Ceremonial) fits inside it with a margin, whatever its shape.
     const box = made.find((item) => item.role === 'logobox');
     const boxed = made.find((item) => item.role === 'logo');
@@ -1071,6 +1073,57 @@
       if (!alone(width)) return width;
     }
     return item.maxWidth;
+  }
+
+  /**
+   * An occasion on two lines keeps "at the" above it and the accent rule below it clear by a
+   * third of its size (cold review 9, L3: on a square card they nearly touched it): "at the"
+   * moves up as far as the words above allow, the occasion down for the rest as far as the words
+   * below allow, and (with `shrink`, when a design lays the page out) a little smaller on a page
+   * with no room either way. Changes the unlocked items in `items` in place.
+   */
+  function clearOccasion(items, measure, { shrink = true } = {}) {
+    const occasion = items.find((item) => item.kind === 'text' && item.field === 'occasion' && !item.locked);
+    if (!occasion) return;
+    let o = itemBox(occasion);
+    const gap = core.layoutText(occasion, measure).size * 0.35;
+    const across = (item) => { const b = itemBox(item); return Math.min(b.right, o.right) - Math.max(b.left, o.left) > 1; };
+    const neighbours = items.filter((item) => item !== occasion && !item.hidden && (item.kind === 'text' || item.role === 'guestline') && across(item));
+    // A drawn line's box is taller than its stroke, for picking it: its edges are its middle.
+    const edges = (item) => (item.kind === 'shape' && item.form === 'line' ? { top: item.y, bottom: item.y } : itemBox(item));
+    const at = items.find((item) => item.kind === 'text' && item.field === 'at' && !item.locked && item.y < occasion.y && across(item));
+    const accent = items.find((item) => item.role === 'rule' && item.kind === 'shape' && !item.locked && item.y > occasion.y && across(item));
+    if (at && itemBox(at).bottom + gap > o.top) {
+      // "at the" moves up as far as the words above it allow; the occasion down for the rest,
+      // as far as the words below it allow.
+      const a = itemBox(at);
+      const above = Math.max(-Infinity, ...neighbours.filter((item) => item !== at && edges(item).bottom <= a.top + 0.5).map((item) => edges(item).bottom));
+      const need = a.bottom + gap - o.top;
+      const up = Math.max(0, Math.min(need, a.top - (above + gap * 0.5)));
+      at.y -= up;
+      const below = Math.min(Infinity, ...neighbours.filter((item) => item !== at && edges(item).top >= o.bottom - 0.5).map((item) => edges(item).top));
+      const down = Math.max(0, Math.min(need - up, below - gap * 1.5 - o.bottom));
+      occasion.y += down;
+      o = itemBox(occasion);
+      // On a short page with no room either way, the occasion is set a little smaller (to 80%
+      // at most), keeping its last line where it was.
+      const rest = need - up - down;
+      if (shrink && rest > 0.5) {
+        const height = o.bottom - o.top;
+        occasion.size = Math.max(occasion.minSize || 0, occasion.size * Math.max(0.8, (height - rest) / height));
+        const layout = core.layoutText(occasion, measure);
+        occasion.width = layout.width;
+        occasion.aspect = layout.width / layout.height;
+        occasion.y = o.bottom - layout.height / 2;
+        if (occasion.align === 'left') occasion.x = o.left + layout.width / 2;
+        o = itemBox(occasion);
+      }
+    }
+    if (accent && accent.y < o.bottom + gap) {
+      // Never onto the words below it: with too little room it sits midway.
+      const next = Math.min(Infinity, ...items.filter((item) => item.kind === 'text' && item !== occasion && !item.hidden && across(item) && itemBox(item).top >= o.bottom - 0.5).map((item) => itemBox(item).top));
+      accent.y = o.bottom + gap <= next - gap * 0.6 ? o.bottom + gap : (o.bottom + next) / 2;
+    }
   }
 
   // The logos each tile goes behind.
@@ -1967,5 +2020,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, followLogo, roleItemOn, designOnSize, hindiInStep, fieldAnchor, FALLBACKS, closeLogoPlace, fitGuest, guestStyle });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, followLogo, roleItemOn, designOnSize, hindiInStep, fieldAnchor, FALLBACKS, closeLogoPlace, fitGuest, guestStyle, clearOccasion });
 });

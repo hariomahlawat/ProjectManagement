@@ -1564,3 +1564,24 @@ test('a long guest name with rank and decorations stays readable on A6 and A5 in
   const short = designs.applyDesign(core.newCollage('a6p'), 'classic', { guest: 'Col P. Singh' }, opts).items.find((item) => item.field === 'guest');
   assert.deepEqual([short.font, short.maxLines], ['script', 1]);
 });
+
+test('a two-line occasion keeps "at the" and the accent rule clear of it, on every card size', () => {
+  const opts = { measure, newId };
+  for (const key of ['classic', 'navy', 'regimental', 'modern', 'pocketinvite']) {
+    for (const size of designs.DESIGNS[key].pocket ? pocketSizes.filter((each) => designs.designsFor(each).some((d) => d.key === key)) : cardSizes) {
+      const card = designs.applyDesign(core.newCollage(size), key, { occasion: 'Change of Command Parade and Reception', guest: 'Brig P. Singh' }, opts);
+      const occasion = card.items.find((item) => item.field === 'occasion');
+      const o = box(occasion);
+      const gap = core.layoutText(occasion, measure).size * 0.2;
+      const at = card.items.find((item) => item.field === 'at');
+      if (at && at.y < occasion.y) assert.ok(box(at).bottom + gap <= o.top + 0.5, `${key} ${size}: "at the" crowds the occasion`);
+      const accent = card.items.find((item) => item.role === 'rule' && item.y > occasion.y);
+      if (accent) assert.ok(accent.y >= o.bottom + gap - 0.5, `${key} ${size}: the rule crowds the occasion`);
+      const others = card.items.filter((item) => item.kind === 'text' && item !== at && item !== occasion);
+      if (at) for (const other of others) assert.ok(!overlap(box(at), box(other)), `${key} ${size}: "at the" overlaps ${other.field}`);
+      const line = card.items.find((item) => item.role === 'guestline');
+      if (at && line) assert.ok(box(at).top >= line.y, `${key} ${size}: "at the" reaches the guest's line`);
+      if (accent) for (const other of others) assert.ok(box(other).top > accent.y || box(other).bottom < accent.y, `${key} ${size}: the rule crosses ${other.field}`);
+    }
+  }
+});
