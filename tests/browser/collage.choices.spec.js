@@ -145,6 +145,8 @@ test('settings: rarely used groups are folded and stay open once opened; Layers 
   await order.locator('summary').click();
   await expect(page.locator('.clg-props [data-action="forward"]')).toBeVisible();
   // Drawn again after a change, it is still open.
+  // Shape is folded (docs/ux/collage-usability-plan.md, PR 7).
+  await page.locator('.clg-props [data-fold="shape"] > summary').click();
   await page.locator('.clg-props [data-finish="shape"][data-value="oval"]').click();
   await expect(page.locator('.clg-props [data-fold="order"]')).toHaveAttribute('open', '');
 

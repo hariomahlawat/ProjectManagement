@@ -20,6 +20,8 @@ test('with a shape other than Square the frame shows None, and the chosen frame 
   await onePhoto(page);
   await frameButton(page, 'polaroid').click();
   await expect(frameButton(page, 'polaroid')).toHaveAttribute('aria-pressed', 'true');
+  // Shape is folded (docs/ux/collage-usability-plan.md, PR 7).
+  await page.locator('.clg-props [data-fold="shape"] > summary').click();
   await page.locator('.clg-props [data-finish="shape"][data-value="heart"]').click();
   await expect(frameButton(page, 'none')).toHaveAttribute('aria-pressed', 'true');
   await expect(frameButton(page, 'polaroid')).toHaveAttribute('aria-pressed', 'false');

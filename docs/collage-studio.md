@@ -538,8 +538,10 @@ to the settings panel.
 The settings panel has two tabs: **Settings** for the selected item (or the page), and **Layers**
 for every item. Choosing an item on the page shows its settings; choosing it in Layers keeps
 Layers open, so a keyboard user can pick and move items one after another. Groups used less often
-(angle, corners and see-through, order, line up, text effects, brightness and contrast) are
-folded; one opened stays open, remembered in this browser.
+(a photo's shape and size, angle, corners and see-through, order, line up, text effects,
+brightness and contrast) are folded; one opened stays open, remembered in this browser. A photo's
+Shape group is titled with its shape ("Shape: Heart") and opens by itself while a shape other than
+Square turns the frames off, so the reason shows ([ux/collage-usability-plan.md](ux/collage-usability-plan.md), PR 7).
 
 ### Changes, Undo and drafts
 

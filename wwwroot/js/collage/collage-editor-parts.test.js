@@ -185,6 +185,32 @@ test('card words show where they come from and a button, not a second Words box;
   assert.match(plain.textSections(venue), /data-text>/);
 });
 
+// docs/ux/collage-usability-plan.md, PR 7: a shorter photo panel.
+test('a photo\'s Shape and Size are folded; Shape opens while a shape turns the frames off; Order stays', (t) => {
+  // finishSections asks once whether the browser draws looks, through a canvas.
+  const hadDocument = 'document' in globalThis;
+  const saved = globalThis.document;
+  globalThis.document = { createElement: () => ({ getContext: () => ({ filter: 'none' }) }) };
+  t.after(() => { if (hadDocument) globalThis.document = saved; else delete globalThis.document; });
+  const { createSettingsHtml } = require('./collage-settings.js');
+  const stickers = require('./collage-stickers.js');
+  const html = createSettingsHtml({
+    core, draw, stickers, stickerSource: () => '', escapeHtml: (text) => String(text),
+    photos: new Map([['p1', { id: 'p1', name: 'a.jpg', thumbnail: '' }]]),
+    FRAME_WIDTHS: [60, 1400], TEXT_COLOURS: ['#ffffff'], LABEL_COLOURS: ['#ffffff']
+  });
+  const photo = core.photoItem('i1', 'p1', 1.5, { x: 10, y: 10, width: 300 });
+  const finish = html.finishSections(photo);
+  assert.match(finish, /<details class="clg-section clg-fold" data-fold="shape">\s*<summary class="clg-fold__title">Shape: Square<\/summary>/);
+  const heart = html.finishSections({ ...photo, shape: 'heart', frame: 'polaroid' });
+  assert.match(heart, /data-fold="shape" open>\s*<summary class="clg-fold__title">Shape: Heart<\/summary>/);
+  assert.match(heart, /data-frame-note/);
+  const arrange = html.arrangeSections(photo);
+  assert.match(arrange, /data-fold="size">[\s\S]*data-prop="width"/);
+  // "To the front" and "To the back" are on no toolbar, so Order stays, folded.
+  assert.match(arrange, /data-fold="order"[\s\S]*data-action="front"/);
+});
+
 function fakeCanvasMaker(canvases) {
   return () => {
     const ctx = new Proxy({ calls: [] }, {

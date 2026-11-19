@@ -17,9 +17,14 @@ test('the frame note sits by the shape that took the frame away', async ({ page 
   const errors = await openFresh(page);
   await onePhoto(page);
   await page.locator('.clg-props [data-finish="frame"][data-value="polaroid"]').click();
+  // Shape is folded (docs/ux/collage-usability-plan.md, PR 7).
+  await page.locator('.clg-props [data-fold="shape"] > summary').click();
   await page.locator('.clg-props [data-finish="shape"][data-value="heart"]').click();
-  const section = page.locator('.clg-props .clg-section').filter({ has: page.locator('[data-frame-note]') });
-  await expect(section.locator('.clg-section__title')).toHaveText('Shape');
+  // The note is in the Shape group, which stays open while the shape turns the frames off.
+  const section = page.locator('.clg-props [data-fold="shape"]');
+  await expect(section.locator('[data-frame-note]')).toBeVisible();
+  await expect(section).toHaveAttribute('open', '');
+  await expect(section.locator('summary')).toHaveText('Shape: Heart');
   expect(errors).toEqual([]);
 });
 
