@@ -594,7 +594,7 @@
           ${prompt}
           <div class="clg-stickers clg-card-logo__choices">${choices}</div>
           <div class="clg-stack">
-            <button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="own"><i class="bi bi-upload" aria-hidden="true"></i> Your own logo…</button>
+            ${asking ? '' : '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="own"><i class="bi bi-upload" aria-hidden="true"></i> Your own logo…</button>'}
             ${first && !second && !picking ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="second"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add a second logo</button>' : ''}
             ${picking ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="cancel-second">Cancel the second logo</button>' : ''}
             ${current && !picking ? `<button type="button" class="btn btn-outline-danger btn-sm" data-card-logo="remove"><i class="bi bi-x-lg" aria-hidden="true"></i> ${!second ? 'Remove logo' : role === 'logo2' ? 'Remove second logo' : 'Remove first logo'}</button>` : ''}

@@ -1585,3 +1585,18 @@ test('a two-line occasion keeps "at the" and the accent rule clear of it, on eve
     }
   }
 });
+
+test('a landscape back has the small logo too, inside its border and clear of the words', () => {
+  const opts = { measure, newId };
+  for (const key of Object.keys(designs.DESIGNS).filter((each) => !designs.DESIGNS[each].pocket && !designs.DESIGNS[each].poster)) {
+    for (const size of cardSizes.filter((each) => !designs.isPortrait(each))) {
+      const card = designs.addBack(designs.applyDesign(core.newCollage(size), key, {}, opts), opts);
+      const logo = card.back.items.find((item) => item.role === 'backlogo');
+      assert.ok(logo, `${key} ${size}: a small logo on the back`);
+      const frame = box(card.back.items.find((item) => item.role === 'backborder'));
+      const b = box(logo);
+      assert.ok(b.top > frame.top && b.bottom < frame.bottom, `${key} ${size}: the logo inside the border`);
+      for (const words of card.back.items.filter((item) => item.kind === 'text')) assert.ok(!overlap(b, box(words)), `${key} ${size}: the logo covers ${words.field}`);
+    }
+  }
+});

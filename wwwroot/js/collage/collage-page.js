@@ -266,7 +266,8 @@
       });
       if (item.kind === 'slot') {
         node.findOne('.slot-box').setAttrs({ width: item.width, height, cornerRadius: item.radius || 0 });
-        const size = Math.max(10, Math.min(item.width, height) * 0.12);
+        // Large enough to read at the page's usual zoom (cold review 9, L5: the logo place's words were tiny).
+        const size = Math.max(12, Math.min(item.width, height) * 0.2);
         // A poster's logo place says what goes there (cold review fixes).
         node.findOne('.slot-label').setAttrs({ width: item.width, height, fontSize: size, lineHeight: 1.25, text: item.role === 'logo' ? '＋\nAdd logo' : '＋\nAdd photo' });
         return;
@@ -582,7 +583,9 @@
       hiddenOutlines.destroyChildren();
       if (!state.previewing) {
         for (const item of state.collage.items) {
-          if (!item.hidden) continue;
+          // A design part the design hid itself (the roundel or the light tile behind a logo that
+          // needs none) is not the user's: no outline that looks like an empty place (cold review 9, L6).
+          if (!item.hidden || item.autoHidden) continue;
           const height = core.itemHeight(item);
           hiddenOutlines.add(new Konva.Rect({
             name: 'hidden-outline',
