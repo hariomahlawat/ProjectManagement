@@ -1600,3 +1600,13 @@ test('a landscape back has the small logo too, inside its border and clear of th
     }
   }
 });
+
+// Codex on #3456: a turned crest is covered by its tile across the room it really takes.
+test('the logo tile covers a crest turned on the page', () => {
+  const page = { width: core.PAGE_WIDTH, height: core.pageHeight('a5p'), resize: false };
+  const crest = { id: 'l', role: 'logo', kind: 'photo', photo: 'p', x: 500, y: 400, width: 100, aspect: 0.5, angle: 90 };
+  const tile = { id: 't', role: 'logotile', kind: 'shape', form: 'rect', x: 500, y: 400, width: 120, aspect: 0.6 };
+  const fitted = designs.fitLogoTile([tile, crest], page).find((item) => item.role === 'logotile');
+  assert.ok(fitted.width >= 200, `tile ${fitted.width} wide for a crest 200 wide when turned`);
+  assert.ok(core.itemHeight(fitted) >= 100);
+});
