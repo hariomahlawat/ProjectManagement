@@ -1452,6 +1452,11 @@ if (root) {
     if (parts) parts.hidden = updateSheet;
     // Key points only always shows them; the other designs switch them with the chip.
     if (keyPointsToggle instanceof HTMLInputElement) keyPointsToggle.disabled = designRule('keyPointsLocked') === 'true';
+    // The chip shows only where the slide style leaves key points open (Brief, and Capability and
+    // brief): for Capability, Key points and Key points only the style already decides them, so a
+    // chip there was a second control for the same choice (Plan: The Studio is optional, PR 5).
+    const keyPointsPart = root.querySelector('[data-pbd-key-points-part]');
+    if (keyPointsPart) keyPointsPart.hidden = designRule('keyPoints') !== 'keep';
     const designHint = root.querySelector('[data-pbd-design-hint]');
     if (designHint) designHint.textContent = designRule('hint');
     const projectBriefLayoutSettings = root.querySelector('[data-pbd-project-brief-layout-settings]');

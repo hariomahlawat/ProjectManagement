@@ -5717,6 +5717,19 @@ span.pbd-additional-slide-row__handle {
     margin-bottom: .1rem;
 }
 
+/* New deck: the slide styles (PR 5), as many across as fit, each with its drawing. */
+.pbd-new-styles {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 10.5rem), 1fr));
+}
+
+.pbd-new-style .pbd-design__mini {
+    margin-bottom: .35rem;
+}
+
+.pbd-new-style small {
+    display: block;
+}
+
 /* New deck: the projects, chosen here (Plan: The Studio is optional, PR 4). The list scrolls inside
    the dialog so the name, the template and the buttons stay in reach. */
 .pbd-new-projects {

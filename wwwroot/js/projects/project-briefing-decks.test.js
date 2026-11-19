@@ -174,12 +174,14 @@ test('the old additional-slide remove form and its submit guard are gone', () =>
   assert.doesNotMatch(additionalSlidesSource, /data-pbd-remove-additional-slide-form/);
 });
 
-test('the Template picker is gone: a template only starts a new deck', () => {
+test('the Template picker is gone: a new deck starts from a slide style, as the Deck tab names it', () => {
   assert.doesNotMatch(viewSource, /data-pbd-template-picker/);
   assert.doesNotMatch(viewSource, /customised/);
   assert.doesNotMatch(source, /data-pbd-preset\]/);
-  // The new-deck dialog still offers the templates.
-  assert.match(viewSource, /@foreach \(var \(preset, index\) in ProjectBriefingDeckPresets\.Templates/);
+  // The new-deck dialog offers the slide styles (Plan: The Studio is optional, PR 5), not templates.
+  assert.match(viewSource, /@foreach \(var style in ProjectBriefingProjectSlideDesigns\.Choices\)/);
+  assert.match(viewSource, /<input type="radio" name="Style" value="@style"/);
+  assert.doesNotMatch(viewSource, /name="Template"/);
   assert.match(viewSource, /data-pbd-progress-template>@ProjectBriefingProjectSlideDesigns\.DisplayName\(deck\.ProjectDesign\)/);
 });
 

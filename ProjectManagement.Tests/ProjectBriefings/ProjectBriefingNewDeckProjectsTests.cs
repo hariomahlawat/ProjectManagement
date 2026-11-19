@@ -113,6 +113,36 @@ public sealed class ProjectBriefingNewDeckProjectsTests
         Assert.Equal(new[] { "ProjectBriefing.DeckCreated" }, audit.Actions);
     }
 
+    // A new deck started from a slide style (Plan: The Studio is optional, PR 5) is that style, read
+    // back the way the Deck tab and the library read it.
+    [Theory]
+    [InlineData(ProjectBriefingProjectSlideDesign.Capability)]
+    [InlineData(ProjectBriefingProjectSlideDesign.KeyPoints)]
+    [InlineData(ProjectBriefingProjectSlideDesign.Brief)]
+    [InlineData(ProjectBriefingProjectSlideDesign.FactSheet)]
+    [InlineData(ProjectBriefingProjectSlideDesign.KeyPointsOnly)]
+    public async Task ASlideStyle_StartsTheDeckAsThatStyle(ProjectBriefingProjectSlideDesign style)
+    {
+        await using var db = CreateDb();
+
+        var deckId = await Service(db).CreateAsync(Hod, $"Deck {style}", null, style: style);
+
+        var deck = await db.Set<ProjectBriefingDeck>().SingleAsync(saved => saved.Id == deckId);
+        var options = ProjectBriefingDeckConfigurationCodec.Read(deck.SelectionRulesJson).StandardSlideOptions;
+        Assert.Equal(style, ProjectBriefingProjectSlideDesigns.Of(deck.Layout, deck.NarrativeMode, options));
+    }
+
+    // The older choice is kept for decks that have it, but a new deck cannot start from it.
+    [Fact]
+    public async Task CapabilityAndBrief_IsNotOfferedForANewDeck()
+    {
+        await using var db = CreateDb();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Service(db).CreateAsync(
+            Hod, "Old style", null, style: ProjectBriefingProjectSlideDesign.CapabilityAndBrief));
+        Assert.Empty(db.Set<ProjectBriefingDeck>());
+    }
+
     private static async Task SeedProjectsAsync(ApplicationDbContext db)
     {
         db.Projects.AddRange(
