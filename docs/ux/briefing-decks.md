@@ -1,1038 +1,230 @@
 # Briefing decks (`/Workspace/BriefingDecks`)
 
-Comdt and HoD users build shared PowerPoint briefing decks from live PRISM data, and Project
-Officers build decks of their own (16 Nov 2026). The sections up to "Review findings" describe
-the module as it is today; the dated sections after them are the plans and reviews that got it
-here, kept as history.
+Comdt and HoD users build shared PowerPoint briefing decks from live PRISM data; Project Officers
+build decks of their own. A deck keeps its projects, their order and its settings; every
+PowerPoint is built from current PRISM data at the moment it is downloaded.
+
+This file describes the module as it is now. How it got here (plans, reviews and owner decisions,
+1 Nov to 19 Nov 2026) is in [briefing-decks-history.md](briefing-decks-history.md); see
+[History](#history) below.
+
+## The quick path
+
+The Studio is optional (owner, 19 Nov 2026). Making and downloading a deck takes one dialog:
+
+1. **Briefing decks → New deck**: a name, a slide style, and the projects (ticked with filters, or
+   **Same as a deck** to copy another deck's list).
+2. **Create and download**: if some projects lack content their slides show, the page asks first
+   ("Download with gaps?"); then the PowerPoint downloads and the library shows the new deck.
+
+Later, **Download** on the deck's card makes a fresh PowerPoint from today's data, asking about
+gaps the same way. **Open** (or **Create and open**) goes to the Studio, which is for reviewing
+slides, filling gaps, reordering and per-deck choices.
 
 ## Where it lives
 
 | Concern | Code |
 | --- | --- |
-| Page | `Pages/Workspace/BriefingDecks/Index.cshtml(.cs)`; library `_DeckLibrary`, `_DeletedDecks`; editors `_InstitutionalProfileEditor`, `_RoleCharterEditor`, `_FfcGlobalFootprintEditor` |
-| Deck persistence | `Services/ProjectBriefings/ProjectBriefingDeckService.cs`; options in `SelectionRulesJson` via `ProjectBriefingDeckConfigurationCodec` |
-| Page data, readiness, slide estimate | `Services/ProjectBriefings/ProjectBriefingDataService.cs` |
-| Slide generation | `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer*.cs`, `ProjectBriefingPowerPointExportService.cs` (`ComposeAsync` builds the deck; `GenerateAsync` also records the generation), `ProjectBriefingPresentationIntegrityValidator.cs` |
-| Studio | `ProjectBriefingSlidePreviewRenderer.cs` (composed PowerPoint → positioned HTML); slide roles from `ProjectBriefingSlideComposer.ComposeWithOutline`; content gaps from `ProjectBriefingContentGaps`; page handler `OnGetPreviewAsync`; `wwwroot/js/pages/project-briefing-studio.js` |
-| Scripts and styles | `wwwroot/js/pages/project-briefing-decks.js`, `project-briefing-library.js`, `project-briefing-additional-slides.js`, `project-briefing-studio.js`; `wwwroot/css/pages/project-briefing-decks.css` |
-| Access | `Policies.ProjectBriefingDecks.Manage` (Comdt, HoD, Project Officer); each deck by `ProjectBriefingDeckAccessRules` (`ProjectBriefingDeckAccess.cs`): command decks shared by Comdt and HoD, a Project Officer's personal deck changed only by its owner and downloadable or duplicable by command users |
-| Tests | `ProjectManagement.Tests/ProjectBriefings/*`, `wwwroot/js/projects/project-briefing-*.test.js` |
+| Page | `Pages/Workspace/BriefingDecks/Index.cshtml(.cs)`; library `_DeckLibrary`, `_DeletedDecks`; design drawings `_DesignMini`; editors `_InstitutionalProfileEditor`, `_RoleCharterEditor`, `_FfcGlobalFootprintEditor` |
+| Deck persistence | `Services/ProjectBriefings/ProjectBriefingDeckService.cs` (create with projects and style, settings, blocks, membership, delete and restore); options in `SelectionRulesJson` via `ProjectBriefingDeckConfigurationCodec` |
+| Slide styles | `ProjectBriefingProjectSlideDesigns` (a style is read from and written as the deck's layout, narrative and key point settings) |
+| Page data, gaps | `Services/ProjectBriefings/ProjectBriefingDataService.cs`; "missing" has one rule, `ProjectBriefingContentGaps` (also `Summarize` for the library's question) |
+| Slide generation | `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer*.cs`, `ProjectBriefingPowerPointExportService.cs` (`ComposeAsync` builds the deck; `GenerateAsync` also records the generation; `DownloadAsync` does not), `ProjectBriefingPresentationIntegrityValidator.cs` |
+| Studio preview | `ProjectBriefingSlidePreviewRenderer.cs` (composed PowerPoint → positioned HTML); slide roles from `ProjectBriefingSlideComposer.ComposeWithOutline`; handler `OnGetPreviewAsync` |
+| Scripts | `wwwroot/js/pages/project-briefing-library.js` (library only), `project-briefing-decks.js` (shared: settings, New deck, Download in the Studio), `project-briefing-studio.js`, `project-briefing-add-projects.js` (Add projects and the New deck picker), `project-briefing-additional-slides.js`, `project-briefing-focus.js`, `project-briefing-confirm.js` |
+| Styles | `wwwroot/css/pages/project-briefing-decks.css` |
+| Access | `Policies.ProjectBriefingDecks.Manage` (Comdt, HoD, Project Officer); each deck by `ProjectBriefingDeckAccessRules` (`ProjectBriefingDeckAccess.cs`): command decks shared by Comdt and HoD; a Project Officer's personal deck changed only by its owner, downloadable or duplicable by command users |
+| Tests | `ProjectManagement.Tests/ProjectBriefings/*`; `wwwroot/js/projects/project-briefing-*.test.js`; `wwwroot/js/pages/project-briefing-add-projects.test.js` |
 
 ## Deck library (landing page)
 
-`/Workspace/BriefingDecks` without a deck id is the library (5 Nov 2026); it no longer opens the
-last-updated deck, so nobody edits a deck they did not pick.
+`/Workspace/BriefingDecks` without a deck id is the library; it never opens a deck the person did
+not pick.
 
-- **New deck** asks for a name, a **slide style** (the Deck tab's styles and drawings: Capability,
-  Key points, Brief, Fact sheet, Key points only; until 19 Nov 2026 a template, Portfolio or Fact
-  Sheets, which an older page's form can still post) and, optionally, the
-  projects: ticked with the Add projects filters, or **Same as a deck** (another deck's list of
-  projects, copied as it is today). **Create and open** opens the Studio (on Add projects when no
-  projects were chosen); on the library, **Create and download** makes the deck and downloads it
-  at once, asking first about gaps as Download does (19 Nov 2026). A style starts the deck from the
-  template for its layout and sets the design (`SetDesign`), as the Deck tab would; the Studio has
-  no template picker and no "customised" state.
-- **Deck cards** (owner, 17 Nov 2026; replaced the Continue panel and the table). One card per
-  deck, three across on a wide screen, two on a tablet, one on a phone. Each card shows a drawing
-  of the deck's slide design (the Deck tab's design drawings, `_DesignMini`), the name and
-  description, the design, the project count, who edited it last and when, and one PowerPoint
-  status: when it was generated and how many slides, then "up to date", "N changes since" (a link
-  to the deck) or "changes not tracked yet"; "Not generated" or "No PowerPoint yet" before that.
-  The deck the person last edited carries a **Continue** tag (else "Recently edited" on the
-  latest); with the default sort it is the first card. Buttons: **Download** and Open (Add
-  projects and Open for an empty deck), and a ⋯ menu with Duplicate and Delete through the
-  Studio confirmation dialog. Download makes the PowerPoint without opening the Studio (19 Nov
-  2026): it reads the deck's gaps (`OnGetGapsAsync`, the Studio's `ProjectBriefingContentGaps`
-  rule) and, when a presented project lacks content its slides show, asks first ("Download with
-  gaps?", *Download anyway* / *Cancel*); it then posts `Generate` in the page, so the generation
-  is recorded and the card's PowerPoint line changes to "Today, HH:MM · N slides · up to date".
-  The button is busy until the file arrives; an expired sign-in or a refusal is said in a toast.
-  A Project Officer's deck that a command user can only view is tagged "<name>'s deck · view
-  only" and offers Download (asking about gaps the same way; nothing is recorded) and Duplicate.
-  An old `?generate=1` link only opens the deck: the library no longer leaves the one-time
-  marker the Studio needs to generate from it. **Mine** keeps decks the
-  person owns or last edited; search also matches the names of projects in a deck; sort by last
-  edited, last generated or name. Filtering runs in the page (`project-briefing-library.js`),
-  on the cards' `data-pbd-library-row` hooks.
-- **Recently deleted** below the cards. A deleted deck can be restored for
-  `DeletedRetentionDays` (30). After that the next delete removes it for good, as its own step
-  after that delete's save, in its own transaction with one required `ProjectBriefing.DeckPurged`
-  audit entry per deck: if any entry cannot be written, nothing is removed. A purge that fails is
-  logged and retried on the next delete; it never undoes the delete.
-- `/Workspace/BriefingDecks/{id}` is the Studio. Its bar has "← Briefing decks" and **Switch
-  deck** (each deck's purpose and project count); the old saved-decks side panel is gone. An
-  unknown or deleted id returns to the library with a one-request notice.
-- **Data moved since last generated** (PR 2). Each generation keeps, per presented project, the
-  facts its slides drew and which ones they drew (`LastGeneratedFactsJson`,
-  `ProjectBriefingSlideFacts`): the stage, read as the slides read it (its name where a table row, detail slide or the stage-wise distribution shows it; its maturity where it orders two or more projects' slides; its lifecycle for a standard project slide's subtitle (capability slides and brief continuations) and the stage-wise distribution; the milestone exactly as `ProjectBriefingUpdateSheetPlanner.DescribeMilestone` draws it (the PDC date in development, else the completion or cancellation), on an update sheet's row or in the stage-wise distribution's list; and the distribution's band, which supply-order and AoN evidence can move without the stage changing), the external status remark (date and a digest of its text), the key points where a slide shows them, and the costs
-  drawn (the R&D cost, with its basis label where cost cards or the executive table draw it, and the proliferation cost by cost mode). `ProjectBriefingSlideFacts.Shown` mirrors the composer:
-  "Show present stage/status", the update sheet's selected rows, table-row-only projects, the
-  summary slides and the cost mode. The library rebuilds today's facts with
-  `GetCurrentSlideFactsAsync` (the same cost resolver, external status service and stage rule as
-  generation) and compares only what each project's slides showed, so a hidden fact or a settings
-  change since never counts (a project completing can also revise its cost, by the shared cost
-  rule). Shown as an amber line on the Continue card, a Data since column ("N changes", "Up to
-  date", "Not generated yet", or "—" for decks generated before facts were kept) and a Needs
-  attention strip of up to three other moved decks with the projects that moved. Deleted or
-  archived projects are left out, as generation leaves them out. Content checks are not counted
-  on the library: they would mean composing every deck on each visit.
+- **Deck cards**, three across on a wide screen, two on a tablet, one on a phone. Each shows a
+  drawing of the deck's slide style, the name and description, the style, the project count, who
+  edited it last and when, and one PowerPoint line: when it was last generated and how many
+  slides, then "up to date", "N changes since" (a link to the deck) or "changes not tracked yet";
+  "Not generated" or "No PowerPoint yet" before that. The deck the person last edited is tagged
+  **Continue** (else "Recently edited" on the latest) and is first with the default sort.
+- **Buttons**: **Download** and **Open**; an empty deck offers **Add projects** and Open. The ⋯
+  menu has Duplicate and Delete (through the confirmation dialog).
+- **Download** makes the PowerPoint without opening the Studio. It reads the deck's gaps
+  (`OnGetGapsAsync`) and, when a presented project lacks content its slides show, asks "Download
+  with gaps?" (*Download anyway* / *Cancel*); then it posts `Generate` in the page, so the
+  generation is recorded and the card's line becomes "Today, HH:MM · N slides · up to date". The
+  button stays busy until the file arrives; an expired sign-in or a refusal is said in a toast.
+- **A Project Officer's deck** seen by a command user is tagged "<name>'s deck · view only" and
+  offers Download (asking about gaps the same way; nothing recorded) and Duplicate.
+- **Mine / All**, search (which also matches the names of projects in a deck) and sort (last
+  edited, last generated, name) run in the page and are kept for the browser tab.
+- **Needs attention**: up to three decks whose data moved since they were generated, with the
+  projects that moved (below).
+- **Recently deleted** below the cards: a deleted deck can be restored for `DeletedRetentionDays`
+  (30). After that the next delete removes it for good, as its own step after that delete's save,
+  in its own transaction with one required `ProjectBriefing.DeckPurged` audit entry per deck; if
+  any entry cannot be written nothing is removed, and a failed purge is retried on the next
+  delete (it never undoes the delete).
+- An unknown or deleted deck id returns to the library with a one-request notice. An old
+  `?generate=1` link only opens the deck.
+- The shared What's new card waits on these pages (`data-whats-new-wait`), so it never covers New
+  deck or Download.
+
+### Data moved since last generated
+
+Each generation keeps, per presented project, the facts its slides drew and which ones
+(`LastGeneratedFactsJson`, `ProjectBriefingSlideFacts`): the stage as the slides read it (its name
+where a table row, detail slide or the stage-wise distribution shows it; its maturity where it
+orders projects; its lifecycle for a project slide's subtitle and the distribution; the milestone
+as `ProjectBriefingUpdateSheetPlanner.DescribeMilestone` draws it; the distribution's band), the
+external status remark (date and a digest of its text), the key points where a slide shows them,
+and the costs drawn (R&D with its basis label, and proliferation by cost mode).
+`ProjectBriefingSlideFacts.Shown` mirrors the composer, so a fact a deck hides, or a settings
+change since, never counts. The library rebuilds today's facts with `GetCurrentSlideFactsAsync`
+(the same cost, status and stage rules as generation) and compares only what each project's slides
+showed. Deleted or archived projects are left out, as generation leaves them out. Content gaps are
+not counted on the library: that would mean composing every deck on each visit.
+
+## New deck
+
+The dialog (also in the Studio's ⋯ menu) asks for:
+
+- **Name** (required, at least 3 characters) and an optional description.
+- **Slide style**, one for every project, with the Deck tab's drawings and names: Capability, Key
+  points, Brief, Fact sheet, Key points only. The server starts from the template for the style's
+  layout and sets the style (`SetDesign`), as the Deck tab would. "Capability and brief" is kept
+  for decks that already use it and refused for a new deck. A form from an older page that posts
+  `Template` (Portfolio or Fact Sheets) still works.
+- **Projects**, optional: **Choose projects** (the Add projects filters in picker mode: deck 0,
+  nothing saved until Create; Enter in its search searches and never submits the form) or **Same as
+  a deck** (any deck the person can see; its project list is copied as it is today, in its order,
+  not its notes, photographs or settings). The deck and its projects are one save; deleted,
+  archived and cancelled projects are left out, and a list with none left, more than 120, or from
+  a deck the person cannot see is refused with no deck made.
+
+The footer says how many projects are chosen. **Create and open** posts the form and opens the
+Studio (on Add projects when none were chosen). **Create and download**, on the library only,
+creates the deck in the page and hands it to the library's Download, then shows the library with
+the new deck on top. Marking is not asked for (owner, 19 Nov 2026); it stays optional in the
+Studio.
 
 ## Studio
 
-The top of the builder is the Studio: the slide outline, the selected slide and an inspector.
-The server composes the same PowerPoint that **Download PowerPoint** downloads (without
-recording a generation) and reads it back into positioned HTML: shapes, text, lines, pictures,
-tables and groups, in the composer's own colours. So the slides and their count are exact, not
-estimated. The composer also reports what each slide is (`ProjectBriefingSlideRole`, plus the
+`/Workspace/BriefingDecks/{id}`. The server composes the same PowerPoint that **Download
+PowerPoint** gives (without recording a generation) and reads it back into positioned HTML:
+shapes, text, lines, pictures, tables and groups, in the composer's own colours, so the slides and
+their count are exact. The composer reports what each slide is (`ProjectBriefingSlideRole`, plus the
 project for project slides), which the outline uses instead of reading slide text. Pictures are
-shrunk to 960px and sent once each, however many slides use them. Every text value is encoded on
-the server; the script inserts only slide HTML and writes all other text as text.
+shrunk to 960px and sent once each. Every text value is encoded on the server; the script inserts
+only slide HTML and writes all other text as text.
 
+- **Header**: "← Briefing decks", the deck name (the pencil renames it and edits the description)
+  with its saved chip ("Saved · shared"), one line (project count, slide style, last change), then
+  **Download PowerPoint**, **Focus**, **Switch deck** and the ⋯ menu (New deck, Duplicate,
+  Delete). Download saves pending changes first, then asks "Download with gaps?" once per deck per
+  browser session when gaps are open.
 - **Outline** (left): Opening, Overview, one group per present stage (in the deck's maturity
-  order), then Closing. A project's slides share one row; runs of status-table, category and FFC
-  breakdown pages fold into one row. Project rows carry an amber count of missing content.
-  Search filters by title, stage and category. Drag a project row by its grip, or press Alt+Up or
-  Alt+Down on it, to move it within its stage; the generator groups projects by present stage, so
-  order is only ever changed inside a stage (bug 4). Left-out (deleted or archived) projects keep
-  their place. **Projects** opens Add projects; **Slide** opens the additional-slide library. A
-  status line under the search reports membership and order saves.
-- **Slide** (centre): the selected slide as large as the pane allows, or **All slides** as a grid
-  that adds columns on wider screens. Arrow keys and the arrow buttons move between slides;
-  **Present** opens the full-window viewer (strip beside the slide from 1400px, below it on
-  narrower screens; Page Up/Down, Home, End, Escape) and returns to the slide it ended on. Under
-  a project slide, each missing item has its fix: write the capability overview for this deck,
-  or open the project, its Photos page or its brief.
-- **Header** (19 Nov 2026, PR 6): the deck name with its saved chip, one line (project count,
-  design, last change), then **Download PowerPoint** (asking first about gaps, once per deck per
-  session), Focus, Switch deck and the ⋯ menu. The three progress steps, the note under the
-  button and the one-time banner are gone: gaps are counted in the outline and the Gaps tab.
-- **Inspector** (right): **This slide** lists what the project's slides show, each fact once:
-  status remark, costs, capability source, slide numbers, and a fact the project lacks in amber
-  ("Not recorded") with its fix beside it (*Fix in project*, or *This deck only* for capability
-  text), then Open project. **More options**, closed by default and remembered for the session,
-  holds the choices most decks never change: how the project appears (Own slides / Table row
-  only / Leave out), its photograph, speaker notes, this deck's capability text and Remove from
-  deck. Other slides explain what they show and offer
-  the Deck tab or, for the SDD profile, Role & Charter and FFC slides, Edit slide content.
-  **Gaps** counts, per item, how many projects lack it, and **Show** narrows the outline to them.
-  Remove from deck asks for confirmation first.
-- **Deck tab**, in numbered steps that open one at a time, each with a one-line summary:
-  1. **Slides in this deck**: the deck as blocks (`ProjectBriefingDeckBlocks`) in four groups,
-     Opening, Overview, Projects and Closing. The cover and the project slides have switches;
-     every other block (SDD profile, Role & Charter, stage-wise distribution, project-category
-     and technical-category distributions, status table, FFC footprint) is listed only while it is
-     in the deck, with Remove. **Add slide** (also the outline's **+ Slide**) opens a library of the rest; the institution slides
-     there have Edit, so their content can be set up before they are added. Overview blocks and
-     the two opening institution slides move by their grip (drag, or Alt+Up / Alt+Down). Every
-     change saves the list in place (`UpdateBlocks`); a deck must keep the status table or the
-     project slides. The order is stored as `overviewOrder` in `SelectionRulesJson`.
-  2. **Project slides**: one **slide style** for every project (Capability, Key points, Brief, Fact
-     sheet, Key points only; "Capability and brief" only for decks that already use it), and "Show
-     on each slide" chips: present stage, status remark, R&D cost, proliferation cost, and key
-     points only where the style leaves them open (Brief, Capability and brief); for the other
-     styles the style itself decides (19 Nov 2026).
-     A design is read from and written as the deck's existing settings
-     (`ProjectBriefingProjectSlideDesigns`); Key points only is the one new setting. The cost
-     chips are the deck's cost choice, for the status table too. Brief has its layout
-     (Automatic, Standard, Photo) while key points are off. Changing to or from Fact sheet
-     reloads the page, which draws the list for the new layout.
-  3. **Sheet rows** (Fact sheet only): the rows on each sheet, ticked and ordered.
-  4. **Appearance**: theme, insignia, closing slide and the optional marking (Look and Handling
-     were one step each until 19 Nov 2026).
-  Settings save themselves in place a moment after the last change, one save at a time; leaving
-  the page, posting another form or generating waits for a pending save. The deck name and
-  description are edited in the header (the pencil beside the name). A save that collides with
-  someone else's change shows one banner with Reload. On touch screens the list's Remove, grip
-  and Edit controls are finger-sized (40px).
-- **Project Officers' decks** (`ProjectBriefingDeckAccessRules`): a Project Officer's decks are
-  their own; Comdt and HoD see them in the library as "<owner>'s deck · view only" with
-  Download PowerPoint and Duplicate to change it, and do not open them in the Studio. ("My
-  projects" in Add projects was dropped on 17 Nov 2026, docs/ux/briefing-add-projects.md.)
-- **Add projects** is a dialog: one list of every project narrowed by filters (search, ARPP year,
+  order), then Closing. Overview slides are named as the Deck tab names them ("Stage-wise
+  distribution", "Stage-wise distribution, project list", "Status table"), with the slide's own
+  heading on hover. A project's slides share one row; runs of status-table, category and FFC pages
+  fold into one row. Project rows carry an amber count of their gaps. Search filters by title,
+  stage and category. Drag a project row by its grip, or Alt+Up / Alt+Down, to move it within its
+  stage (the generator groups projects by present stage). **+ Projects** opens Add projects;
+  **+ Slide** opens the slide library.
+- **Slide** (centre): the selected slide as large as the pane allows, or **All slides** as a grid.
+  Arrow keys and buttons move between slides; **Present** opens the full-window viewer (strip and
+  speaker notes on request; Page Up/Down, Home, End, Escape) and returns to the slide it ended on.
+  The refresh button rebuilds from current data.
+- **Inspector** (right), three tabs:
+  - **This slide**: for a project, what its slides show, each fact once: status remark, costs,
+    capability source, slide numbers; a fact the project lacks shows in amber ("Not recorded")
+    with its fix beside it (*Fix in project*, or *This deck only* for capability text), then Open
+    project. **More options** (closed by default, open or closed for the session) holds the
+    choices most decks never change: how the project appears (Own slides / Table row only / Leave
+    out), its photograph, speaker notes, this deck's capability text, and Remove from deck (which
+    asks first). For other slides, what the slide shows and, for the SDD profile, Role & Charter
+    and FFC slides, Edit slide content.
+  - **Deck**: the settings, below.
+  - **Gaps**: per kind of gap, how many projects lack it; **Show** narrows the outline to them.
+    The tab's badge counts the kinds open.
+- **Add projects** (dialog): one list of every project narrowed by filters (search, ARPP year,
   technical and project category, status, completed between, proliferation), ticks kept across
-  filters, Add with Undo and Remove on projects already in the deck
-  (docs/ux/briefing-add-projects.md; it replaced the earlier tabs of quick add, recently
-  completed, categories and individual search). Each saves in place: the handler answers an
-  in-page request with the refreshed deck, and plain form posts still redirect.
-- The Studio remembers the selected project or slide, the view and the inspector tab for the
-  session, so a page reload (settings, additional slides) returns to the same place.
-- **Focus** (header, beside Generate; from 576px) hides the PRISM top bar, the footer and the
-  workspace rail in the same tab, so the outline, slide and inspector take the whole window;
-  the deck header (name, Generate, **Exit focus**) stays, and back, links, autosave and the
-  library's Generate hand-off work as before. The button's label says what pressing does ("Focus" / "Exit focus"; no
-  `aria-pressed` as well, so screen readers announce the state once) and it keeps
-  keyboard focus. The choice is remembered per person in the browser
-  (`prism.briefingStudio.focus` in localStorage, as the theme and the rail fold are; PRISM has
-  no server-side store for UI choices), and `project-briefing-focus.js` loads in `<head>` so a
-  remembered focus view applies before first paint. Escape does not leave it (Escape belongs to
-  dialogs and Present). Another Studio tab or a page restored from the back-forward cache
-  follows the remembered choice, and What's new cards wait while the top bar is hidden. The Studio measures `--pbd-studio-offset` again on each change
-  (`pbd:focus-change`), and the page loses its bottom padding, so the Studio fits the window
-  without the page scrolling (1366×768 and 1920×1080 checked). Phones: no button, and a
-  remembered focus view is ignored below 576px.
-- "Missing" has one rule, `ProjectBriefingContentGaps`, applied on the server to the deck's own
-  settings (design, what the deck shows, costs, update-sheet rows); deleted and archived projects
-  are left out. Key points only expects key points and not capability text.
-- Adding, removing or reordering projects and saving a capability overview rebuild the slides
-  about a second later and keep the same project selected. Settings and block saves update the
-  slides the same way and show a slide the change affects.
-- Widths: three panes from 1400px (outline about 18rem, inspector about 23rem; 20rem and 26rem
-  from 2200px); below 1400px the inspector moves under the slide; below 900px one column. The
-  shared-deck list folds into a strip above the Studio at every width.
+  filters, Add with Undo, and Remove on projects already in the deck
+  ([briefing-add-projects.md](briefing-add-projects.md)). Each saves in place.
+- Adding, removing or reordering projects, block and settings saves and a capability text save
+  rebuild the slides about a second later and keep the same project selected; a settings change
+  shows a slide it affects. The Studio remembers the selected slide, the view and the inspector
+  tab for the session.
+
+### Deck settings (Deck tab)
+
+Numbered steps, one open at a time, each with a one-line summary. Settings save themselves a moment
+after the last change, one save at a time; leaving the page, posting another form or downloading
+waits for a pending save. A save that collides with someone else's change shows one banner with
+Reload.
+
+1. **Slides in this deck**: the deck as blocks (`ProjectBriefingDeckBlocks`) in four groups,
+   Opening, Overview, Projects and Closing. The cover and the project slides have switches; every
+   other block (SDD profile, Role & Charter, stage-wise distribution, project-category and
+   technical-category distributions, status table, FFC footprint) is listed only while it is in
+   the deck, with Remove. **Add slide** opens a library of the rest; institution slides there have
+   Edit, so their content can be set up before they are added. Overview blocks and the two opening
+   institution slides move by their grip (drag, or Alt+Up / Alt+Down). A deck must keep the status
+   table or the project slides. The order is stored as `overviewOrder` in `SelectionRulesJson`.
+2. **Project slides**: one **slide style** for every project (Capability, Key points, Brief, Fact
+   sheet, Key points only; "Capability and brief" only for decks that already use it), and "Show
+   on each slide" chips: present stage, status remark, R&D cost, proliferation cost, and key
+   points only where the style leaves them open (Brief, Capability and brief). The cost chips are
+   the deck's cost choice, for the status table too. Brief has its layout (Automatic, Standard,
+   Photo) while key points are off. Changing to or from Fact sheet reloads the page, which draws
+   the list for the other layout.
+3. **Sheet rows** (Fact sheet only): the rows on each sheet, ticked and ordered.
+4. **Appearance**: theme, insignia, closing slide (Jai Hind or Thank You) and the optional
+   classification marking printed in every slide's footer.
+
+### Focus
+
+**Focus** (header; from 576px) hides the PRISM top bar, the footer and the workspace rail in the
+same tab, so the outline, slide and inspector take the whole window; the deck header stays and
+back, links and autosave work as before. The label says what pressing does ("Focus" / "Exit
+focus"). The choice is remembered per person in the browser (`prism.briefingStudio.focus` in
+localStorage) and applied before first paint (`project-briefing-focus.js` in `<head>`). Escape does
+not leave it (Escape belongs to dialogs and Present). Phones: no button, and a remembered focus
+view is ignored below 576px.
+
+### Widths
+
+The panes follow the Studio's own width (`.pbd-studio-frame` is the `pbd-studio` size container),
+not the window, so an open navigation narrows them. Three panes from 940px, the slide always the
+widest: outline and inspector 20rem and 26rem from 2050px, up to 18rem and 23rem from 1400px,
+13.5rem and 20rem from 1100px, 13rem and 19rem from 940px. From 700 to 939px the inspector moves
+beneath the slide; below 700px one column. At 375px nothing scrolls sideways.
+
+## Slides
+
 - Fonts follow the PowerPoint (Aptos, then Segoe UI), so line breaks can differ slightly where
   Aptos is not installed.
-
-- Project slides use one modest corner (rounded shapes are capped at 0.12 in; PowerPoint's
-  default of a sixth of the shorter side turned large panels into bubbles) and type sized for a
+- Project slides use one modest corner (rounded shapes capped at 0.12 in) and type sized for a
   room: capability points 14–18 pt by density (14 pt minimum), present status 12–14 pt, cost
-  figures 15–17 pt, footer 9 pt. The capability line budget scales with the type size, so long
-  overviews continue onto further slides instead of overflowing.
-
-## Review findings (1 Nov 2026)
-
-**Bugs**
-
-1. A project that is in any deck cannot be purged: the deck-item foreign key restricts deletion
-   and the purge never removed deck items.
-2. On SDD profile and FFC footprint slides the "Data as on" text replaced the handling marking
-   in the footer.
-3. Deleted and archived projects stayed in decks and were still generated.
-4. Moving a project across stages in the table is saved but ignored by the generator, which
-   always groups by stage.
-5. Project briefs and Role & Charter never continue onto a second slide; long text only shrinks.
-   (Fixed in 6d.)
-6. The page's slide estimate is a second copy of the generator's sequence and can disagree with it.
-7. A corrupt configuration silently resets to defaults; the next save overwrites every option.
-
-**UX**: one long scroll with Add projects last; about 15 settings and no presets; no preview;
-some changes save in place and others reload the page; readiness shown three times with three
-copies of the "missing" rules; gaps can be seen but not fixed on the page; two entry points for
-additional slides; internal jargon ("membership", "preflight"); a thin deck list.
-
-**Missing capability**: no stored generations or history; no "what changed since the last
-briefing"; the external-status date is never shown on slides; no speaker notes; quick selections
-are snapshots, not live rules; little per-project control; organisation content (SDD profile,
-Role & Charter) re-entered per deck; generation runs in the request with photos loaded one by one.
-
-## Plan: Briefing Studio
-
-The Studio layout was approved from a clickable mock-up on 1 Nov 2026 (three panes: slide
-outline, the selected slide, and an inspector with This slide, Deck and Checks tabs). Owner
-decisions: no status dates on slides (the remark text alone is enough); presets with the
-detailed settings under Advanced; Finalise comes with the lifecycle step.
-
-1. **Fixes**: done (#2836). Bugs 1–3 and the empty-deck copy.
-2. **Slide preview**: done (#2837). The preview is read back from the composed PowerPoint, so the
-   slides and their count are exact; the page uses the full-width `studio` shell.
-3. **Studio frame**: done (#2839). The three panes replace the preview section.
-   - Outline built from the composer's own slide roles (Opening, Portfolio, one group per present
-     stage, Closing), with a gap count on each project row and a search box.
-   - The selected slide large, or all slides as a grid; arrow keys move; Present opens the
-     full-window viewer.
-   - Inspector, This slide: for a project, its facts, status remark, the content it is missing
-     with a way to fix each item, the deck-specific capability overview edited in place, Open
-     project and Remove from deck. For other slides, what the slide shows and where to change it.
-   - Inspector, Deck: the current settings at a glance, opening the existing settings drawer.
-   - Inspector, Checks: deck-wide counts from one rule for "missing" (`ProjectBriefingContentGaps`),
-     each narrowing the outline to the projects that need it.
-4. **Projects and slides in the Studio**: done (#2841). Add projects as a dialog that saves in place; the
-   additional slides (SDD profile, Role & Charter, FFC footprint) managed from the Deck tab;
-   drag to reorder projects within a stage in the outline (the generator's stage grouping,
-   fixing bug 4); the checks section, additional-slides section, projects table and Add
-   projects panel below the Studio are retired. Done before the settings step (owner, 1 Nov
-   2026) so in-place settings never leave older sections stale.
-5. **Deck settings in the inspector**: done (#2844). Purpose presets at the top of the Deck tab (Monthly
-   command review: standard, combined, capability overview, both costs, stage summary,
-   Editorial Light, Jai Hind; Visit or external audience: detailed slides with photos, no
-   costs, SDD profile, Thank You; Project update sheets: one sheet per project with the
-   recommended rows), the chosen preset remembered ("adjusted" after changes), every option
-   under Advanced, each change saved in place with one conflict banner, the deck name and
-   description edited in the header; the settings drawer and summary bar are retired, with
-   their CSS. The preset is stored as an additive `preset` key in the deck configuration, which
-   older builds ignore; one server-side definition (`ProjectBriefingDeckPresets`) both applies a
-   preset and decides "adjusted".
-6. **Per-project control**, in small PRs, each stored per deck item:
-   - 6a, done (#2846): how the project appears, chosen in This slide: **Own slides**,
-     **Table row only** (a row in the status table with no slides of its own; decks without a
-     status table list these projects in an "Other projects in this briefing" table after the
-     project slides or update sheets) or **Leave out** (kept in the deck, not in the PowerPoint,
-     listed last in the outline under "Not in the PowerPoint"). Checks, counts, photos and the
-     slide estimate follow the choice. Column `ProjectBriefingDeckItems.Presentation` (default
-     `Slides`, so existing decks are unchanged).
-   - 6b, done (#2847): the photograph a deck shows for a project. This slide's
-     **Photograph** section (for projects with their own slides in a format that shows photos)
-     opens the project's photos; choosing one stores it on the deck item
-     (`ProjectBriefingDeckItems.PhotoId`), choosing the cover clears it so the deck follows the
-     project's cover. Deleting the photo clears the choice (foreign key, set null); a stored
-     photo that no longer belongs to the project is ignored.
-   - 6c, done (this change): speaker notes. This slide's **Speaker notes** box (for projects
-     with their own slides) saves when it loses focus or with Save notes
-     (`ProjectBriefingDeckItems.SpeakerNotes`, up to 4,000 characters). The composer writes them
-     into the PowerPoint's notes for the project's first slide only, adding a notes master
-     when the deck has notes (the template has none); the integrity check validates the notes
-     pages and master. The slide preview is unchanged.
-   - 6d, done (this change): continuation slides (fixes 5). **Role & Charter** stays one slide
-     while its charter fits at 10 pt or larger (`ProjectBriefingRoleCharterPaginator`); a longer
-     charter keeps the role and as many items as fit on the first slide and continues, in source
-     order, on "— Continued" slides, never an empty one. The paginator also sizes the charter type
-     for the renderer, with a line estimate that scales with font size, and role statements now
-     size to fit their panel instead of a fixed 16 pt. A **project brief** that fits beside the
-     photograph keeps its typography; a longer one keeps the photograph, the start of the brief and
-     the status/cost strip, and continues at 12 pt or more on full-width "Project brief — continued"
-     slides (`ProjectBriefContinuation` role), split at paragraph or sentence boundaries by the
-     update sheets' brief splitter. The slide estimate counts both. Owner decisions (4 Nov 2026):
-     continue Role & Charter below 10 pt, reversing the August single-slide rule; briefs as photo
-     slide plus full-width text.
-7. **Library and lifecycle**: the library is done (#2881: table with purpose, owner, slides, last
-   edited and generated, search, Mine/All, sort; #2882 and #2886: "data moved since last
-   generated"). The rest is **parked** (owner, 5 Nov 2026): Draft/Finalised/Presented with the
-   PowerPoint kept on the LAN store, pin and archive, a "What changed since the last briefing"
-   slide, and organisation content (SDD profile, Role & Charter) kept once. Nobody needs to look
-   back at exactly what was briefed, so a kept record has no user yet. Revisit if old briefings
-   start being queried or the number of decks grows.
-
-### Wide screens
-
-The Studio must use wide monitors, not just fit them:
-
-- The page uses the `studio` shell (done with the preview): page and top bar take the full window, less the desk gutter, instead of the 1840px desk cap.
-- The Studio opens with the workspace navigation folded to its icon rail; expanding it is
-  remembered for the Studio alone (`prism.workspace.navigationExpanded.studio`), apart from the
-  other workspace pages.
-- The panes follow the Studio's own width (`.pbd-studio-frame` is the `pbd-studio` size
-  container), not the window, so an open navigation narrows them correctly:
-  - **≥ 2050px**: outline 20rem, preview, inspector 26rem.
-  - **1400–2049px**: outline 18rem, preview, inspector 23rem.
-  - **1100–1399px**: outline 13.5rem, preview, inspector 20rem (laptops: 1366px gives a 633px
-    preview, 1440px 705px).
-  - **940–1099px**: outline 13rem, preview, inspector 19rem.
-  - **700–939px**: outline and preview; the inspector moves beneath.
-  - **< 700px**: one column.
-- Segmented controls keep whole labels: an option grows to fit its label rather than showing an
-  ellipsis.
-- Not built: a filmstrip or two slides side by side on very wide screens, and the inspector as a
-  drawer.
-- The deck library is a table; it scrolls sideways inside its card on narrow screens.
-
-## Plan: Project key points
-
-Agreed with the owner on 5 Nov 2026 from the Design canvas "Project slide key points mockup"
-(today's brief slide, a first layout, and the approved Option B with the status remark off and
-on).
-
-**What they are.** Five short points that say why a project matters, separate from the
-capability overview (what the system does) and the project brief (the narrative):
-
-| Heading | Answers |
-|---|---|
-| Training gap | What cannot be trained today |
-| Op necessity | Why the product is operationally required |
-| Training realism | How close it is to the real thing |
-| Ease of learning | How quickly a trainee picks it up |
-| Proliferation potential | Who else could use it |
-
-Owner decisions (5 Nov 2026):
-
-- The headings are fixed: names and order are the same for every project and deck, defined in one
-  place. A wording change applies everywhere; a heading's meaning never changes. No per-project or
-  per-deck headings. A second heading set by technical category is a later option, only if
-  non-training projects need one.
-- Each point is optional, plain text, one or two lines on the slide: at most 130 characters, no
-  line breaks, enforced on the server. A project shows only the points it has; none, no band.
-- Points live on the project (written once, beside the project brief on the Project Overview) and
-  every deck reuses them. The project brief is not capped or shortened: the Brochure and
-  Compendium use it too, and the full brief fits in Option B.
-- A deck switch, **Show key points**, off by default. With Project content "Both" the author picks
-  the capability slide or the project brief slide; otherwise the points go on the only project
-  slide. Update sheets are unchanged.
-- **Option B** is used only by decks with key points switched on, for every project in the deck
-  (a project without points has no band). Existing decks generate exactly as before.
-
-**Option B layout** (both project slide kinds):
-
-- Stage and cost on one line under the title ("Development | Cost (R&D) ₹4.20 Cr AoN |
-  Proliferation ₹1.10 Cr"); the cost cards and context card go. Hidden stage or cost drops out
-  of the line.
-- Top row: the photograph at 16:9 and the brief or capability text, the same height.
-- A full-width band at the bottom: the present status remark as its first row when "Show present
-  status" is on, then the key points (heading column about 2 in, text beside it).
-- Whatever is switched off gives its space to the top row. A brief that still does not fit
-  continues on "Project brief — continued" slides as today.
-
-**PRs**
-
-1. Key points on the project: done (this change). Table `ProjectKeyPoints` (project, kind, text;
-   one row per recorded point, additive migration), headings and hints in
-   `ProjectKeyPointCatalog`, a **Key points** tab in Project content after Capability overview,
-   written by Admin, HoD and the project's own Project Officer (as the brief). Each field shows a
-   hint and a character count; Enter is ignored and line breaks become spaces; the server
-   collapses whitespace and rejects a point over 130 characters.
-2. Option B on the capability and project brief slides, with the deck switch and the slide
-   choice: done (this change). The Deck tab's **Key points** setting (`keyPoints` in the deck
-   configuration's `standardBriefing`; older builds ignore it) shows "On the project brief slide"
-   or "On the capability slide" only when the deck draws both. `ProjectBriefingSlideComposer.KeyPoints`
-   draws both slide kinds: stage and cost on one line under the title (the capability slide keeps
-   its lifecycle and category line when neither is shown); a 16:9 photograph beside the text,
-   which narrows (5.7, 5.0, then 4.4 in) before the text continues on another slide; the band
-   with the status remark and, on the chosen slide, the recorded key points. The capability and
-   brief pagination follow the smaller text panel; the preview reads the composed PowerPoint, so
-   it is exact. The Checks tab lists projects with no key points as "Key points" (a project with
-   some is complete). The slide estimate still assumes the established layouts.
-3. "Data since": done (this change). A generation that drew key points keeps a digest of them
-   (`ProjectBriefingShownFacts.KeyPoints`, fact key `k`; facts kept earlier have none and never
-   count). Adding, editing or removing a point then shows on the library as "key points edited
-   on N projects" and, per project, "key points". The lifecycle subtitle is tracked as the key
-   points layout draws it: on a first capability slide only when it has no stage and cost line.
-
-## Plan: Deck settings
-
-Agreed with the owner on 5 Nov 2026 from the Design canvas "Deck settings redesign" (a clickable
-Deck tab).
-
-**Review findings.** The Deck tab is a 366 px column about 3,100 px tall: 43 controls under 21
-headings, every choice a large card stacked one per row. Groups follow the code, not the decision
-(cost under "Financial information" near the bottom; "Summary and handling" mixes summary slides
-with the marking). Additional slides appear twice (a "2 enabled · Manage slides" line in the
-settings and the full list below them). Options that do nothing stay visible (Project brief layout
-while key points are on). There is no overview of how a deck is set up without opening everything.
-A separate icon rail was considered and rejected: the inspector is narrow and has few steps.
-
-**Owner decisions (5 Nov 2026).**
-
-- The purpose presets are called **Template**, shown as one compact picker at the top; after
-  any change it reads "customised" ("Started from this template, then customised"). Superseded
-  on 6 Nov: see "Templates are slide designs".
-- The Standard briefing / Update sheets choice is called **Layout**, inside the Slides step
-  (now chosen through the Template picker; the control is hidden).
-- Settings become numbered steps, one open at a time, each closed step showing a one-line summary
-  of its choices. Steps that do not apply are not shown:
-
-| Step | Holds | Shown when |
-|---|---|---|
-| Slides | Layout; what the deck shows (Table / Project slides / Both); what each project gets (Capability / Brief / Both) | always (the last two for the standard layout; the last only with project slides) |
-| Project slides | present stage and status remark (chips); key points (switch, and the slide when the deck draws both); project brief layout (only while key points are off and briefs are drawn) | standard layout with project slides |
-| Sheet rows | rows to show, in order; hide rows with nothing recorded | update sheets |
-| Cost | Cost (R&D) / Proliferation / Both / None | standard layout |
-| Extra slides | summary slides (stage-wise, with its distribution table; category summaries) or, for update sheets, cover and portfolio summary; institution slides (SDD profile, Role & Charter, FFC footprint) with a switch and Edit each | always |
-| Look | theme, insignia, closing slide | always |
-| Handling | classification marking | always |
-
-- Compact controls: segmented buttons, chips and switches replace the choice cards; one line of
-  help for the selected option only.
-- Changes keep saving as they are made; the form fields and the server stay as they are.
-
-**PRs**
-
-1. Quick fixes: done (this change). The "N enabled · Manage slides" summary inside the settings is
-   gone, so additional slides live only in the Deck tab's Additional slides list; Project brief
-   layout is hidden while key points are on (on load and as the switch changes).
-2. The step list: done (this change). The Template picker shows the current template and its
-   summary, or "Started from this template, then customised." with a "customised" badge; the
-   three templates open beneath it. "All settings" is gone: the settings are six numbered steps
-   (`data-pbd-step`: slides, project, sheet, cost, extra, look, handling; Project slides only with
-   project slides, Sheet rows only for update sheets, Cost only for the standard layout), closed
-   by default, one open at a time (remembered per layout), each summary rebuilt from the form on
-   every change, numbers following the visible steps. The existing controls moved into their steps
-   with shorter wording; the field names and saving are unchanged. The library's column is
-   "Template".
-3. Compact controls: done (this change). Every choice card in the steps is a segmented control
-   (`pbd-seg`, a 2×2 grid for cost) whose one help line (`data-pbd-seg-help`, from each option's
-   `data-help`) explains only the selected option; stage and status are chips; key points is a
-   switch; the themes are two small swatches. The radios and checkboxes stay real, focusable
-   inputs with the same names. The open step stays open when other settings change (the
-   remembered step is restored only when the layout changes).
-4. Extra slides: done (this change). The Extra slides step holds the summary slides (each note on
-   its own line) and the institution slides, one compact row each: drag handle (a pin for the FFC
-   footprint, fixed before closing), a switch with the name and position, Edit (the existing
-   editors) and remove (asks first). "Add slide" shows only while a slide type is missing. The
-   rows' toggle, remove and order forms sit outside the settings form (forms cannot nest); the
-   switch and remove button reach theirs through the `form` attribute. The separate Additional
-   slides section and its card styles are gone; the step's summary lists the enabled institution
-   slides. The Deck tab is about 700 px tall with every step closed (it was about 3,100 px).
-5. Preview follows the change: done (this change). A successful settings save names the settings
-   that changed (`pbd:settings-saved`); after the rebuild the Studio shows the first slide of the
-   roles the latest change affects (`SETTING_SLIDES`: a project setting shows the project in view
-   when it has that slide, else the first; the key points switch and slide follow the chosen slide;
-   stage and category summaries, cover, portfolio summary and closing show their slide). Theme
-   and marking keep the slide in view. Every rebuild now also keeps the kind of slide in view for
-   its project (a brief stays a brief), not only the project.
-
-## Plan: Studio usability
-
-A walkthrough on 5 Nov 2026 as a first-time user (new deck, 49 ongoing projects, template switch,
-checks, Present, phone width) on a copy of the development database.
-
-**Review findings.**
-
-- **The preview is the smallest pane on a laptop.** The breakpoints use the window width, but the
-  workspace navigation takes about 250 px of it. At 1440 px the panes are navigation 252, outline
-  286, preview 389 and inspector about 380 px; the slide is about 360 px wide and its text cannot be
-  read. Below 1400 px the inspector drops beneath the outline and preview, out of sight. At 1920 px
-  the preview is about 830 px and works. The "Wide screens" plan above (inspector as a drawer at
-  1200–1599 px) was never built.
-- **A new deck has no workflow.** New deck asks only for a name; the deck opens as "Set up by hand"
-  with "Add projects to build the slides." three times, and the outline says "Slides 4" while it
-  is empty. Nothing shows the order: template, projects, gaps, settings, generate.
-- **Templates overwrite without warning.** Picking a template applies it at once, with no
-  confirmation and no undo, even when the deck was customised.
-- **"Present" is a viewer.** It opens an in-page dialog with a filmstrip; the slide fills about
-  60 % of the window, it is not full screen, and speaker notes ("shown to the presenter") only reach
-  the PowerPoint.
-- **The model is not explained.** The deck rebuilds from live PRISM data, saves as you go and is
-  shared with every Comdt/HoD user; none of this is visible where it matters. Gap fixes either
-  change the project record ("Record in project", "Write in project") or only this deck ("Write for
-  this deck"), with no label saying which.
-- **Scope and signals.** Selecting a slide leaves the inspector on the Deck tab. A gap shows twice
-  (the card under the preview and the This slide tab). The outline's orange numbers (missing
-  items) have no explanation. In Add projects the button still reads "Add" after adding, and
-  Escape did not close the dialog. The library's Slides column shows "—" until a PowerPoint is
-  generated, though the Studio knows the count. "New briefing deck created." stays on screen; "Missing content uses defined
-  placeholders." sits under Generate on an empty deck; the browser title says "Project Briefing
-  Deck Builder" while the page says "Briefing decks".
-- **Phone.** The Studio is about 11,800 px tall: the All slides grid (remembered from the desktop)
-  is about 9,600 px, and the settings start near 11,000 px.
-
-What works: the template descriptions, the numbered settings steps, the Checks tab ("8 of 49
-projects missing", Show) and the preview following each settings change.
-
-**PRs**
-
-1. **Room for the preview.** Done (this change). The Studio opens with the workspace navigation
-   folded (its own remembered choice) and the panes follow the Studio's width through container
-   queries; see "Wide screens". The preview pane is 633 px at 1366 px with the inspector beside it (before, the inspector sat beneath, out of sight), 705 px at 1440 px
-   (was 389) and 1,034 px at 1920 px (was about 830); the inspector stays beside it down to about
-   1100 px. The outline's buttons move under its title instead of breaking, and segmented labels
-   are never cut off in the narrower inspector. The drawer was not needed.
-2. **First run.** Done (this change). New deck asks for the name and the template (the three
-   templates, Monthly command review selected, and "Set up by hand"); `CreateAsync` applies the
-   template the same way as the Studio does, and "Create and add projects" opens the Studio on
-   Add projects (`?start=projects`, removed from the address once used). With no projects the
-   preview shows one empty state ("Add the projects to brief", one sentence, one Add projects
-   button), the outline says "No slides yet." and shows no count, and the status line is empty.
-   Picking a template on a customised deck asks first ("Apply …?", Keep my settings). After any
-   template the page shows "Template applied: … · Undo": `ApplyPresetAsync` returns the settings
-   it replaced (`ProjectBriefingPresetUndo`: format, slides, costs, look, sheet rows, closing, the
-   SDD profile switch and modules, extra-slide order, the template), kept in TempData (protected by
-   data protection) and offered only while the deck is still at the version the template left;
-   `UndoPresetAsync` refuses otherwise, and any other change in the Studio removes the Undo bar.
-   Success messages fade after six seconds; the placeholder note under Generate shows only while a
-   check is open; the browser title is "Briefing decks" (or the deck's name in the Studio).
-3. **Guidance in the Studio.** Done (this change). Under the deck header a numbered progress line
-   reads Projects (count, or Add) · Checks (n to review, or All recorded) · Settings (template
-   name, ", customised") · Generate; Projects opens Add projects, Checks and Settings open their
-   inspector tabs, Generate goes to the button. The Studio updates the figures after every
-   rebuild. A note says once how the deck works (rebuilt from live PRISM data; saves as you go;
-   shared with every Comdt and HoD workspace user) until "Got it" (remembered per browser), and
-   "Saved · shared" by the title turns to "Saving…" or "Not saved" while in-place changes run.
-   The gaps moved from the card under the preview into This slide ("Missing · n", at the top),
-   so each shows once; the Present status and Capability overview sections are left out there
-   while their gap is listed. Each fix says where it lands: "Fix in project" (opens the project;
-   every deck and page shows the change) or "This deck only" (text kept with the deck). Picking
-   a slide in the outline or the All slides grid opens This slide. The outline's orange number
-   explains itself on hover and to screen readers. In Add projects a quick add turns to
-   "Added" (fresh again each time the dialog opens), focus returns to the button after saving,
-   and Escape closes the dialog even when focus has left it. The library's Slides column keeps
-   "—" until the first PowerPoint, now with a tooltip: the preview count is not stored, and
-   storing it would need a new column for little gain.
-4. **Present.** Done (this change). Present opens the page full screen (Fullscreen API, from the
-   Present click); where the browser refuses, the dialog still fills the window. Leaving full
-   screen (Esc) ends the presentation and the Studio returns to the slide it ended on. The slide
-   is as large as the screen allows; the strip of every slide ("Slides") and the speaker notes
-   ("Notes", or N) open on request, and both choices are remembered on the browser. The notes
-   are the project's saved speaker notes, shown on each of its slides (the PowerPoint carries
-   them on the first); other slides say they have none. It starts at the slide in view, with
-   "From the start" in the toolbar beside Notes and Slides. The header lists the keys (arrows,
-   N, Esc); Space, Page Up/Down, Home and End also move.
-5. **Phone.** Done (this change). When the Studio is narrower than 700 px the slide comes first,
-   with Present in its bar (Generate stays at the top of the deck header); the outline follows as
-   a sheet: its header (Slides 52, Show slides, + Projects, + Slide) with the list folded until
-   "Show slides" (up to 60 % of the screen, scrolling). Picking a slide folds the sheet and
-   brings the slide into view; Show in Checks opens it. The inspector comes last, in the page
-   flow rather than sticky. A remembered All slides view is not restored below 900 px. At
-   375 px the page went from about 2,800 px to 1,640 px, and the slide starts at about 740 px
-   instead of 1,490 px. The settings stay in the Deck tab under the slide rather than a
-   separate sheet: with the outline folded they are a tab away.
-
-## Templates are slide designs (6 Nov 2026)
-
-Owner decision: a template is a slide design; anything else is a setting the user can change.
-
-- **Two templates.** **Portfolio** (a status table and stage summary, then a capability slide
-  with photograph per project) and **Fact Sheets** (one formal sheet per project: the
-  recommended facts, brief and photograph). They were "Monthly command review" and "Project
-  update sheets"; the names are labels in `ProjectBriefingDeckPresets`, so no data changed.
-- **Visit or external audience is retired.** It was settings (no costs or status, SDD profile,
-  Thank You), not a design, and is no longer offered or accepted by `ApplyPresetAsync` /
-  `CreateAsync`. The enum value stays so stored decks still read; such decks keep every setting
-  and show as Portfolio, customised. No reminder about costs for visitors (owner).
-- **Template replaces Layout.** The Template picker is the one way to choose the design; the
-  Layout control in the Slides step is hidden (its inputs stay for the form and the step
-  summaries). Applying a template still asks first on a customised deck and offers Undo.
-- **Every deck shows a template.** `TemplateOf` gives the deck's own template while it is still
-  offered and matches its design, otherwise the template for its design; "Set up by hand" is
-  gone from New deck, the picker and the library. A deck whose settings differ from its
-  template's reads "customised".
-
-## Walkthrough fixes (6 Nov 2026)
-
-A first-time-user walkthrough on master at 1366×768 (after the Studio usability plan and the
-template change) found:
-
-1. **"Added" unreadable.** After a quick add the focused button took Bootstrap's blue background
-   under green text. Added now keeps its green look in every state.
-2. **Header icon gone in dark theme.** The tile turns light there while the icon stayed white; the
-   icon now uses the surface colour, like the library's.
-3. **The slide started too low on laptops** (about 480 px down; a 1366×768 browser shows about
-   650 px). The Studio's own row above the header is gone: "← Briefing decks" sits in the header
-   where the "Briefing deck" eyebrow was, Switch deck beside Generate, New deck in the ⋯ menu.
-   The line under the slide is one line ("62 slides · built … from current PRISM data", the
-   promise about Generate on hover).
-4. **Fixes did not show on return.** Coming back to the Studio tab (or window) rebuilds the slides
-   quietly: at most every 15 seconds, never while a build runs, while presenting or while typing.
-5. **"Fix in project" for a status remark** opens the project at its remarks section (`#remarks`,
-   which the project page already opens). The cost gaps still open the project page; it has no
-   cost section to land on.
-
-Then (follow-up):
-
-6. **Library rows stay one line at 1366 px.** Table dates drop this year's year ("05 Nov", "Today,
-   06:44"; other years "05 Nov 25") with the full date on hover; the owner truncates with the
-   full name on hover; "Data since" shows a dash before the first PowerPoint instead of repeating
-   "Not generated yet".
-7. **Loose ends.** The "… projects added" confirmation under the outline clears after six seconds
-   (errors stay), and Add projects has a **Done** button (adding saves at once; Done only closes).
-
-## Independent review (6 Nov 2026)
-
-A cold UI/UX review by a separate reviewer (no earlier findings shared), on master at 1366×768,
-1920×1080 and 375×812, light and dark. Confirmed by hand: the Add projects tab strip collapsed
-to 9 px after a search at 1366×768, and the Studio's arrow keys only work while focus is inside
-the Studio.
-
-**Plan, by PR**
-
-- **A. Add projects.** Done (this change). The dialog body's rows take their content's height,
-  so the tab strip (a sideways scroller) no longer shrinks; one scroll (the dialog's), the result
-  list growing with it and the Apply bar sticky at the bottom. Quick and category adds offer
-  **Undo** (removes exactly the projects that add brought in). Manage individually opens on the
-  deck's own projects (untick to remove, search to add); badges read **In deck** (saved),
-  **Will be added** / **Will be removed** (pending until Apply), nothing for a project outside the
-  deck; "Completed · Completed" is said once. The dialog's lead says which parts save at once.
-- **B. Studio fits the window.** Done (this change). The progress line moved into the deck
-  header, beside the last change, so the Studio starts about 100 px higher (slide top 317 px at
-  1366×768, was 358 after the one-time note). The side panels take the window's height below
-  the header (`--pbd-studio-offset`, measured by the Studio script and kept current as the header,
-  the note or the window change; at least 26rem), so the whole Studio fits 1366×768 and
-  1920×1080; only the site footer is below. Outline titles show two lines. Left/right arrows move
-  between slides from anywhere on the page (after clicking the slide focus is on the page), not
-  from fields, tabs, menus, dialogs or drawers. After a reload the outline scrolls itself (not the
-  page) to the slide the Studio reopened on, and the Checks filter comes back with the place.
-- **C. Gaps made honest.** Done (this change). Proliferation cost is a gap only for a completed
-  project (owner, 6 Nov 2026; `ProjectBriefingContentGaps`, so the server count and the Studio
-  agree). The slides follow the same rule (`ShowsProliferationCost`): an ongoing project with no
-  proliferation cost has no proliferation card or key-fact entry, and a dash in the status
-  table's column; a recorded cost always shows, and a completed project without one still says
-  "Not recorded". The inspector's facts do the same. One word, **gaps**: the inspector tab and the progress step are "Gaps" ("5 to fill" /
-  "None"), This slide "Gaps · n", the outline badge "⚠ 3" with "3 gaps: …" on hover and to screen
-  readers, the note under Generate "Gaps show as placeholders on the slides.", and each Show
-  button is named for its gap. This slide shows each field once (a cost listed under Gaps is not
-  repeated in the facts). Present and Generate first say "Present/Generate with gaps?" (n kinds
-  still open, placeholders such as "Not recorded"; *Present anyway* / *Review gaps*, which opens
-  the Gaps tab), once per deck per browser session.
-- **D. Phone.** Done (this change). Below 576 px the Studio header gives Generate its own
-  full-width row (Switch deck and the deck menu beneath); the deck icon, the "Updated" line and
-  the note under Generate give way (the Gaps step says it), so the progress line takes the full
-  width. The header went from 384 px to 237 px tall at 375 px. The library table becomes a list of
-  cards: the deck name on top with its ⋯ menu, then each value with its label (Template,
-  Projects, Slides, Owner, Edited, Generated, Changed since; `data-label` on each cell); no
-  sideways scroll. Desktop is unchanged.
-- **E. Wording and accessibility.** Done (this change). The progress line is three steps
-  (Projects, Gaps, Settings) with dots instead of numbers, so only the Deck tab's settings steps
-  are numbered (the owner's numbered steps stay); Generate is the button beside it. The deck name
-  is the Studio's `<h1>`. The SDD profile, Role & Charter and FFC drawers speak plainly ("The
-  figures come from PRISM and update by themselves", "Turn it on or off, and set its place, in the
-  Deck tab under Extra slides", "A large map with the country list beside it"), and Escape closes
-  each even when focus is outside it. The note under Generate is 12 px. Library: "Data since" is
-  "Changed since" (with a tooltip), and a search that found a deck through its projects says
-  which ("Matches: …"). New deck states its rule ("required, at least 3 characters"). Update-sheet
-  row checkboxes are named. Left as they are: the stage names in the outline (PRISM's own stage
-  names), the Template picker showing the current template above its list, and the rail's
-  contrast (a workspace-wide change).
-
-## Library review (6 Nov 2026)
-
-An independent UI/UX review of the deck library (`/Workspace/BriefingDecks`) at 1366×768,
-1920×1080 and 375×812, light and dark. Plan, by PR:
-
-1. **Continue and Generate.** Done (#2950). The card is "Continue" only for the deck this
-   person last edited; otherwise it is "Recently edited" (the deck most recently edited by anyone;
-   decks are shared). Generate in the library (the card and each deck's ⋯ menu) no longer posts
-   straight to the server, which gave no progress, no double-click guard, no gap question and a
-   stale row afterwards: it opens the deck with `?generate=1`, and the Studio runs its own
-   Generate (saving pending changes, "Generate with gaps?", progress, the result line); the flag
-   is dropped from the address. A deck with no projects offers **Add projects** (opening the
-   Studio on Add projects) instead of a greyed-out Generate. The server's Generate handler stays
-   for compatibility.
-2. **The table.** Done (#2952). Five columns: Deck (the widest), Template, Projects,
-   **Edited** (when, and who below; the creator in the tooltip) and one **PowerPoint** status:
-   "Not generated" (or "No projects yet"), else "05 Nov · 54 slides" with "up to date", "3 changes
-   since" (linking to the deck, the tooltip saying what moved) or "changes not tracked yet". The
-   heading reads "My decks" under Mine; an empty list says why ("You have not created or edited a
-   deck yet…" or "No deck matches …") with **Show all decks** / **Clear search**. Search, Mine/All
-   and sort are kept for the browser tab. The library and its header stop widening at 84rem.
-3. **Polish.** Done (this change). Phone cards are three short lines (Template and Projects
-   without labels, "50 projects", no editor name); the Continue card drops its icon on phones and
-   puts its two buttons side by side. New deck: the hints are 12 px, a too-short name is said under
-   the field (not a browser bubble), and closing the dialog resets it. The workspace content is a
-   `div`, so the page has one `<main>` (the layout's). Deck links take the shared focus ring
-   (`--pm-focus-ring`). The library loads only its own script; Sortable and the Studio's scripts
-   load with a deck.
-
-Outside this module: the shared "What's new" announcement can cover the page's top-right buttons
-on a first visit. (Fixed 19 Nov 2026: it waits on these pages, `data-whats-new-wait`.)
-
-
-## Plan: Blocks, Project Officer decks and focus view (16 Nov 2026)
-
-The owner asked for two things: Project Officers should be able to make briefing decks too, and the
-deck set-up should be simpler and modular ("the user can choose or design the project slide and
-choose analytics slides for the projects chosen"). Mockup reviewed with the owner:
-https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built from blocks).
-
-**Review: why the deck feels complex**
-
-- The slide order is fixed in `ProjectBriefingSlideComposer.BuildStandardPlans` (cover,
-  after-cover institution slides, portfolio summary, stage summary and table, category summaries,
-  status table, project slides, FFC footprint, closing) and the Deck tab never shows it. Nobody
-  can put the status table before the stage chart.
-- Summary slides are ticks in Extra slides, institution slides are draggable rows in the same
-  step, and the cover and portfolio summary can be switched off only for Fact Sheets.
-- About 20 settings with 8 show-or-hide rules between them: "Each project gets" only with project
-  slides, the key point slide only with Both, the brief layout only without key points. Key points
-  also change the layout of both project slides without saying so.
-- "Template" is both the project slide design and a bundle of settings (cost, stage, status,
-  closing). Any small change marks the deck "customised", and switching template overwrites
-  settings and needs Undo.
-- "Table / Project slides / Both" and "Capability / Brief / Both" are slides switched on or off,
-  written as modes. Cost is a deck setting for Portfolio but sheet rows for Fact Sheets.
-
-**Owner decisions (16 Nov 2026)**
-
-- **Blocks.** A deck is an ordered list of blocks in four zones: Opening, Overview and analytics,
-  Projects, Closing. Each block can be switched off, dragged within its zone or removed; **Add
-  block** opens a library. A template only fills the starting list; after that a deck has no
-  "customised" state.
-- **Project slides are one block** with a **design** and **parts**. Designs: Capability (photo
-  beside capability points), Key points (today's Option B), Brief (narrative with photo; the
-  Automatic / Standard / Photo brief layouts stay inside it), Fact sheet (today's update sheet, its
-  rows chosen and ordered in the block) and the new **Key points only** (a large photo beside the
-  five points with their headings; no brief or capability text). Parts are chips: present stage,
-  status remark, R&D cost, proliferation cost, key points. Anything switched off gives its space to
-  the photo and text. In Key points only, a project without key points shows the gap like other
-  missing content (no fallback to the capability text). Per-project choices (Own slides, Table row
-  only, Leave out, photo, speaker notes) stay as they are.
-- **Overview and analytics blocks** (owner, 16 Nov 2026) are exactly four, each drawn from the
-  deck's own projects (table row only projects count):
-  - **Status table**: one row per project, as today.
-  - **Stage-wise distribution**, drawn like the ARPP view on the Analytics page: the stages
-    grouped as Pre-AoN, AoN to SO, Under development and Completed, each bar split by parent
-    category, then a slide listing the projects in those four columns (PDC at Development,
-    completion month and year). It reuses the ARPP drawing (`ArppProgressSlideComposer` /
-    `AnalyticsSlideFrame` rules), fed with the deck's projects instead of an ARPP year; the ARPP
-    headline cards (IPA, listed, delisted) are left out.
-  - **Project-category distribution** and **Technical-category distribution**: today's category
-    slides.
-  The stage-wise distribution replaces today's stage-wise summary and stage-wise table, and the
-  portfolio summary is retired, so there is one stage option and no overlapping counts (approved
-  on the mockup, 16 Nov 2026). No other analytics.
-- **No free drawing canvas** for the project slide. One design has to fit every project in the
-  deck (long text, missing photos, continuation slides); the composer handles that per design.
-- **Project Officer decks: My decks and Command decks.** A Project Officer makes decks of their
-  own; only that officer edits them. Comdt and HoD decks stay shared between them as today and a
-  Project Officer does not see them. Comdt and HoD can open a Project Officer's deck to view or
-  duplicate it, not change it. A Project Officer can add any project (every signed-in user can
-  already read project information, costs and remarks). Add projects lists every project, narrowed
-  with filters ("My projects" was dropped in the Add projects redesign, docs/ux/briefing-add-projects.md). A person who is also HoD or Comdt works as command.
-- **Focus view, not a separate tab.** The Studio is already full width with the rail folded; a
-  separate tab (like Collage Studio) would only gain the top bar's height, and would break back,
-  the library's Generate hand-off and the "fix in project" links. Instead a **Focus** button in
-  the Studio header hides the PRISM top bar and the rail; the deck name, Generate and **Exit
-  focus** stay. Remembered per person, same tab.
-
-**Production continuity**
-
-- Blocks need no database change: they are stored as a `blocks` list in `SelectionRulesJson`
-  through `ProjectBriefingDeckConfigurationCodec`. A deck without `blocks` is read into the same
-  list from its present settings, and must produce the same PowerPoint slide for slide (tested
-  for every template and setting shape the codec accepts, and against the local demo decks).
-- The codec writes a fresh document on each save, so an older build would drop `blocks`. The new
-  build keeps writing the old settings too (columns and `standardBriefing`), set to the nearest
-  equivalent, so a rollback still generates every deck; only an order the old build cannot express
-  falls back to the fixed order, and Key points only reads as Key points.
-- Project Officer access adds one column to `ProjectBriefingDecks` (personal or command, default
-  command), hand-written additive migration; every existing deck stays a command deck, so nothing
-  changes for Comdt or HoD. Rollback: the previous build does not start against the migrated
-  database (startup refuses a migration it does not know), so going back is the rollback SOP: a
-  database restore, or the migration's Down, which removes personal decks.
-
-**PRs**
-
-1. This plan.
-2. **Project Officer decks.** Policy `ProjectBriefingDecks.Manage` allows Project Officer; a new
-   deck column marks personal or command decks; one server check in `ProjectBriefingDeckService`
-   (view, edit, duplicate, delete, restore) used by every page handler, the preview, Generate, the
-   project search and photo options, so hiding the menu is never the only guard. Library: "My
-   decks" for a Project Officer; command users see Project Officers' decks read-only with
-   Duplicate. Rail entry under My work in the Personal view; Add projects opens on My projects;
-   `AdminRoleAccessCatalog` lists the role. Handler authorisation tests for each role, checked in
-   the browser as a Project Officer-only user.
-
-   Built (16 Nov 2026). `ProjectBriefingDecks.Scope` ('Command' or 'Personal', migration
-   `20270107080025_AddProjectBriefingDeckScope`); `ProjectBriefingDeckAccessRules` decides None,
-   View or Edit from the scope, the owner and whether the person is Comdt or HoD
-   (`ProjectBriefingDeckRoleResolver`, from Identity roles). Every change loads its deck through
-   the deck service's editable loader (a view-only deck says so; a deck the person cannot see
-   reads as not found); the data service refuses the page, preview and slides of a deck the
-   person cannot see; Generate and photo options need Edit. Deck names are unique among command
-   decks and within each officer's own decks. One change from the plan: a command user does not
-   open a Project Officer's deck in the Studio. The library lists it as "<owner>'s deck · view
-   only" with **Download PowerPoint** (the same slides, nothing recorded on the deck) and
-   **Duplicate to change it** (the copy is a command deck); a read-only Studio would have meant
-   disabling every editing control, and can follow if wanted. A Project Officer's Add projects
-   starts with **My projects** (the projects they lead, set on the server from the signed-in
-   user). The page's wording, the saved chip ("Saved · yours") and the rail (Personal view, under
-   My work, only for people without command) follow the deck's owner.
-3. **Blocks underneath.** The block list in the codec and `ProjectBriefingPresentationData`; the
-   composer builds plans from the list instead of the fixed sequence; old decks read into blocks;
-   the slide-for-slide equivalence tests; the old settings still written.
-
-   Built (16 Nov 2026), in a smaller first step: nothing new is stored yet. `ProjectBriefingDeckBlocks`
-   (`Services/ProjectBriefings/ProjectBriefingDeckBlocks.cs`) names the blocks (cover, SDD profile,
-   Role & Charter, portfolio summary, stage summary, the two category summaries, status table,
-   project slides, FFC footprint), their zones, and `FromSettings`, which turns a deck's present
-   settings into its block list in the order the composer always used. The composer builds a deck
-   by walking that list (`BuildPlans`, `AddBlockPlans`); `ProjectBriefingPresentationData.Blocks`,
-   when set, replaces the derived list, and switched-off blocks draw nothing. A deck without a
-   status table lists its table-row-only projects after the project slides, as before.
-   `ProjectBriefingBlockEquivalenceTests` composes 90 setting combinations (936 slides) and compares
-   each slide's role, projects and XML with a fixture recorded from the composer before the change.
-   Storing the list in `SelectionRulesJson` (and writing the old settings beside it for rollback)
-   moves to PR 4, with the Deck tab that edits it.
-4. **Deck tab as a block list.** Zones, switch, drag within a zone, remove, Add block library;
-   selecting a block opens its settings. The numbered steps for slides and extra slides and the
-   template "customised" badge go; Look (theme, insignia, closing) and Handling stay. The outline
-   and `SETTING_SLIDES` follow blocks.
-
-   Built (16 Nov 2026). The first Deck tab step is **Slides in this deck**: every block the deck's
-   layout can have, grouped Opening, Overview, Projects, Closing, each with a switch (and Edit for
-   the SDD profile, Role & Charter and FFC footprint, "With a table" under the stage summary).
-   Overview blocks and the two opening institution slides move by their grip (drag, or Alt+Up /
-   Alt+Down); the cover, project slides and FFC footprint stay in place. Every switch or move saves
-   the list in place (`OnPostUpdateBlocksAsync` → `ProjectBriefingDeckService.UpdateBlocksAsync`),
-   which sets the deck's existing settings to match (cover, portfolio and summary switches, what
-   the deck shows from the status table and project slides switches, the institution slides'
-   switches and opening order) and stores the overview order as `overviewOrder` in
-   `SelectionRulesJson`. `ProjectBriefingDeckBlocks.ForDeck` reads it all back in order; the data
-   service hands that list to the composer, so the slides follow. A deck needs the status table or
-   the project slides; switching both off is refused and put back. The old Extra slides step and
-   "What the deck shows" are gone (hidden inputs keep the step summaries and settings form reading
-   the same deck; a settings save keeps the deck's own values for them); "Each project gets" moved
-   to Project slides. Not in this PR, left for PR 5: an Add block library (every block is listed,
-   on or off, instead) and retiring the Template picker and its "customised" badge, which PR 5's
-   design picker replaces.
-5. **Project slides block.** Design gallery and parts chips, replacing Layout, "Each project
-   gets", the key point slide, the brief layout and the cost step; Key points only in the composer,
-   the preview, slide facts ("data moved") and `ProjectBriefingContentGaps`.
-   *Built ahead of this PR, not yet selectable:* the Key points only slide itself is in
-   `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.KeyPointsOnly.cs`
-   (`KeyPointsOnlyPlan` builds one project's slide, role `ProjectKeyPointsOnly`;
-   `ComposeKeyPointsOnlySlides` is the internal test path; tests in
-   `ProjectBriefingKeyPointsOnlySlideTests`). A 6.1 in 16:9 photograph sits on the left and the
-   recorded points run down the right as cards, each under its catalog heading, at 13, 12 or
-   11 pt (the largest every point fits, measured cautiously so PowerPoint's wrap cannot overflow
-   a card: five 130-character points are 12 pt, or 11 pt above a two-line status remark). Stage and cost
-   use the key points layout's line under the title; the status remark, when shown, runs full
-   width under both. Only recorded points show; with none, the column shows a "Key points not
-   recorded" placeholder and nothing else. PR 5 still adds it to `BuildStandardPlans`, the
-   settings and the gaps list.
-
-   Built in two parts (16 Nov 2026). **Part 1, the design cards:** the Deck tab's Project slides
-   step opens with one card per design (Capability, Key points, Brief, Fact sheet, Key points only),
-   and "Show on each slide" chips below: present stage, status remark, R&D cost, proliferation cost
-   and key points. A design is not stored on its own: `ProjectBriefingProjectSlideDesigns` reads it
-   from the settings decks already had (layout, what each project gets, key points) and writes it
-   back as them, so the server derives those from the posted `ProjectDesign`. Key points only is the
-   one new setting, `keyPointsOnly` beside `keyPoints` in `standardBriefing`; an older build ignores
-   it and shows the Key points design. The key points chip on Capability switches to Key points (and
-   off again), adds a band on Brief, and is fixed on for Key points only. The two cost chips are the
-   deck's cost choice, so the Cost step is gone; Fact sheet hides the chips (its rows are chosen in
-   Sheet rows) and changing to or from it reloads the page, as any layout change does. A deck that
-   uses "Capability and brief" (two slides per project) keeps it as a sixth card; other decks are not
-   offered it. The composer draws Key points only from the block list; it counts in the slide facts
-   (key points shown) and in the gaps (key points expected, capability text not). The Template
-   picker and its "customised" badge are gone from the Deck tab; a template only starts a new deck,
-   and the progress line names the design (#3371).
-
-   **Part 2, the Add block library** (16 Nov 2026). Slides in this deck lists the cover and the
-   project slides with their switches, and every other block only while it is in the deck, with a
-   Remove button (`ProjectBriefingDeckBlocks.IsOptional`). **Add block** opens a library of the
-   blocks not in the deck, grouped Overview and analytics, Institution and Before closing; adding one
-   puts it back in its group where it was last placed. Remove and Add save the list through
-   `UpdateBlocks` as a switch did, so nothing new is stored, a refused change (the last of the status
-   table and project slides) is put back, and a save in progress refuses them. A group with nothing in
-   it says so. Moving skips the blocks waiting in the library.
-6. **Focus view.** Built (16 Nov 2026; see the Studio section). Header button, hides the top bar
-   and rail, remembered per person (in the browser); Escape does not leave it (Escape belongs to
-   dialogs and Present); phones unchanged.
-7. **Stage-wise distribution block.** The ARPP-style stage chart and project list for the deck's
-   projects, with its slide facts ("data moved"); the old stage-wise summary, stage-wise table and
-   portfolio summary are retired. This PR changes existing decks on purpose: a deck that had the
-   old stage summary gets the new block in its place, and one that had the portfolio summary loses
-   that slide; the library's "changed since" treats it as a settings change, not data movement.
-   *Built ahead of the switch-over (16 Nov 2026), not yet in any deck:* the two slides are
-   `AddStageDistributionSlides` in
-   `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.StageDistribution.cs` (outline
-   roles `StageDistribution` and `StageDistributionList`; the list continues on further slides when a
-   column is long). Their facts are `ProjectBriefingPresentationData.StageDistribution`, filled for every
-   deck by `ProjectBriefingStageDistributionResolver` (parent category through the category hierarchy,
-   AoN, supply order and Development PDC from `ProjectFormalUpdateFactsResolver`, completion month), and
-   the band rule is `Services/Analytics/ProjectProgressBands.cs`, which Analytics › ARPP now uses too.
-   Cancelled projects are counted nowhere (the chart subtitle says how many). PR 7 still has to call it
-   from the block list, add the two roles to the Studio outline (`project-briefing-studio.js`), record
-   the slide facts, and retire the old summary slides. Tests: `ProjectBriefingStageDistributionTests`.
-
-   Built (16 Nov 2026). A new block, **Stage-wise distribution** (`ProjectBriefingDeckBlockType.StageDistribution`),
-   takes the stage summary's place: it uses the deck's existing "stage summary" setting, so a deck
-   that had the stage summary now gets the chart and project list, with no migration, and a stored
-   overview order that named the stage summary keeps the new block in that place
-   (`NormalizeOverviewOrder`). The composer draws it with `AddStageDistributionSlides`; the Studio
-   outline knows both roles. The portfolio summary, the stage-wise summary and its "With a table" are
-   gone from the Deck tab and the composer, and their drawing code was deleted. The stored settings
-   stay (the portfolio summary and stage table switches are kept as they were), so a rolled-back
-   build still draws a deck as it was. Update sheets have no overview slides now; they lose the
-   portfolio summary they had. Slide facts: the stage-wise distribution shows each project's stage,
-   lifecycle (completed; cancelled projects left out) and its Development PDC or completion month
-   (the milestone fact); nothing counts the portfolio's cost totals any more. The block equivalence
-   fixture was re-recorded for the intended change and pins the composer from here.
-8. **Phones, Dark, docs** (this file's Studio and Deck sections rewritten to the block model, and
-   the access line in `docs/current-state.md`) and a fresh cold review.
-
-   Built (16 Nov 2026). Phones (375px): nothing in the Deck tab is wider than the screen (a design
-   card's text now wraps inside the card), and on touch screens Remove, the grip, Edit and Add
-   block are 40px targets. Dark: the design sketches take their greys from the muted text colour,
-   so they read on dark cards (they were nearly invisible). The Add block library no longer shows
-   a group heading with nothing under it on first load. This file's Studio section describes the
-   Deck tab as it now is; `docs/current-state.md` names Project Officers.
-
-## Plan: The Studio is optional (19 Nov 2026)
-
-**Review.** An independent review (19 Nov 2026, the running app at 1366×768 as an HoD, six
-projects) found the core job easy (New deck, tick projects, Generate: about six clicks, the
-PowerPoint in 1.5 s) but every route running through the Studio: a new deck opens there, and the
-library's Generate opens it too (`?generate=1`). The Studio itself is dense: about 78 visible
-buttons; gaps shown in six places (header step, outline badge, This slide's box, Gaps tab, the
-note under Generate, the Generate question); Template, Design and "Settings" naming one idea; a
-Key points design and a Key points chip that switches it; the same slides named differently in the
-outline and the Deck tab. On a first visit the shared What's new card covered Generate.
-
-Mockup reviewed with the owner: https://claude.ai/artifact/Lmt7nts45pR68qCiX1KHqq (a clickable
-library, New deck dialog and simplified Studio).
-
-**Owner decisions (19 Nov 2026)**
-
-- The Studio is for reviewing and changing a deck, not a step every deck must pass through. A
-  deck can be made and downloaded from the library.
-- Download from the library **asks first** when the deck has gaps: "N projects have gaps",
-  *Download anyway* / *Open to fix* / *Cancel*. A deck without gaps downloads at once.
-- ~~Marking is required when a deck is created.~~ Withdrawn by the owner the same day: no marking
-  requirement. The marking stays optional, set in the Studio's Handling step, as before.
-- New deck offers **Same as a deck** beside choosing projects (as in the mockup).
-
-**PRs**, each additive and revertible on its own, none with a migration:
-
-1. **What's new never covers the primary action.** The shared What's new card waits on the
-   briefing deck pages (as it already waits in focus view), so Generate is never under it.
-   Outside this module's code, so its own small PR with a test in `whats-new.test.js`.
-   Built: a page marked `data-whats-new-wait` is "busy" for the card (as an open dialog is), so
-   the card waits for another page without using up one of its three showings; the briefing
-   decks root (library and Studio) carries the mark.
-2. **Download from the library.** The card's Generate becomes **Download**. A new read handler
-   (`OnGetGapsAsync(deckId)`, View access) returns how many presented projects have gaps, from
-   the same `ProjectBriefingContentGaps` rule the Studio uses; with gaps the card asks as decided;
-   then the page posts the existing `Generate` handler in-page (it already answers in-page
-   requests with the file, records the generation and keeps the integrity check), shows
-   "Preparing…" with a double-click guard, downloads, and updates the card's PowerPoint line.
-   Errors and an expired sign-in use the existing `checkReply`. A view-only Project Officer deck
-   keeps `Download` (no generation recorded). The `?generate=1` hand-off stays for old links but
-   the library stops using it. Tests: the handler's access and its count against the Studio's for
-   the same deck; the card's ask / download / error behaviour (`project-briefing-library.test.js`).
-   Built: as planned, with the library's own reply checks (it loads without the Studio's
-   scripts). The ⋯ menu's Download PowerPoint is gone (the card's Download replaces it); the
-   view-only deck's Download asks too. Checked in the browser: the question, Download anyway, the
-   file, and the card's line updating in place.
-3. **Marking required at creation.** Dropped (owner, 19 Nov 2026): marking is not required.
-4. **Projects in the New deck dialog, and Create and download.** The dialog takes a slide style,
-   the marking and the projects, by filters and ticks (the Add projects module in a no-deck mode:
-   the filter handlers accept no deck and mark nothing "in deck") or **Same as a deck** (any deck
-   the person can view; its project list is copied, not its notes, photos or settings). The
-   service creates the deck and its items in one transaction, with the same 120-project limit and
-   project access rules as `AddSelection`. **Create and open** opens the Studio on the new deck;
-   **Create and download** asks about gaps as in PR 2, then downloads and lands on the library
-   with the new deck first. The footer says what is still needed, or how many projects have gaps.
-   The old two-step path (create, then Add projects) keeps working for posts from older pages.
-   Built (no marking, as decided; the Template choice stays until PR 5 makes it the slide style):
-   - `CreateAsync` takes the projects (`ProjectBriefingNewDeckProjects`: ticked ids, or
-     `SameAsDeckId`), resolved before anything is added and saved with the deck in its one save.
-     Ticked projects keep the order ticked; a copied list keeps its deck's order. Deleted,
-     archived and cancelled projects are left out (as Add projects does); a list with none left,
-     more than 120, or a deck the person may not see is refused and no deck is made. An audit
-     `ProjectBriefing.ProjectsAdded` follows `DeckCreated` when projects came with it.
-   - `Create` posted plainly opens the deck (or Add projects when it has none, as before); in-page
-     it answers with the deck id and its Studio, Gaps and Generate addresses. `FilterOptions` and
-     `FilterProjects` accept deck 0: the projects for a deck not made yet, none "in deck".
-   - The dialog: **Choose projects** (the Add projects filters in picker mode, `picker: true`:
-     nothing saved, ticks read by the dialog, its own element ids) or **Same as a deck** (only
-     when some deck has projects; a list of decks the person can see). The footer says how many
-     are chosen. **Create and open** posts the form; **Create and download** (library only: the
-     Studio has no Download flow to hand to) creates in-page, hands the new deck to the library's
-     Download (the gap question, progress, errors), then shows the library with it on top.
-     Without projects Create and download is disabled.
-5. **One name for the slide style.** Template (New deck) and Design (Deck tab) become one
-   **Slide style**: Portfolio, Key points, Brief, Fact sheet, written as the deck's existing
-   settings exactly as designs are now (`ProjectBriefingProjectSlideDesigns`), so stored decks
-   and older builds are unaffected. The Key points chip goes (the style decides it); Key points
-   only and Capability and brief stay for decks that already use them, shown only to those
-   decks. Outline titles use the Deck tab's slide names. Before this PR, count the designs
-   production decks use, to confirm what can stop being offered.
-   Built without the count (owner, 19 Nov 2026: production is on the offline LAN, out of reach of
-   this work): every design that exists today is kept, so nothing needs the numbers. The New deck
-   dialog offers the five styles with the Deck tab's drawings (`Style`; `Template` from an older
-   page still works) and a new deck is set to its style by `SetDesign`; "Capability and brief"
-   stays for decks that have it and is refused for a new one. The Key points chip is hidden where
-   the style decides key points (it was a second control for the Capability / Key points choice)
-   and kept for Brief, where it is the only way to add the band; the hints name the style instead.
-   The outline names the stage-wise distribution, its project list and the status table as the
-   Deck tab does, with the slide's own heading on hover. Removing a design no deck uses is a later,
-   separate step once the count is known.
-6. **A quieter Studio.** Header: name, one summary line (projects, style, marking, saved),
-   Present and **Download PowerPoint**; the three progress steps, the note under Generate and the
-   one-time banner go (its sentence moves to the empty state). Gaps live in the outline badges and
-   the Gaps tab; This slide shows a missing fact as "Not recorded" beside its *Fix* link instead
-   of a separate gaps box. This slide's per-project choices (Own slides / Table row only / Leave
-   out, photograph, speaker notes, this deck's capability text, Remove) move under **More
-   options**, closed by default and remembered for the session. Look and Handling fold into one
-   **Appearance** step beside the marking. Nothing stored changes. Re-measure the visible
-   controls at 1366×768 (the review counted about 78) and check 375 px and Dark.
-   Built. Measured at 1366×768 with the browser's own visibility check (closed steps and the closed
-   More options not counted), the same deck and data before and after: cover slide 38 → 34
-   controls, a project slide 49 → 39 (and "gap" on screen 10 → 6 times), Deck tab 41 → 36. The
-   slide starts about 115 px higher. Most of what remains is the outline and the slide's own
-   navigation, which this step left alone. 375 px: no sideways scroll; Dark: checked.
-   Download in the header still asks about gaps and downloads; nothing stored changed, and the
-   field names are the same, so an older page's posts still save.
-7. **Docs and a timed first-deck test.** This file's library and Studio sections rewritten to the
-   new flow; the review measure from here is how long a person new to PRISM takes to make and
-   download a first deck, not a count of findings.
-
-Not in this plan: removing the hidden Layout, NarrativeMode and CostMode inputs or other code
-clean-up. That follows PR 5 and the production usage counts, as its own change.
+  figures 15–17 pt, footer 9 pt. Long capability text and briefs continue onto "continued" slides
+  rather than shrinking; a long Role & Charter continues on another slide rather than going below
+  10 pt.
+- A project shown as **Table row only** is a row in the status table (or in "Other projects in
+  this briefing" when the deck has none) with no slides of its own; **Leave out** keeps it in the
+  deck but not in the PowerPoint.
+
+## History
+
+Moved to [briefing-decks-history.md](briefing-decks-history.md) unchanged, oldest first:
+
+- Review findings (1 Nov 2026)
+- Plan: Briefing Studio
+- Plan: Project key points
+- Plan: Deck settings
+- Plan: Studio usability
+- Templates are slide designs (6 Nov 2026)
+- Walkthrough fixes (6 Nov 2026)
+- Independent review (6 Nov 2026)
+- Library review (6 Nov 2026)
+- Plan: Blocks, Project Officer decks and focus view (16 Nov 2026)
+- Plan: The Studio is optional (19 Nov 2026)
