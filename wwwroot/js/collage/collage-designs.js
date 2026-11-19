@@ -965,9 +965,11 @@
    * poster's logo sits close to its corner), the logos are made smaller about their middle so the
    * tile keeps clear of the edge. Hidden (marked autoHidden, as the roundel is) when there is no
    * logo or only the SDD logo; one the user hid or locked stays as it is. Returns the items with
-   * the tile (and any logo made smaller) replaced, never changing the items given.
+   * the tile (and any logo made smaller) replaced, never changing the items given, or the same
+   * array when nothing changed. `resize: false` (a logo moved on the page) only moves the tile
+   * with the logos, never making a logo the user placed smaller.
    */
-  function fitLogoTile(items, { width, height }) {
+  function fitLogoTile(items, { width, height, resize = true }) {
     let out = items;
     for (const [role, logoRoles] of Object.entries(TILE_LOGOS)) {
       const tile = out.find((item) => item.role === role);
@@ -981,7 +983,7 @@
         const bounds = () => ({ left: Math.min(...boxes.map((b) => b.left)), right: Math.max(...boxes.map((b) => b.right)), top: Math.min(...boxes.map((b) => b.top)), bottom: Math.max(...boxes.map((b) => b.bottom)) });
         let b = bounds();
         const margin = Math.min(width, height) * 0.04;
-        if (wanted && !logos.some((item) => item.locked)) {
+        if (resize && wanted && !logos.some((item) => item.locked)) {
           // How much smaller the logos must be for the tile's margin to clear the page's edges.
           const cx = (b.left + b.right) / 2;
           const cy = (b.top + b.bottom) / 2;
@@ -1009,7 +1011,8 @@
         delete next.hidden;
         delete next.autoHidden;
       }
-      out = out.map((item) => (item === tile ? next : resized.get(item.id) || item));
+      const same = !resized.size && Object.keys({ ...tile, ...next }).every((key) => tile[key] === next[key]);
+      if (!same) out = out.map((item) => (item === tile ? next : resized.get(item.id) || item));
     }
     return out;
   }

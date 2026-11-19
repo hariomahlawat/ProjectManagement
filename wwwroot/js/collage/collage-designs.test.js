@@ -1355,3 +1355,24 @@ test('No photo on Ceremonial: one left edge and an even rhythm, portrait, landsc
     assert.ok(Math.max(...gaps) <= Math.min(...gaps) * 1.8, `${size}: even gaps (${gaps.map((g) => g.toFixed(0))})`);
   }
 });
+
+// Codex on #3456: a crest moved on the page takes its tile along, and is never made smaller there.
+test('fitLogoTile with resize false moves the tile with a moved logo and keeps the logo size', () => {
+  const page = { width: core.PAGE_WIDTH, height: core.pageHeight('a5p') };
+  const crest = { id: 'l', role: 'logo', kind: 'photo', photo: 'p', x: 500, y: 150, width: 120, aspect: 0.6 };
+  const tile = { id: 't', role: 'logotile', kind: 'shape', form: 'rect', x: 500, y: 150, width: 160, aspect: 0.7, hidden: true, autoHidden: true };
+  const fitted = designs.fitLogoTile([tile, crest], page);
+  // Nothing changes on a second pass: the same array comes back.
+  assert.equal(designs.fitLogoTile(fitted, page), fitted);
+  const moved = fitted.map((item) => (item.role === 'logo' ? { ...item, x: 40, y: 60 } : item));
+  const after = designs.fitLogoTile(moved, { ...page, resize: false });
+  const logo = after.find((item) => item.role === 'logo');
+  const shown = after.find((item) => item.role === 'logotile');
+  assert.equal(logo.width, fitted.find((item) => item.role === 'logo').width, 'the logo the user placed keeps its size');
+  assert.equal(shown.x, 40);
+  assert.equal(shown.y, 60);
+  assert.ok(!shown.hidden);
+  // Deleted: the tile hides.
+  const gone = designs.fitLogoTile(after.filter((item) => item.role !== 'logo'), { ...page, resize: false });
+  assert.equal(gone.find((item) => item.role === 'logotile').hidden, true);
+});

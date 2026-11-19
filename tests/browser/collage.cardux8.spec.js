@@ -127,3 +127,23 @@ test('a wide second logo beside the SDD logo is narrowed so both stay on the pag
   }
   expect(errors).toEqual([]);
 });
+
+// Codex on #3456: the tile follows a logo deleted on the page, in the same Undo step.
+test('deleting the crest on the page hides its light tile; one Undo brings both back', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="navy"]').click();
+  await touch(page);
+  await ownLogo(page);
+  const tile = async () => (await roles(page)).find((item) => item.role === 'logotile');
+  await expect.poll(async () => (await tile())?.hidden === true).toBe(false);
+  const logoId = (await roles(page)).find((item) => item.role === 'logo').id;
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator(`[data-layer-select="${logoId}"]`).click();
+  await page.keyboard.press('Delete');
+  await expect.poll(async () => (await roles(page)).some((item) => item.role === 'logo')).toBe(false);
+  expect((await tile()).hidden).toBe(true);
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await roles(page)).some((item) => item.role === 'logo')).toBe(true);
+  expect((await tile()).hidden === true).toBe(false);
+  expect(errors).toEqual([]);
+});

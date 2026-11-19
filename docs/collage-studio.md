@@ -243,7 +243,9 @@ its npm package by hand; the libman entry records the version.
     vanished on navy). It is the design part `role: "logotile"` (`backlogotile` behind the back's
     small logo), sized round the logos with a margin; with no logo or only the SDD logo it is
     hidden and marked `autoHidden`, as the roundel is, and Save does not count it as a hidden
-    item. An older navy draft gets the tile when a crest is first chosen for it.
+    item. An older navy draft gets the tile when a crest is first chosen for it. The tile also follows a logo moved,
+    resized, hidden or deleted on the page, in the same Undo step; a logo placed near the edge on
+    the page is never made smaller to fit it.
 
     The logo is the item with `role: "logo"`. Changing the design keeps it (placed and sized by
     the new design), a removed logo stays removed, and a second logo (`role: "logo2"`) stays
