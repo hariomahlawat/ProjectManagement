@@ -688,3 +688,26 @@ test('picker: chooses projects for a deck not made yet, and saves nothing itself
   assert.deepEqual(page.picker.tickedIds(), []);
   assert.equal(page.events.at(-1), 0);
 });
+
+test('picker: Enter in the search searches, and does not submit the New deck form around it', async () => {
+  const page = await setUpPicker();
+  page.modalElement.dispatchEvent(new page.window.Event('show.bs.modal'));
+  await tick(); await tick();
+  const query = page.pickerRoot.querySelector('[data-pbd-filter-query]');
+  const before = page.fetches.filter((href) => href.includes('FilterProjects')).length;
+
+  query.value = 'Bravo';
+  const enter = new page.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+  query.dispatchEvent(enter);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  assert.equal(enter.defaultPrevented, true, 'implicit submission is stopped');
+  const searches = page.fetches.filter((href) => href.includes('FilterProjects'));
+  assert.equal(searches.length, before + 1, 'and it searches at once');
+  assert.match(searches.at(-1), /query=Bravo/);
+
+  // Other keys are left alone.
+  const letter = new page.window.KeyboardEvent('keydown', { key: 'a', bubbles: true, cancelable: true });
+  query.dispatchEvent(letter);
+  assert.equal(letter.defaultPrevented, false);
+});

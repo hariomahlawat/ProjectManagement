@@ -652,6 +652,15 @@ export function initAddProjects(deps) {
     if (filterQuery.value.trim() === lastQuery) return;
     reloadFilterRows(300);
   });
+  // In the New deck dialog the search sits inside the deck's form: Enter there searches at once,
+  // and must not submit the form, which would create the deck mid-search (Codex review on #3459).
+  if (picker) {
+    filterQuery?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' || event.isComposing) return;
+      event.preventDefault();
+      if (filterQuery.value.trim() !== lastQuery) reloadFilterRows(0);
+    });
+  }
   filterListRetry?.addEventListener('click', () => {
     filterListRetry.hidden = true;
     if (filterCount) filterCount.textContent = 'Finding projects…';
