@@ -549,7 +549,6 @@
     return Object.values(DESIGNS).filter((design) => !design.poster && Boolean(design.pocket) === pocket);
   }
 
-  /** Whether a design follows the unit's colours. */
   /** Whether a design follows the unit's colours: a part's colour is one of 'band1' to 'band3'. */
   function usesColours(designKey) {
     const design = DESIGNS[designKey];
@@ -577,6 +576,42 @@
     return details;
   }
 
+  /**
+   * The design's parts for each side of a card of this size: the one place that says which side
+   * a field is on (a programme card has its programme on the front, a folded card its details
+   * inside, a flat card its programme on the back).
+   */
+  function partsFor(designKey, sizeKey) {
+    const design = DESIGNS[designKey];
+    if (!design) return { front: [], back: [] };
+    if (isFolded(sizeKey)) return { front: foldedParts(designKey, 'outside'), back: foldedParts(designKey, 'inside') };
+    const front = isPortrait(sizeKey) ? design.portrait : (design.landscape || design.portrait);
+    return { front, back: backParts(designKey, isPortrait(sizeKey)) };
+  }
+  const fieldsIn = (parts) => [...new Set(parts.filter((part) => part.kind === 'text').map((part) => part.field))];
+
+  /** Which side of the card a field is on, from the design: 'front', 'back', or null when it has none. */
+  function sideOf(collage, field) {
+    // A field already on the card is on its side, wherever the design would put it now (one the
+    // user locked stays where it was through a size change: Codex on #3452).
+    const showingBack = collage?.side === 'back' && collage.back;
+    const frontItems = (showingBack ? collage.back.items : collage?.items) || [];
+    const backItems = (showingBack ? collage.items : collage?.back?.items) || [];
+    const has = (items) => items.some((item) => item.kind === 'text' && item.field === field);
+    if (has(frontItems)) return 'front';
+    if (collage?.back && has(backItems)) return 'back';
+    const parts = partsFor(collage?.card?.design, collage?.size);
+    if (fieldsIn(parts.front).includes(field)) return 'front';
+    if (collage?.back && fieldsIn(parts.back).includes(field)) return 'back';
+    return null;
+  }
+
+  /** Every field the card shows words for, on either side. */
+  function fieldsOnCard(collage) {
+    const parts = partsFor(collage?.card?.design, collage?.size);
+    return [...new Set([...fieldsIn(parts.front), ...(collage?.back ? fieldsIn(parts.back) : [])])];
+  }
+
   /** The fields a design shows words for: on a page of this size, or in either arrangement. */
   function fieldsOf(designKey, sizeKey) {
     const design = DESIGNS[designKey];
@@ -601,7 +636,7 @@
    * items (and a second logo) from `items`, the side as it was. A photo in the side's frame
    * (`frameRole`) goes into the new frame, or stays as the user's own when there is none.
    */
-  function makePage(items, parts, { width, height, unit, wording, measure, newId, isCard, frameRole }) {
+  function makePage(items, parts, { width, height, unit, wording, measure, newId, isCard, frameRole, lockedElsewhere = new Set() }) {
     // The unit's colours for the Regimental band: 'band1' to 'band3' in a look stand for them.
     const colours = colourList(wording.colours);
     const tinted = (look) => {
@@ -620,13 +655,29 @@
     };
     // A photo the user put in the last design's frame goes into this design's frame, or stays
     // on the page as their own when this design has none.
-    const framed = (items || []).filter((item) => item.role === frameRole && item.kind === 'photo');
+    const framed = (items || []).filter((item) => item.role === frameRole && item.kind === 'photo' && !item.locked);
+    // A locked part of the last design stays exactly as it is, and the new design leaves out its
+    // own part for that role; a hidden one comes back hidden.
+    const lockedRoles = new Set((items || []).filter((item) => item.role && item.locked).map((item) => item.role));
+    // A locked part keeps its place in the stacking order: it goes where the new design has its
+    // part for that role, so a locked roundel stays behind the logo (Codex on #3452).
+    const lockedByRole = new Map((items || []).filter((item) => item.role && item.locked).map((item) => [item.role, item]));
+    const placedLocked = new Set();
+    const hiddenRoles = new Set((items || []).filter((item) => item.role && item.hidden).map((item) => item.role));
     const made = [];
     // A poster with "No logo" (or a logo place it has no logo for) moves parts up into the space.
     const chosenLogo = (items || []).find((item) => item.role === 'logo' && item.kind !== 'slot');
     const noLogo = wording.logoMode === 'none' && !chosenLogo;
     for (const raw of parts) {
       const part = noLogo && raw.yNoLogo !== undefined ? { ...raw, y: raw.yNoLogo } : raw;
+      if (lockedRoles.has(part.role)) {
+        const kept = lockedByRole.get(part.role);
+        if (kept && !placedLocked.has(kept.id)) { made.push(kept); placedLocked.add(kept.id); }
+        continue;
+      }
+      // A part locked on the card's other side (a guest field locked on the front of a card
+      // turned folded) is not made again here, so the card never has two (Codex on #3452).
+      if (lockedElsewhere.has(part.role)) continue;
       const before = made.length;
       if (part.kind === 'logoplace') {
         const w = part.w * 1000 * unit;
@@ -690,6 +741,7 @@
       // A part turned (a poster's band) or with rounded corners (a speaker's photo).
       if (made.length > before) {
         const item = made[made.length - 1];
+        if (hiddenRoles.has(part.role)) item.hidden = true;
         if (part.angle) item.angle = part.angle;
         if (part.radius && (item.kind === 'slot' || item.kind === 'photo')) item.radius = Math.min(part.radius, core.LAYOUT_LIMITS.radiusMax);
       }
@@ -697,7 +749,7 @@
     // Photos from the last design's frame with no frame here become the user's own.
     const leftOver = framed.map(({ role, ...item }) => item);
     // The user's own items, and a second logo they added, stay where they are.
-    const own = (items || []).filter((item) => !item.role || item.role === 'logo2');
+    const own = (items || []).filter((item) => !item.role || item.role === 'logo2' || (item.locked && !placedLocked.has(item.id)));
     return [...made, ...own, ...leftOver];
   }
 
@@ -790,14 +842,19 @@
     const parts = isFolded(collage.size)
       ? foldedParts(designKey, 'inside')
       : backParts(designKey, isPortrait(collage.size)).filter((part) => part.kind !== 'text' || !onFront.has(part.field));
-    const made = makePage(items, parts, pageContext(collage, wording, opts, { isCard: false, frameRole: 'backphoto' }));
+    const lockedOnFront = new Set((collage.items || []).filter((item) => item.role && item.locked).map((item) => item.role));
+    const made = makePage(items, parts, pageContext(collage, wording, opts, { isCard: false, frameRole: 'backphoto', lockedElsewhere: lockedOnFront }));
     // The back's small logo is the front's logo (the SDD logo, a crest or the user's own), or
     // none when the front has none. `collage` here shows its front.
     const front = (collage.items || []).find((item) => item.role === 'logo');
     const at = made.findIndex((item) => item.role === 'backlogo');
-    if (at >= 0) {
-      if (front) made.splice(at, 1, { ...front, id: made[at].id, x: made[at].x, y: made[at].y, width: made[at].width, angle: 0, role: 'backlogo' });
-      else made.splice(at, 1);
+    // A back logo the user locked stays exactly as it is, turn and all (Codex on #3452); the front
+    // logo's own lock and hiding are its own, not the back's.
+    if (at >= 0 && !made[at].locked) {
+      if (front) {
+        const { locked, hidden, ...picture } = front;
+        made.splice(at, 1, { ...picture, id: made[at].id, x: made[at].x, y: made[at].y, width: made[at].width, angle: 0, role: 'backlogo', ...(made[at].hidden ? { hidden: true } : {}) });
+      } else made.splice(at, 1);
     }
     return { background: { ...look.background }, items: made };
   }
@@ -823,7 +880,7 @@
       ...card,
       background: { ...design.background },
       layout: null,
-      items: makePage(card.items, parts, pageContext(card, wording, opts, { isCard: Boolean(card.card), frameRole: 'photo' })),
+      items: makePage(card.items, parts, pageContext(card, wording, opts, { isCard: Boolean(card.card), frameRole: 'photo', lockedElsewhere: new Set((card.back?.items || []).filter((item) => item.role && item.locked).map((item) => item.role)) })),
       // The guest list stays with the card through a design change (PR 10).
       card: { ...(card.card?.guests ? { guests: card.card.guests } : {}), design: designKey, details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) }
     };
@@ -928,14 +985,17 @@
   function fieldItem(collage, field, details, opts) {
     const key = collage?.card?.design;
     if (!DESIGNS[key]) return null;
-    if (isBackField(collage, field)) {
-      if (!collage.back) return null;
-      return backPage(collage, key, details, opts).items.find((item) => item.field === field) || null;
+    const where = sideOf(collage, field);
+    if (!where) return null;
+    if (where === 'back') {
+      // Built from the front's point of view, so the back's logo follows the front's.
+      const front = collage.side === 'back' ? core.flipSide(collage) : collage;
+      return backPage(front, key, details, opts).items.find((item) => item.field === field) || null;
     }
     const { back, side, ...front } = collage;
     const made = applyDesign({ ...front, items: [] }, key, details, opts);
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, INSIDE_FIELDS });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, INSIDE_FIELDS, partsFor, sideOf, fieldsOnCard });
 });

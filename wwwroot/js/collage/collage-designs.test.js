@@ -462,3 +462,61 @@ test('a folded card has an outside and an inside in every design, each panel wit
   }
   assert.ok(designs.fieldsOf('classic', 'fold6').includes('when'));
 });
+
+// Cold review fixes (19 Nov 2026).
+test('a field\'s side comes from the design: a programme card\'s programme is on its front, a folded card\'s details inside', () => {
+  const card = designs.applyDesign(core.newCollage('a7p'), 'programmecard', {}, { measure, newId });
+  assert.equal(designs.sideOf(card, 'programme'), 'front');
+  assert.equal(designs.fieldItem(card, 'programme', { ...designs.detailsOf(card), programme: '1900 h · Arrival' }, { measure, newId }).text, '1900 h · Arrival');
+  const folded = designs.applyDesign(core.newCollage('fold6'), 'classic', {}, { measure, newId });
+  assert.equal(designs.sideOf(folded, 'guest'), 'back');
+  assert.equal(designs.sideOf(folded, 'occasion'), 'front');
+  assert.ok(designs.fieldsOnCard(folded).includes('when'));
+  const flat = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
+  assert.equal(designs.sideOf(flat, 'programme'), 'back');
+  assert.equal(designs.usesColours('pass'), false, 'a role named band is not a unit colour');
+  assert.equal(designs.usesColours('regimental'), true);
+});
+
+test('a design change leaves a locked part where it is and brings a hidden part back hidden', () => {
+  const card = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
+  const edited = { ...card, items: card.items.map((item) => (item.field === 'occasion' ? { ...item, x: 111, locked: true } : item.field === 'note' ? { ...item, hidden: true } : item)) };
+  const navy = designs.applyDesign(edited, 'navy', designs.detailsOf(edited), { measure, newId });
+  const occasions = navy.items.filter((item) => item.field === 'occasion');
+  assert.equal(occasions.length, 1, 'no second occasion');
+  assert.deepEqual([occasions[0].x, occasions[0].locked], [111, true]);
+  assert.equal(navy.items.find((item) => item.field === 'note').hidden, true);
+});
+
+// Codex on #3452: locked parts keep their stacking place, and are not made twice across sides.
+test('a locked part keeps its place behind the logo; a field locked on the front is not made again inside', () => {
+  const opts = { measure, newId };
+  const card = designs.applyDesign(core.newCollage('a5p'), 'regimental', {}, opts);
+  const locked = { ...card, items: card.items.map((item) => (item.role === 'roundel' ? { ...item, locked: true } : item)) };
+  const resized = designs.applyDesign({ ...locked, size: 'a6p' }, 'regimental', designs.detailsOf(locked), opts);
+  const order = resized.items.map((item) => item.role);
+  assert.ok(order.indexOf('roundel') < order.indexOf('logo'), 'the roundel is still drawn before the logo');
+  // A guest field locked on a flat card, then the card made folded: one guest field only.
+  const flat = designs.applyDesign(core.newCollage('a5p'), 'classic', { guest: 'Maj A' }, opts);
+  const lockedGuest = { ...flat, items: flat.items.map((item) => (item.field === 'guest' ? { ...item, locked: true } : item)) };
+  const folded = designs.applyDesign({ ...lockedGuest, size: 'fold6' }, 'classic', designs.detailsOf(lockedGuest), opts);
+  const guests = [...folded.items, ...(folded.back?.items || [])].filter((item) => item.field === 'guest');
+  assert.equal(guests.length, 1);
+  assert.equal(guests[0].locked, true);
+  // Card details finds it where it is, on the front, so typing changes it (Codex on #3452).
+  assert.equal(designs.sideOf(folded, 'guest'), 'front');
+  assert.equal(designs.sideOf(core.flipSide(folded), 'guest'), 'front');
+  // A field not on the card: the side the design puts it on.
+  assert.equal(designs.sideOf(designs.applyDesign(core.newCollage('fold6'), 'classic', {}, opts), 'venue'), 'back');
+});
+
+// Codex on #3452: a back logo the user locked keeps its lock and turn through a size change.
+test('a locked back logo keeps its lock and turn when the card is resized', () => {
+  const opts = { measure, newId };
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, opts), opts);
+  const locked = { ...card, back: { ...card.back, items: card.back.items.map((item) => (item.role === 'backlogo' ? { ...item, locked: true, angle: 12 } : item)) } };
+  const resized = designs.applyDesign({ ...locked, size: 'a6p' }, 'classic', designs.detailsOf(locked), opts);
+  const backLogo = resized.back.items.find((item) => item.role === 'backlogo');
+  assert.equal(backLogo.locked, true);
+  assert.equal(backLogo.angle, 12);
+});

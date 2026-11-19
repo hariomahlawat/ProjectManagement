@@ -65,8 +65,9 @@
     const isPoster = () => Boolean(designs.DESIGNS[state.collage?.card?.design]?.poster);
     const options = () => ({ measure: surface.measureText, newId: doc.newItemId });
     // A field's words may be on the side not showing (the back's programme while the front shows).
-    // A field's side comes from the design (a programme card shows its programme on the front).
-    const fieldsHere = (collage, field) => (designs.isBackField(collage, field) === (collage.side === 'back') ? collage.items : collage.back?.items || []);
+    // A folded card's inside fields are on its back (PR 9c).
+    const onBack = (collage, field) => designs.sideOf(collage, field) === 'back';
+    const fieldsHere = (collage, field) => (onBack(collage, field) === (collage.side === 'back') ? collage.items : collage.back?.items || []);
     const textFor = (collage, field) => fieldsHere(collage, field).find((item) => item.kind === 'text' && item.field === field) || null;
 
     // -------------------------------------------------------------------------
@@ -144,9 +145,10 @@
         renderer = renderer || window.PrismCollageRender.createRenderer({ core, draw, measureText: surface.measureText, fontsReady: surface.fontsReady, stickerImage: surface.stickerImage });
         const collage = designs.applyDesign(core.newCollage(size), key, details, { measure: surface.measureText, newId: (() => { let n = 0; return () => `t${++n}`; })() });
         const drawn = await renderer.drawCollage(collage, new Map(), canvas.width, canvas.height);
-        if (round !== thumbs) return;
+        if (round !== thumbs) { renderer.release(drawn.canvas); return; }
         const context = canvas.getContext('2d');
         context.drawImage(drawn.canvas, 0, 0);
+        renderer.release(drawn.canvas);
         // A design's photo frame shows where the user's photo goes; Save leaves empty frames out.
         const scale = canvas.width / core.PAGE_WIDTH;
         for (const slot of collage.items.filter((item) => item.kind === 'slot')) {
@@ -291,7 +293,7 @@
       const details = designs.detailsOf(state.collage);
       // Only the fields this design shows words for (the Hindi ones only for Bilingual).
       const design = state.collage?.card?.design;
-      const shown = new Set([...designs.fieldsOf(design, state.collage.size), ...(state.collage.back && !designs.isFolded(state.collage.size) ? designs.BACK_FIELDS : [])]);
+      const shown = new Set(designs.fieldsOnCard(state.collage));
       const colours = designs.usesColours(design) ? colourFields(details.colours) : '';
       // The logo is the front's: changed with the front showing.
       const logo = state.collage.side === 'back' ? '<p class="clg-hint">Turn to the front to change the logo.</p>' : logoSection();
@@ -638,7 +640,7 @@
       if (held) history.holdEdit();
       else history.commit();
       const count = form.querySelector('[data-card-guest-count]');
-      if (count) count.firstChild && (count.textContent = guests.length ? `${guests.length} guest${guests.length === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it. The names stay in this browser.` : 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.');
+      if (count) (count.textContent = guests.length ? `${guests.length} guest${guests.length === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it. The names stay in this browser.` : 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.');
       return guests;
     }
 
@@ -679,7 +681,7 @@
         // Both sides follow the unit's colours: the back's title and rules use them too.
         for (const item of [...draft.items, ...(draft.back?.items || [])]) {
           for (const [prop, which] of Object.entries(item.tint || {})) {
-            if (which === index) item[prop] = value.toLowerCase();
+            if (which === index && ['fill', 'stroke', 'color'].includes(prop)) item[prop] = value.toLowerCase();
           }
         }
       }, 'none');
