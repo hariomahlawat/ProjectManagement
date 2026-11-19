@@ -678,7 +678,7 @@ test('Poster details changes the contact line; Remove logo leaves No logo', asyn
   await contact.fill('Adjutant · Ext 2201');
   await contact.blur();
   await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'contact')?.text).toBe('Adjutant · Ext 2201');
-  // A poster offers no back (a back logo follows No logo where a draft has one: designs tests).
+  // A poster here offers no back, so the back logo following No logo is not reached from the panel.
   await expect(page.locator('[data-card-side="add"]')).toHaveCount(0);
   await page.locator('[data-card-logo-use="logo:sdd"]').click();
   await page.locator('[data-card-logo="remove"]').click();
