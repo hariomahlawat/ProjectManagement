@@ -34,9 +34,11 @@ public sealed class ChatHub : Hub<IChatClient>
     private readonly ChatPresenceTracker _presence;
     private readonly IOptionsMonitor<ChatOptions> _options;
     private readonly ChatGroupService _groups;
+    private readonly ChatConnectionRegistry? _connections;
 
-    public ChatHub(ChatPresenceTracker presence, IOptionsMonitor<ChatOptions> options, ChatGroupService groups)
+    public ChatHub(ChatPresenceTracker presence, IOptionsMonitor<ChatOptions> options, ChatGroupService groups, ChatConnectionRegistry? connections = null)
     {
+        _connections = connections;
         _presence = presence ?? throw new ArgumentNullException(nameof(presence));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _groups = groups ?? throw new ArgumentNullException(nameof(groups));
@@ -52,6 +54,8 @@ public sealed class ChatHub : Hub<IChatClient>
         }
 
         Context.Items[PresenceItemKey] = true;
+        // Re-checked every minute or so: a disabled account's open tab is closed (ChatConnectionRevalidator).
+        _connections?.Add(userId, Context);
         await BroadcastIfChanged(userId, _presence.Connect(userId, Context.ConnectionId));
         await base.OnConnectedAsync();
     }
@@ -59,6 +63,7 @@ public sealed class ChatHub : Hub<IChatClient>
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         var userId = Context.UserIdentifier;
+        _connections?.Remove(Context.ConnectionId);
         // Only connections that were counted in are counted out, so an aborted connection
         // cannot mark a user offline while their other tabs are still open.
         if (!string.IsNullOrWhiteSpace(userId) && Context.Items.ContainsKey(PresenceItemKey))
@@ -73,7 +78,7 @@ public sealed class ChatHub : Hub<IChatClient>
     public async Task SetAway(bool away)
     {
         var userId = Context.UserIdentifier;
-        if (string.IsNullOrWhiteSpace(userId) || !Context.Items.ContainsKey(PresenceItemKey))
+        if (string.IsNullOrWhiteSpace(userId) || !Context.Items.ContainsKey(PresenceItemKey) || !_options.CurrentValue.Enabled)
         {
             return;
         }
@@ -92,7 +97,8 @@ public sealed class ChatHub : Hub<IChatClient>
             || string.IsNullOrWhiteSpace(peerUserId)
             || peerUserId.Length > 450
             || string.Equals(peerUserId, userId, StringComparison.Ordinal)
-            || !Context.Items.ContainsKey(PresenceItemKey))
+            || !Context.Items.ContainsKey(PresenceItemKey)
+            || !_options.CurrentValue.Enabled)
         {
             return;
         }
@@ -112,7 +118,7 @@ public sealed class ChatHub : Hub<IChatClient>
     public async Task TypingInGroup(long groupId)
     {
         var userId = Context.UserIdentifier;
-        if (string.IsNullOrWhiteSpace(userId) || groupId <= 0 || !Context.Items.ContainsKey(PresenceItemKey))
+        if (string.IsNullOrWhiteSpace(userId) || groupId <= 0 || !Context.Items.ContainsKey(PresenceItemKey) || !_options.CurrentValue.Enabled)
         {
             return;
         }

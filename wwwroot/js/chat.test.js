@@ -4118,8 +4118,9 @@ test('do not disturb quiets arriving messages (mentions too), tells others, and 
     await tick(); await tick();
     assert.equal(app.isQuiet(), true);
     assert.equal(app.dndNote.hidden, false);
-    assert.match(app.dndNote.textContent, /Do not disturb until \d\d:\d\d/);
-    assert.match(statuses[0], /^Do not disturb until \d\d:\d\d$/, 'others see it as the status');
+    // "until 14:30", or "until Thu, 00:30" when the hour ends tomorrow (picked after 23:00).
+    assert.match(app.dndNote.textContent, /Do not disturb until (\w{3},? )?\d\d:\d\d/);
+    assert.match(statuses[0], /^Do not disturb until (\w{3},? )?\d\d:\d\d$/, 'others see it as the status');
     assert.match(app.launchers[0].getAttribute('aria-label'), /do not disturb is on/);
     assert.ok(JSON.parse(window.localStorage.getItem('prism.chat.dnd.me')).until > Date.now());
 
@@ -4643,6 +4644,56 @@ test('while polling without a live connection, edits to older loaded messages ar
     assert.equal(asked.length, 1);
     assert.match(win.log.querySelector('[data-message-id="1"] .pm-chat__bubble').textContent, /Corrected during the outage/);
     assert.ok(app.offlineSince, 'still offline: the final catch-up runs on reconnect');
+  } finally {
+    window.close();
+  }
+});
+
+test('a message pushed twice with no window open is counted as unread once', async () => {
+  const window = bootApp(async (url) => {
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    return { status: 204, body: null };
+  });
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    app.isQuiet = () => true; // do not disturb: nothing pops open
+    const message = directMessage(7, 'peer', 'Are you free?');
+    app.onMessage(message);
+    app.onMessage({ ...message }); // pushed again after a retried send
+    assert.equal(app.windows.size, 0);
+    assert.equal(app.contacts.get('peer').unreadCount, 1);
+    app.onMessage(directMessage(8, 'peer', 'Never mind'));
+    assert.equal(app.contacts.get('peer').unreadCount, 2);
+  } finally {
+    window.close();
+  }
+});
+
+test('the reconnect catch-up completes when the server has no unsent or removed-files list', async () => {
+  const asked = [];
+  const window = bootApp(async (url) => {
+    asked.push(url);
+    if (url.endsWith('/contacts')) return [{ ...contact, unreadCount: 0 }];
+    if (url.includes('/unsent?since=')) return { status: 404, body: null };
+    if (url.includes('/attachments/removed')) return { status: 404, body: null };
+    if (url.includes('/messages/current')) {
+      return [directMessage(1, 'peer', 'Corrected while you were away', { editedUtc: new Date().toISOString() })];
+    }
+    if (url.includes('/with/peer/messages')) return { messages: [directMessage(1, 'peer', 'Original text')], hasMore: false };
+    return { status: 204, body: null };
+  }, '', attachmentsOn);
+  try {
+    await tick(); await tick();
+    const app = window.PMChat;
+    const win = app.openWindow('peer', { focus: false });
+    await tick(); await tick();
+    app.markOffline();
+    await app.syncUnsent(true);
+    assert.ok(asked.some((url) => url.includes('/attachments/removed')), 'attachments were on, so it asked');
+    assert.match(win.log.querySelector('[data-message-id="1"] .pm-chat__bubble').textContent, /Corrected while you were away/);
+    assert.equal(app.offlineSince, null, 'the catch-up is done');
+    assert.ok(!app.unsentRetry, 'and nothing is retried');
   } finally {
     window.close();
   }

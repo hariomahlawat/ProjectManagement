@@ -89,6 +89,62 @@ public sealed class ChatHubTests
         Assert.Empty(scope.Pushes);
     }
 
+    [Fact]
+    public async Task SignalsStopWhenChatIsSwitchedOff_OnConnectionsAlreadyOpen()
+    {
+        await using var scope = await HubScope.CreateAsync();
+        var groupId = (await scope.Groups.CreateAsync("alice", "Desk", new[] { "bob" })).Group!.Id;
+        var hub = scope.HubFor("alice");
+        await hub.OnConnectedAsync();
+        scope.Pushes.Clear();
+
+        scope.Options.CurrentValue.Enabled = false;
+        await hub.Typing("bob");
+        await hub.TypingInGroup(groupId);
+        await hub.SetAway(true);
+
+        Assert.Empty(scope.Pushes);
+    }
+
+    [Fact]
+    public async Task OpenConnections_AreListed_AndThoseOfAccountsNoLongerAllowedAreClosed()
+    {
+        await using var scope = await HubScope.CreateAsync();
+        foreach (var user in await scope.Db.Users.ToListAsync())
+        {
+            user.SecurityStamp = "stamp-" + user.Id;
+        }
+
+        await scope.Db.SaveChangesAsync();
+        var alice = scope.HubFor("alice", "stamp-alice");
+        await alice.OnConnectedAsync();
+        var aliceContext = scope.Context;
+        var bob = scope.HubFor("bob", "stamp-bob");
+        await bob.OnConnectedAsync();
+        var bobContext = scope.Context;
+        var carol = scope.HubFor("carol", "stamp-carol");
+        await carol.OnConnectedAsync();
+        var carolContext = scope.Context;
+        Assert.Equal(3, scope.Registry.Count);
+
+        var revalidator = new ChatConnectionRevalidator(scope.Db, scope.Registry, Microsoft.Extensions.Logging.Abstractions.NullLogger<ChatConnectionRevalidator>.Instance);
+        Assert.Equal(0, await revalidator.RevalidateAsync()); // nothing changed
+
+        // Bob is disabled; Carol's password is reset (her stamp rotates).
+        await scope.Db.Users.Where(u => u.Id == "bob").ExecuteUpdateAsync(set => set.SetProperty(u => u.IsDisabled, true));
+        await scope.Db.Users.Where(u => u.Id == "carol").ExecuteUpdateAsync(set => set.SetProperty(u => u.SecurityStamp, "rotated"));
+
+        Assert.Equal(2, await revalidator.RevalidateAsync());
+        Assert.False(aliceContext.Aborted);
+        Assert.True(bobContext.Aborted);
+        Assert.True(carolContext.Aborted);
+        Assert.Equal(1, scope.Registry.Count);
+
+        // A closed connection leaves the list when it ends, as any other.
+        await alice.OnDisconnectedAsync(null);
+        Assert.Equal(0, scope.Registry.Count);
+    }
+
     private sealed class HubScope : IAsyncDisposable
     {
         private readonly SqliteConnection _connection;
@@ -124,10 +180,14 @@ public sealed class ChatHubTests
             return new HubScope(connection, db);
         }
 
-        public ChatHub HubFor(string userId)
+        public EnabledOptions Options { get; } = new();
+
+        public ChatConnectionRegistry Registry { get; } = new(Microsoft.Extensions.Options.Options.Create(new Microsoft.AspNetCore.Identity.IdentityOptions()));
+
+        public ChatHub HubFor(string userId, string? securityStamp = null)
         {
-            Context = new FakeCallerContext(userId);
-            return new ChatHub(_presence, new EnabledOptions(), Groups)
+            Context = new FakeCallerContext(userId, securityStamp);
+            return new ChatHub(_presence, Options, Groups, Registry)
             {
                 Context = Context,
                 Clients = new CallerClients(_recorder),
@@ -144,17 +204,25 @@ public sealed class ChatHubTests
     public sealed class FakeCallerContext : HubCallerContext
     {
         private readonly string _userId;
+        private readonly string? _securityStamp;
 
-        public FakeCallerContext(string userId)
+        public FakeCallerContext(string userId, string? securityStamp = null)
         {
             _userId = userId;
+            _securityStamp = securityStamp;
         }
+
+        public bool Aborted { get; private set; }
 
         public override string ConnectionId { get; } = Guid.NewGuid().ToString("N");
 
         public override string? UserIdentifier => _userId;
 
-        public override ClaimsPrincipal? User => new(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, _userId) }, "Test"));
+        public override ClaimsPrincipal? User => new(new ClaimsIdentity(
+            _securityStamp is null
+                ? new[] { new Claim(ClaimTypes.NameIdentifier, _userId) }
+                : new[] { new Claim(ClaimTypes.NameIdentifier, _userId), new Claim(new Microsoft.AspNetCore.Identity.ClaimsIdentityOptions().SecurityStampClaimType, _securityStamp) },
+            "Test"));
 
         public override IDictionary<object, object?> Items { get; } = new Dictionary<object, object?>();
 
@@ -162,9 +230,7 @@ public sealed class ChatHubTests
 
         public override CancellationToken ConnectionAborted => CancellationToken.None;
 
-        public override void Abort()
-        {
-        }
+        public override void Abort() => Aborted = true;
     }
 
     private sealed class CallerClients : IHubCallerClients<IChatClient>
@@ -203,7 +269,7 @@ public sealed class ChatHubTests
         public IChatClient Users(IReadOnlyList<string> userIds) => Hub.Users(userIds);
     }
 
-    private sealed class EnabledOptions : IOptionsMonitor<ChatOptions>
+    public sealed class EnabledOptions : IOptionsMonitor<ChatOptions>
     {
         public ChatOptions CurrentValue { get; } = new();
 

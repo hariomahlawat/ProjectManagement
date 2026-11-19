@@ -914,6 +914,8 @@ public sealed class ChatService
                     on mine.ConversationId equals m.ConversationId
                 where m.UnsentUtc != null && m.UnsentUtc >= since
                     && (beforeMessageId == null || m.Id < beforeMessageId)
+                    // A group member hears only of messages from after they joined, as live.
+                    && (mine.Conversation!.Kind == ChatConversation.DirectKind || m.SentUtc >= mine.JoinedUtc)
                 orderby m.Id descending
                 select m.Id)
             .Take(MaxUnsentSync + 1)

@@ -19,6 +19,19 @@
     return message.senderUserId === this.me ? message.recipientUserId : message.senderUserId;
   };
 
+  /**
+   * True the first time a message id is counted as unread without a window. Remembers the most
+   * recent ids only: a repeat push follows its first within seconds.
+   */
+  ChatApp.prototype.countOnce = function (id) {
+    if (!id) return true;
+    if (!this.countedIds) this.countedIds = new Set();
+    if (this.countedIds.has(id)) return false;
+    this.countedIds.add(id);
+    if (this.countedIds.size > 500) this.countedIds.delete(this.countedIds.values().next().value);
+    return true;
+  };
+
   ChatApp.prototype.onMessage = function (message) {
     const key = this.keyOfMessage(message);
     const incoming = message.senderUserId !== this.me;
@@ -84,7 +97,8 @@
         this.touchUnread(key);
       }
       this.maybeMarkRead(win);
-    } else if (countable && counter) {
+    } else if (countable && counter && this.countOnce(message.id)) {
+      // No window holds it to tell a repeat (a retried send is pushed again): count each id once.
       counter.unreadCount += 1;
       this.touchUnread(key);
     }

@@ -336,6 +336,24 @@ public sealed class ChatGroupServiceTests
     private static ChatGroupSendRequest Send(string body) => new(Guid.NewGuid(), body);
 
     [Fact]
+    public async Task TheUnsentCatchUp_LeavesOutMessagesFromBeforeTheCallerJoined()
+    {
+        await using var scope = await GroupScope.CreateAsync();
+        var id = (await scope.Groups.CreateAsync("alice", "Desk", new[] { "bob" })).Group!.Id;
+        var since = DateTimeOffset.MinValue;
+        var before = await scope.Groups.SendAsync("alice", id, Send("before carol"));
+        await scope.Groups.AddMembersAsync("alice", id, new[] { "carol" });
+        var after = await scope.Groups.SendAsync("alice", id, Send("after carol"));
+        await scope.Chat.UnsendAsync("alice", before.Message!.Id);
+        await scope.Chat.UnsendAsync("alice", after.Message!.Id);
+
+        Assert.Equal(new[] { after.Message.Id }, (await scope.Chat.ListUnsentSinceAsync("carol", since)).Ids);
+        Assert.Equal(
+            new[] { before.Message.Id, after.Message.Id }.OrderBy(i => i),
+            (await scope.Chat.ListUnsentSinceAsync("bob", since)).Ids.OrderBy(i => i));
+    }
+
+    [Fact]
     public async Task Mentions_AreStoredForMembersOnly_AndCarriedWithTheMessage()
     {
         await using var scope = await GroupScope.CreateAsync();

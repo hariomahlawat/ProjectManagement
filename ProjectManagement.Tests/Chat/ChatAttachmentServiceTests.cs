@@ -296,6 +296,7 @@ public sealed class ChatAttachmentServiceTests
     {
         await using var scope = await FileScope.CreateAsync();
         var upload = (await scope.Files.UploadAsync("alice", Content("pdf"), "left.pdf")).Attachment!;
+        await scope.Chat.SendAsync("alice", new ChatSendRequest("bob", Guid.NewGuid(), "left", new[] { upload.Id }));
         await scope.Files.RemoveAsync("alice", upload.Id);
         var key = (await scope.Db.ChatAttachments.AsNoTracking().SingleAsync()).StorageKey;
 
@@ -347,6 +348,7 @@ public sealed class ChatAttachmentServiceTests
     {
         await using var scope = await FileScope.CreateAsync();
         var removed = (await scope.Files.UploadAsync("alice", Png(10, 10), "a.png")).Attachment!;
+        await scope.Chat.SendAsync("alice", new ChatSendRequest("bob", Guid.NewGuid(), "a", new[] { removed.Id }));
         var kept = (await scope.Files.UploadAsync("alice", Content("pdf"), "b.pdf")).Attachment!;
         await scope.Chat.SendAsync("alice", new ChatSendRequest("bob", Guid.NewGuid(), "b", new[] { kept.Id }));
         var abandoned = (await scope.Files.UploadAsync("alice", Content("pdf"), "c.pdf")).Attachment!;
@@ -397,6 +399,107 @@ public sealed class ChatAttachmentServiceTests
     public void FreeSpace_OnWindows_UsesTheUploadDrive()
     {
         Assert.Equal("E:\\", ChatDiskSpace.MountFor("e:\\PrismData\\uploads", new[] { "C:\\", "E:\\" }, ignoreCase: true));
+    }
+
+    [Fact]
+    public async Task RemovingAnUploadNeverSent_DeletesItsFilesAtOnce()
+    {
+        await using var scope = await FileScope.CreateAsync();
+        var upload = (await scope.Files.UploadAsync("alice", Png(10, 10), "draft.png")).Attachment!;
+        var row = await scope.Db.ChatAttachments.AsNoTracking().SingleAsync(a => a.Id == upload.Id);
+        Assert.True(File.Exists(scope.PathOf(row.StorageKey)));
+
+        Assert.NotNull(await scope.Files.RemoveAsync("alice", upload.Id));
+
+        Assert.False(File.Exists(scope.PathOf(row.StorageKey)));
+        Assert.False(File.Exists(scope.PathOf(row.ThumbnailKey!)));
+        var purged = await scope.Db.ChatAttachments.AsNoTracking().SingleAsync(a => a.Id == upload.Id);
+        Assert.NotNull(purged.PurgedUtc);
+        Assert.NotEqual(ProjectManagement.Models.Chat.ChatAttachment.PurgeClaimed, purged.PurgedUtc);
+        Assert.Equal(0, await scope.Files.CleanUpAsync()); // nothing left for the sweep
+        // It can no longer be sent.
+        var send = await scope.Chat.SendAsync("alice", new ChatSendRequest("bob", Guid.NewGuid(), "x", new[] { upload.Id }));
+        Assert.NotEqual(ChatSendStatus.Sent, send.Status);
+    }
+
+    [Fact]
+    public async Task UploadingAndRemovingInALoop_IsStoppedOnceRemovedFilesFillAnotherAllowance()
+    {
+        await using var scope = await FileScope.CreateAsync(allowanceMb: 1);
+        var fourHundredKb = new string('a', 400 * 1024);
+
+        // Sent and removed: each frees the allowance, but stays on disk for the undo day. Kept
+        // and removed files together may take twice the allowance (2 MB): five fit, a sixth not.
+        for (var i = 0; i < 5; i++)
+        {
+            var sent = await SendFileAsync(scope, "alice", "bob", $"f{i}.txt", 400);
+            Assert.NotNull(await scope.Files.RemoveAsync("alice", sent.Id));
+        }
+
+        Assert.Equal(0, (await scope.Files.GetUsageAsync("alice")).UsedBytes);
+        var third = await scope.Files.UploadAsync("alice", Text(fourHundredKb), "f2.txt");
+        Assert.Equal(ChatAttachmentUploadStatus.AllowanceFull, third.Status);
+        Assert.Contains("Files you removed are kept for a day", third.Error!);
+
+        // Bob is not affected, and once the removed files are deleted Alice can upload again.
+        Assert.Equal(ChatAttachmentUploadStatus.Uploaded, (await scope.Files.UploadAsync("bob", Text(fourHundredKb), "b.txt")).Status);
+        scope.Clock.Advance(TimeSpan.FromHours(25));
+        Assert.Equal(6, await scope.Files.CleanUpAsync()); // her five, and Bob's upload never sent
+        Assert.Equal(ChatAttachmentUploadStatus.Uploaded, (await scope.Files.UploadAsync("alice", Text(fourHundredKb), "f3.txt")).Status);
+    }
+
+    [Fact]
+    public async Task CleanUp_IsNotHeldUpByFilesItCannotDelete()
+    {
+        await using var scope = await FileScope.CreateAsync();
+        // 501 claimed rows whose files sit under a path that cannot be deleted (a folder, not a
+        // file), ahead of one that can: the sweep still reaches the last one.
+
+        DateTimeOffset? claimedAt = ProjectManagement.Models.Chat.ChatAttachment.PurgeClaimed;
+        for (var i = 0; i < 501; i++)
+        {
+            Directory.CreateDirectory(scope.PathOf($"chat/stuck/{i}.pdf"));
+            scope.Db.ChatAttachments.Add(new ProjectManagement.Models.Chat.ChatAttachment
+            {
+                UploaderUserId = "alice", StorageKey = $"chat/stuck/{i}.pdf", FileName = "x.pdf", ContentType = "application/pdf",
+                SizeBytes = 1, Sha256 = "x", CreatedUtc = scope.Clock.UtcNow, RemovedUtc = scope.Clock.UtcNow,
+                RemovalReason = ProjectManagement.Models.Chat.ChatAttachmentRemovalReason.Sender, PurgedUtc = claimedAt,
+            });
+        }
+
+        await scope.Db.SaveChangesAsync();
+        var last = (await scope.Files.UploadAsync("alice", Content("pdf"), "last.pdf")).Attachment!;
+        await scope.Files.RemoveAsync("alice", last.Id); // never sent: deleted at once ...
+        var lastRow = await scope.Db.ChatAttachments.AsNoTracking().SingleAsync(a => a.Id == last.Id);
+        Assert.False(File.Exists(scope.PathOf(lastRow.StorageKey)));
+
+        // ... so put a file back and claim it, as an interrupted sweep would leave it.
+        await File.WriteAllTextAsync(scope.PathOf(lastRow.StorageKey), "x");
+        await scope.Db.ChatAttachments.Where(a => a.Id == last.Id).ExecuteUpdateAsync(set => set.SetProperty(a => a.PurgedUtc, claimedAt));
+
+        Assert.Equal(1, await scope.Files.CleanUpAsync());
+        Assert.False(File.Exists(scope.PathOf(lastRow.StorageKey)));
+        Assert.True(Directory.Exists(scope.PathOf("chat/stuck/0.pdf"))); // still claimed, for a later sweep
+    }
+
+    [Fact]
+    public void FileNames_WithAVeryLongExtension_AreCutNotAnError()
+    {
+        var name = ChatAttachmentService.CleanFileName("a." + new string('x', 300));
+        Assert.Equal(ProjectManagement.Models.Chat.ChatAttachment.MaxFileNameLength, name.Length);
+        Assert.Null(ChatAttachmentInspector.AllowedExtension(name));
+
+        var longReport = ChatAttachmentService.CleanFileName(new string('r', 300) + ".pdf");
+        Assert.Equal(ProjectManagement.Models.Chat.ChatAttachment.MaxFileNameLength, longReport.Length);
+        Assert.EndsWith(".pdf", longReport);
+    }
+
+    [Fact]
+    public async Task Upload_WithAVeryLongExtension_IsRefusedCleanly()
+    {
+        await using var scope = await FileScope.CreateAsync();
+        var result = await scope.Files.UploadAsync("alice", Text("hello"), "a." + new string('x', 300));
+        Assert.Equal(ChatAttachmentUploadStatus.Invalid, result.Status);
     }
 
     [Theory]

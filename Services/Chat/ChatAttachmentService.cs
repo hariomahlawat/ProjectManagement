@@ -155,6 +155,11 @@ public sealed class ChatAttachmentService
             return AllowanceFull(settings);
         }
 
+        if (await UsedBytesAsync(userId, cancellationToken) + await AwaitingDeletionBytesAsync(userId, cancellationToken) >= 2 * settings.AllowanceBytes)
+        {
+            return RemovedStillKept(settings);
+        }
+
         var temporaryFolder = _paths.ToAbsolute($"{StorageFolder}/tmp");
         Directory.CreateDirectory(temporaryFolder);
         var temporary = Path.Combine(temporaryFolder, $"{Guid.NewGuid():N}.part");
@@ -225,9 +230,10 @@ public sealed class ChatAttachmentService
                 CreatedUtc = now,
             };
 
-            if (!await SaveWithinAllowanceAsync(attachment, settings, cancellationToken))
+            var refused = await SaveWithinAllowanceAsync(attachment, settings, cancellationToken);
+            if (refused is not null)
             {
-                return AllowanceFull(settings);
+                return refused;
             }
 
             storedPath = null; // kept
@@ -247,7 +253,8 @@ public sealed class ChatAttachmentService
     /// person's uploads run one at a time here (a PostgreSQL advisory lock per person), so two
     /// uploads at once cannot both slip under the limit.
     /// </summary>
-    private async Task<bool> SaveWithinAllowanceAsync(ChatAttachment attachment, ChatAttachmentOptions settings, CancellationToken cancellationToken)
+    /// <returns>Null when stored; otherwise why not.</returns>
+    private async Task<ChatAttachmentUploadResult?> SaveWithinAllowanceAsync(ChatAttachment attachment, ChatAttachmentOptions settings, CancellationToken cancellationToken)
     {
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
         if (_db.Database.IsNpgsql())
@@ -260,13 +267,30 @@ public sealed class ChatAttachmentService
         if (used + attachment.SizeBytes > settings.AllowanceBytes)
         {
             await transaction.RollbackAsync(cancellationToken);
-            return false;
+            return AllowanceFull(settings);
+        }
+
+        if (used + await AwaitingDeletionBytesAsync(attachment.UploaderUserId, cancellationToken) + attachment.SizeBytes > 2 * settings.AllowanceBytes)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return RemovedStillKept(settings);
         }
 
         _db.ChatAttachments.Add(attachment);
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return true;
+        return null;
+    }
+
+    private static ChatAttachmentUploadResult RemovedStillKept(ChatAttachmentOptions settings)
+        => ChatAttachmentUploadResult.Fail(
+            ChatAttachmentUploadStatus.AllowanceFull,
+            $"Files you removed are kept for {FormatHours(settings.UndoWindow)} in case you undo, and they still take up space on PRISM's disk. You can send more files once they have been cleared.");
+
+    private static string FormatHours(TimeSpan window)
+    {
+        var hours = Math.Max(1, (int)Math.Ceiling(window.TotalHours));
+        return hours == 24 ? "a day" : hours == 1 ? "an hour" : $"{hours} hours";
     }
 
     private static ChatAttachmentUploadResult AllowanceFull(ChatAttachmentOptions settings)
@@ -296,6 +320,8 @@ public sealed class ChatAttachmentService
         return (total, Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant());
     }
 
+    private const int MaxKeptExtensionLength = 16;
+
     /// <summary>The name as shown and offered on download: no folders, no control characters.</summary>
     internal static string CleanFileName(string? fileName)
     {
@@ -303,14 +329,34 @@ public sealed class ChatAttachmentService
         name = new string(name.Where(c => !char.IsControl(c)).ToArray()).Trim().Trim('.');
         if (name.Length > ChatAttachment.MaxFileNameLength)
         {
+            // Keep the extension when it is a real one; a name that is mostly "extension" is cut
+            // like any other (and is then refused by the allowed-types check, not a server error).
             var extension = Path.GetExtension(name);
-            name = name[..(ChatAttachment.MaxFileNameLength - extension.Length)] + extension;
+            name = extension.Length is > 0 and <= MaxKeptExtensionLength
+                ? name[..(ChatAttachment.MaxFileNameLength - extension.Length)] + extension
+                : name[..ChatAttachment.MaxFileNameLength];
         }
 
         return name;
     }
 
     // ------------------------------------------------------------------ usage
+
+    /// <summary>
+    /// Files the person removed from sent messages that are still on disk, waiting out the undo
+    /// window. They free the allowance at once (so removing makes room), but a person's kept and
+    /// removed-not-yet-deleted files together may take at most twice the allowance on disk:
+    /// without that, uploading and removing in a loop would fill the upload disk for everyone
+    /// until the clean-up caught up. Clearing a full allowance and filling it again still fits.
+    /// </summary>
+    public async Task<long> AwaitingDeletionBytesAsync(string userId, CancellationToken cancellationToken = default)
+        => await _db.ChatAttachments
+            .Where(a => a.UploaderUserId == userId
+                && a.RemovedUtc != null
+                && a.PurgedUtc == null
+                && a.RemovalReason == ChatAttachmentRemovalReason.Sender
+                && a.MessageId != null) // unsent uploads are deleted when removed
+            .SumAsync(a => (long?)a.SizeBytes, cancellationToken) ?? 0;
 
     /// <summary>The allowance in use: the sizes of the person's files that are still kept (sent or not yet sent).</summary>
     public async Task<long> UsedBytesAsync(string userId, CancellationToken cancellationToken = default)
@@ -557,6 +603,9 @@ public sealed class ChatAttachmentService
         var message = attachment.Message;
         if (message is null)
         {
+            // An upload never sent cannot be restored, so its file goes now rather than taking
+            // disk space until the next clean-up sweep.
+            await PurgeUnsentUploadAsync(attachment.Id, cancellationToken);
             return new ChatAttachmentRemoval(new ChatAttachmentRemovedDto(attachment.Id, 0, null), new[] { userId });
         }
 
@@ -569,6 +618,37 @@ public sealed class ChatAttachmentService
         return new ChatAttachmentRemoval(
             new ChatAttachmentRemovedDto(attachment.Id, message.Id, isGroup ? message.ConversationId : null, ChatAttachmentRemovalReason.Sender),
             notify);
+    }
+
+    /// <summary>
+    /// Deletes the files of a removed upload that is still not part of a message, claimed first
+    /// like the clean-up does (a send that took it meanwhile keeps it). A file that cannot be
+    /// deleted now stays claimed, and the next clean-up sweep finishes it.
+    /// </summary>
+    private async Task PurgeUnsentUploadAsync(long attachmentId, CancellationToken cancellationToken)
+    {
+        DateTimeOffset? claimedMarker = ChatAttachment.PurgeClaimed;
+        var claimed = await _db.ChatAttachments
+            .Where(a => a.Id == attachmentId && a.MessageId == null && a.RemovedUtc != null && a.PurgedUtc == null)
+            .ExecuteUpdateAsync(set => set.SetProperty(a => a.PurgedUtc, claimedMarker), cancellationToken);
+        if (claimed == 0)
+        {
+            return;
+        }
+
+        var keys = await _db.ChatAttachments.AsNoTracking()
+            .Where(a => a.Id == attachmentId)
+            .Select(a => new { a.StorageKey, a.ThumbnailKey })
+            .SingleAsync(cancellationToken);
+        var fileGone = DeleteQuietly(_paths.ToAbsolute(keys.StorageKey));
+        var thumbnailGone = keys.ThumbnailKey is null || DeleteQuietly(_paths.ToAbsolute(keys.ThumbnailKey));
+        if (fileGone && thumbnailGone)
+        {
+            DateTimeOffset? purgedUtc = _clock.UtcNow;
+            await _db.ChatAttachments
+                .Where(a => a.Id == attachmentId && a.PurgedUtc == claimedMarker)
+                .ExecuteUpdateAsync(set => set.SetProperty(a => a.PurgedUtc, purgedUtc), cancellationToken);
+        }
     }
 
     /// <summary>
@@ -662,6 +742,9 @@ public sealed class ChatAttachmentService
             .Where(a => (a.RemovalReason != ChatAttachmentRemovalReason.Sender
                         && a.RemovalReason != ChatAttachmentRemovalReason.Administrator
                         && a.RemovalReason != ChatAttachmentRemovalReason.Retention)
+                    // An upload never sent cannot be restored (only files of messages can), so
+                    // nothing is gained by keeping it.
+                    || a.MessageId == null
                     || a.RemovedUtc < undoableBefore);
         var candidates = await due.OrderBy(a => a.Id).Select(a => a.Id).Take(500).ToListAsync(cancellationToken);
 
@@ -675,31 +758,41 @@ public sealed class ChatAttachmentService
         // Every file claimed and not yet confirmed gone: this sweep's, and any an earlier sweep
         // claimed but could not finish (a file held open, a stop or a failure part-way), so
         // nothing claimed is ever left behind on disk.
-        var claimed = await _db.ChatAttachments.AsNoTracking()
-            .Where(a => a.PurgedUtc == claimedMarker)
-            .OrderBy(a => a.Id)
-            .Take(500)
-            .ToListAsync(cancellationToken);
-
-        var gone = new List<long>();
-        foreach (var attachment in claimed)
+        // Walked in pages by id, so files that cannot be deleted (held open, access denied) never
+        // stop the ones after them; they stay claimed for the next sweep.
+        long after = 0;
+        for (var page = 0; page < MaxCleanUpPages; page++)
         {
-            var fileGone = DeleteQuietly(_paths.ToAbsolute(attachment.StorageKey));
-            var thumbnailGone = attachment.ThumbnailKey is null || DeleteQuietly(_paths.ToAbsolute(attachment.ThumbnailKey));
-            // A file still on disk (held open, access denied) stays claimed, for the next sweep.
-            if (fileGone && thumbnailGone)
+            var claimed = await _db.ChatAttachments.AsNoTracking()
+                .Where(a => a.PurgedUtc == claimedMarker && a.Id > after)
+                .OrderBy(a => a.Id)
+                .Take(500)
+                .ToListAsync(cancellationToken);
+            if (claimed.Count == 0)
             {
-                gone.Add(attachment.Id);
+                break;
             }
-        }
 
-        if (gone.Count > 0)
-        {
-            DateTimeOffset? purgedUtc = now;
-            await _db.ChatAttachments
-                .Where(a => gone.Contains(a.Id) && a.PurgedUtc == claimedMarker)
-                .ExecuteUpdateAsync(set => set.SetProperty(a => a.PurgedUtc, purgedUtc), cancellationToken);
-            deleted = gone.Count;
+            after = claimed[^1].Id;
+            var gone = new List<long>();
+            foreach (var attachment in claimed)
+            {
+                var fileGone = DeleteQuietly(_paths.ToAbsolute(attachment.StorageKey));
+                var thumbnailGone = attachment.ThumbnailKey is null || DeleteQuietly(_paths.ToAbsolute(attachment.ThumbnailKey));
+                if (fileGone && thumbnailGone)
+                {
+                    gone.Add(attachment.Id);
+                }
+            }
+
+            if (gone.Count > 0)
+            {
+                DateTimeOffset? purgedUtc = now;
+                await _db.ChatAttachments
+                    .Where(a => gone.Contains(a.Id) && a.PurgedUtc == claimedMarker)
+                    .ExecuteUpdateAsync(set => set.SetProperty(a => a.PurgedUtc, purgedUtc), cancellationToken);
+                deleted += gone.Count;
+            }
         }
 
         CleanTemporaryFolder(now);
@@ -732,6 +825,8 @@ public sealed class ChatAttachmentService
     }
 
     /// <returns>True when the file is gone (deleted now, or already missing).</returns>
+    private const int MaxCleanUpPages = 20;
+
     private bool DeleteQuietly(string? path)
     {
         if (string.IsNullOrEmpty(path))
@@ -743,6 +838,10 @@ public sealed class ChatAttachmentService
         {
             File.Delete(path);
             return true;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return true; // its folder is gone, and the file with it
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
