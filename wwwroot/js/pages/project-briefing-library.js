@@ -24,7 +24,9 @@ if (library) {
   let scope = 'all';
 
   const comparers = {
-    edited: (a, b) => Number(b.dataset.edited) - Number(a.dataset.edited),
+    // The deck to continue stays first under the default sort, as the server drew it.
+    edited: (a, b) => Number(b.dataset.continue === 'true') - Number(a.dataset.continue === 'true')
+      || Number(b.dataset.edited) - Number(a.dataset.edited),
     generated: (a, b) => Number(b.dataset.generated) - Number(a.dataset.generated)
       || Number(b.dataset.edited) - Number(a.dataset.edited),
     name: (a, b) => a.dataset.name.localeCompare(b.dataset.name, undefined, { sensitivity: 'base', numeric: true })
@@ -225,6 +227,9 @@ const markGenerated = (form, slides) => {
 
 const toast = (tone, text) => window.PrismToast?.show({ tone, text });
 
+// What a Download ended in, for whoever started it (the New deck dialog's Create and download):
+// 'downloaded' (with slides), 'declined' (Cancel at the gap question), 'failed' (with the message
+// shown) or 'navigated' (the page is being replaced by the server's answer).
 document.addEventListener('submit', async (event) => {
   const form = event.target instanceof HTMLFormElement ? event.target : null;
   if (!form || !form.hasAttribute('data-pbd-library-download')) return;
@@ -236,14 +241,24 @@ document.addEventListener('submit', async (event) => {
     button.setAttribute('aria-disabled', 'true');
   }
   let making = null;
+  const outcome = { outcome: 'failed', message: '', slides: 0 };
+  const fail = (message) => {
+    making?.dismiss?.();
+    outcome.outcome = 'failed';
+    outcome.message = message;
+    toast('danger', message);
+  };
   try {
     if (form.dataset.gapsUrl) {
       const gaps = await readGaps(form.dataset.gapsUrl);
       if (gaps.error) {
-        toast('danger', gaps.error);
+        fail(gaps.error);
         return;
       }
-      if (!(await askAboutGaps(form, gaps, button))) return;
+      if (!(await askAboutGaps(form, gaps, button))) {
+        outcome.outcome = 'declined';
+        return;
+      }
     }
     making = window.PrismToast?.show({ tone: 'info', text: 'Making the PowerPoint…', sticky: true });
     const response = await fetch(form.action, {
@@ -258,12 +273,12 @@ document.addEventListener('submit', async (event) => {
     const type = response.headers.get('content-type') || '';
     if (!response.redirected && type.includes('json')) {
       const payload = await response.json().catch(() => null);
-      making?.dismiss?.();
-      toast('danger', payload?.message || 'The PowerPoint could not be downloaded.');
+      fail(payload?.message || 'The PowerPoint could not be downloaded.');
       return;
     }
     if (!response.ok || response.redirected || !type.includes('presentationml')) {
       // The server's own message (or the sign-in page) is on the page it answered with.
+      outcome.outcome = 'navigated';
       window.location.assign(response.url || window.location.href);
       return;
     }
@@ -279,17 +294,33 @@ document.addEventListener('submit', async (event) => {
     making?.dismiss?.();
     const slides = Number(response.headers.get('X-Project-Briefing-Slides')) || 0;
     if (form.hasAttribute('data-pbd-library-generate')) markGenerated(form, slides);
+    outcome.outcome = 'downloaded';
+    outcome.slides = slides;
     toast('success', slides ? `PowerPoint downloaded (${slides} slides).` : 'PowerPoint downloaded.');
   } catch {
-    making?.dismiss?.();
-    toast('danger', 'The PowerPoint could not be downloaded. Check the connection and try again.');
+    fail('The PowerPoint could not be downloaded. Check the connection and try again.');
   } finally {
     if (button instanceof HTMLButtonElement) {
       delete button.dataset.pbdDownloading;
       button.removeAttribute('aria-disabled');
     }
-    // Whoever started it (the New deck dialog's Create and download) hears that it is over:
-    // downloaded, declined or failed.
-    form.dispatchEvent(new CustomEvent('pbd:download-settled', { bubbles: true }));
+    form.dispatchEvent(new CustomEvent('pbd:download-settled', { bubbles: true, detail: outcome }));
   }
 });
+
+// A message carried across a reload (Create and download reloads the library to show the new
+// deck; without this its outcome, an error above all, vanished with the page: cold review,
+// 19 Nov 2026). Shown once, then forgotten.
+const FLASH_KEY = 'prism.briefingDecks.flash';
+const showFlash = () => {
+  let flash = null;
+  try {
+    flash = JSON.parse(window.sessionStorage.getItem(FLASH_KEY) || 'null');
+    window.sessionStorage.removeItem(FLASH_KEY);
+  } catch { /* nothing to show */ }
+  if (flash && typeof flash.text === 'string' && flash.text) {
+    window.PrismToast?.show({ tone: flash.tone || 'info', text: flash.text, sticky: flash.tone === 'danger' });
+  }
+};
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', showFlash);
+else showFlash();

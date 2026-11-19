@@ -69,7 +69,10 @@ public sealed class ToastActionTests
         var page = ReadRepoFile("Pages", "Workspace", "BriefingDecks", "Index.cshtml.cs");
 
         // Undo posts to the same Restore handler as Recently deleted, with the same field.
-        Assert.Contains("Url.Page(\"/Workspace/BriefingDecks/Index\", \"Restore\", new { deckId = (long?)null })", page, StringComparison.Ordinal);
+        // Without route values: deckId = null produced no URL, so Undo never showed (cold review,
+        // 19 Nov 2026; ProjectBriefingDeckUndoLinkTests checks the link against the real routing).
+        Assert.Contains("Url.Page(RestorePage, RestoreHandler) ?? string.Empty", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Restore\", new { deckId = (long?)null }", page, StringComparison.Ordinal);
         Assert.Contains("[\"deckId\"] = deckId.ToString(", page, StringComparison.Ordinal);
         Assert.DoesNotContain("StatusMessage = $\"Briefing deck deleted.", page, StringComparison.Ordinal);
 

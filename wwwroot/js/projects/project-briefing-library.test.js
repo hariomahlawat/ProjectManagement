@@ -238,3 +238,51 @@ test('a refusal from the server is shown, and the button can be used again', asy
   assert.equal(button.dataset.pbdDownloading, undefined);
   assert.equal(button.getAttribute('aria-disabled'), null);
 });
+
+// ---- What a Download ended in, for Create and download (cold review, 19 Nov 2026) ---------------
+
+const settledOutcome = async (page) => {
+  let detail = null;
+  page.document.addEventListener('pbd:download-settled', (event) => { detail = event.detail; });
+  await page.submit();
+  return detail;
+};
+
+test('a Download reports how it ended: downloaded with its slides, declined, or failed with the message', async () => {
+  const downloaded = startDownloadCard({
+    gaps: () => fakeReply({ body: { projects: 1, projectsWithGaps: 0, kinds: [] } }),
+    file: () => fakeReply({ type: PPTX, headers: { 'x-project-briefing-slides': '9' } })
+  });
+  assert.deepEqual({ ...(await settledOutcome(downloaded)) }, { outcome: 'downloaded', message: '', slides: 9 });
+
+  const declined = startDownloadCard({
+    gaps: () => fakeReply({ body: { projects: 2, projectsWithGaps: 1, kinds: ['Photograph'] } }),
+    file: () => { throw new Error('not reached'); }
+  });
+  declined.window.answer = false;
+  assert.equal((await settledOutcome(declined)).outcome, 'declined');
+
+  const failed = startDownloadCard({
+    gaps: () => fakeReply({ body: { projects: 1, projectsWithGaps: 0, kinds: [] } }),
+    file: () => fakeReply({ status: 422, body: { message: 'PowerPoint integrity check failed.' } })
+  });
+  const detail = await settledOutcome(failed);
+  assert.equal(detail.outcome, 'failed');
+  assert.equal(detail.message, 'PowerPoint integrity check failed.');
+});
+
+test('a message carried across the reload is shown once on the library, then forgotten', async () => {
+  const dom = new JSDOM('<!doctype html><body><section data-pbd-library><div data-pbd-library-rows></div></section></body>', { runScripts: 'outside-only', url: 'http://localhost/Workspace/BriefingDecks' });
+  const shown = [];
+  dom.window.PrismToast = { show: (options) => { shown.push(options); return { dismiss() {} }; } };
+  dom.window.sessionStorage.setItem('prism.briefingDecks.flash', JSON.stringify({ tone: 'danger', text: 'Deck created, but the PowerPoint could not be made.' }));
+
+  dom.window.eval(librarySource);
+  await new Promise((resolve) => setTimeout(resolve, 20)); // shown once the page has loaded
+
+  assert.equal(shown.length, 1);
+  assert.equal(shown[0].tone, 'danger');
+  assert.equal(shown[0].text, 'Deck created, but the PowerPoint could not be made.');
+  assert.equal(shown[0].sticky, true, 'an error stays until dismissed');
+  assert.equal(dom.window.sessionStorage.getItem('prism.briefingDecks.flash'), null);
+});

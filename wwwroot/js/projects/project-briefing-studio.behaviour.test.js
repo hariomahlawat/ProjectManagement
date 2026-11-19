@@ -655,3 +655,23 @@ test('More options stays as the person left it when moving to another project (f
   assert.equal(more().open, true);
   assert.equal(window.sessionStorage.getItem('prism.briefingStudio.moreOptions'), 'open');
 });
+
+test('a gap the person cannot fix in the project says who can, instead of a dead-end link', async () => {
+  const { window, document, requests } = startStudio();
+  // Alpha: a Comdt (status remark yes, project content no). Bravo: its own officer (the reverse).
+  const flags = { 1: { canFixContent: false, canFixStatusRemark: true }, 2: { canFixContent: true, canFixStatusRemark: false } };
+  requests[0].answer(payload({ projects: PROJECTS.map((item) => ({ ...item, ...(flags[item.projectId] || {}) })) }));
+  await settle(window);
+  const gap = (key) => document.querySelector(`.pbd-inspector__facts .is-missing[data-pbd-gap="${key}"]`);
+
+  outlineRow(document, 'Alpha simulator').click();
+  assert.equal(gap('status').querySelector('a').textContent.trim(), 'Fix in project', 'external remarks are the Comdt’s to add');
+  assert.equal(gap('photo').querySelector('a'), null, 'no Fix in project link');
+  assert.match(gap('photo').textContent, /Ask the project’s officer or an HoD to add it\./);
+
+  outlineRow(document, 'Bravo trainer').click();
+  assert.equal(gap('status').querySelector('a'), null);
+  assert.match(gap('status').textContent, /Ask an HoD or the Comdt to add it\./);
+
+  // A payload without the flags keeps every link (the test above).
+});

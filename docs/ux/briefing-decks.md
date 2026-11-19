@@ -41,12 +41,13 @@ slides, filling gaps, reordering and per-deck choices.
 `/Workspace/BriefingDecks` without a deck id is the library; it never opens a deck the person did
 not pick.
 
-- **Deck cards**, three across on a wide screen, two on a tablet, one on a phone. Each shows a
+- **Deck cards**, four across at 1920 px, three on a smaller wide screen, two on a tablet, one on a phone. Each shows a
   drawing of the deck's slide style, the name and description, the style, the project count, who
   edited it last and when, and one PowerPoint line: when it was last generated and how many
   slides, then "up to date", "N changes since" (a link to the deck) or "changes not tracked yet";
   "Not generated" or "No PowerPoint yet" before that. The deck the person last edited is tagged
-  **Continue** (else "Recently edited" on the latest) and is first with the default sort.
+  **Continue** (else "Recently edited" on the latest) and is first with the default sort (last
+  edited), even when someone edited another deck since.
 - **Buttons**: **Download** and **Open**; an empty deck offers **Add projects** and Open. The ⋯
   menu has Duplicate and Delete (through the confirmation dialog).
 - **Download** makes the PowerPoint without opening the Studio. It reads the deck's gaps
@@ -64,7 +65,8 @@ not pick.
   (30). After that the next delete removes it for good, as its own step after that delete's save,
   in its own transaction with one required `ProjectBriefing.DeckPurged` audit entry per deck; if
   any entry cannot be written nothing is removed, and a failed purge is retried on the next
-  delete (it never undoes the delete).
+  delete (it never undoes the delete). Deleting a deck shows a toast with **Undo**, which restores
+  it at once (from the library and from the Studio).
 - An unknown or deleted deck id returns to the library with a one-request notice. An old
   `?generate=1` link only opens the deck.
 - The shared What's new card waits on these pages (`data-whats-new-wait`), so it never covers New
@@ -105,7 +107,10 @@ The dialog (also in the Studio's ⋯ menu) asks for:
 The footer says how many projects are chosen. **Create and open** posts the form and opens the
 Studio (on Add projects when none were chosen). **Create and download**, on the library only,
 creates the deck in the page and hands it to the library's Download, then shows the library with
-the new deck on top. Marking is not asked for (owner, 19 Nov 2026); it stays optional in the
+the new deck on top and says how it ended: downloaded (with the slide count), created but not
+downloaded (the person chose Cancel on the gaps question), or created but the PowerPoint could not
+be made (the reason, in a toast that stays until closed). The options of **Same as a deck** name
+each deck's project count and owner ("yours" for the person's own). Marking is not asked for (owner, 19 Nov 2026); it stays optional in the
 Studio.
 
 ## Studio
@@ -139,7 +144,11 @@ only slide HTML and writes all other text as text.
   - **This slide**: for a project, what its slides show, each fact once: status remark, costs,
     capability source, slide numbers; a fact the project lacks shows in amber ("Not recorded")
     with its fix beside it (*Fix in project*, or *This deck only* for capability text), then Open
-    project. **More options** (closed by default, open or closed for the session) holds the
+    project. *Fix in project* is offered only to those who may change the project (Admin, HoD, or
+    its lead Project Officer: `ProjectAccessGuard.CanManageProjectContent`); others read "Ask the
+    project's officer or an HoD to add it." The status remark is an external remark, which Admin,
+    HoD and Comdt may add (not a Project Officer), so its link follows that rule; others read "Ask
+    an HoD or the Comdt to add it." Slide numbers read "Slide 5" or "Slides 5, 6". **More options** (closed by default, open or closed for the session) holds the
     choices most decks never change: how the project appears (Own slides / Table row only / Leave
     out), its photograph, speaker notes, this deck's capability text, and Remove from deck (which
     asks first). For other slides, what the slide shows and, for the SDD profile, Role & Charter

@@ -795,6 +795,15 @@ if (root) {
       return write;
     }
     if (!gap.href) return null;
+    // Only someone who may make the change is sent there; anyone else is told who can (cold review,
+    // 19 Nov 2026). The status remark is an external remark (Admin, HoD, Comdt: canFixStatusRemark);
+    // the rest is the project's content (its own officer, an HoD or Admin: canFixContent). An older
+    // payload without the flags keeps the link.
+    if (key === 'status' ? project.canFixStatusRemark === false : project.canFixContent === false) {
+      return el('small', 'pbd-inspector__fix-who', key === 'status'
+        ? 'Ask an HoD or the Comdt to add it.'
+        : 'Ask the project’s officer or an HoD to add it.');
+    }
     const fix = actionLink(FIX_IN_PROJECT, gap.href(project), project.projectId, 'btn btn-sm btn-link pbd-inspector__fix');
     fix.title = 'Opens the project. The change shows in every deck and page.';
     fix.append(document.createTextNode(' '), icon('bi-box-arrow-up-right'));
@@ -873,7 +882,10 @@ if (root) {
       // Anything else these slides lack (photograph, brief, key points, update-sheet facts).
       missing.filter((key) => !shown.has(key)).forEach(gapRow);
       fact('Slides', entry.indices.length ? plural(entry.indices.length, 'slide') : 'None',
-        entry.indices.length ? entry.indices.map((index) => slides[index]?.number).join(', ') : 'Not in the PowerPoint');
+        // Which ones, labelled: a bare "5" read as a count.
+        entry.indices.length
+          ? `${entry.indices.length === 1 ? 'Slide' : 'Slides'} ${entry.indices.map((index) => slides[index]?.number).join(', ')}`
+          : 'Not in the PowerPoint');
       nodes.push(facts);
       if (missing.length) nodes.push(el('p', 'pbd-inspector__note', 'Until a gap is filled, the slide shows a placeholder for it.'));
 

@@ -406,7 +406,9 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("<form method=\"post\" asp-page-handler=\"Download\" data-pbd-library-download", library, StringComparison.Ordinal);
         Assert.Contains("data-gaps-url=\"@Url.Page(\"/Workspace/BriefingDecks/Index\", \"Gaps\", new { deckId = deck.Id })\"", library, StringComparison.Ordinal);
         Assert.DoesNotContain("asp-route-generate=\"1\"", library, StringComparison.Ordinal);
-        Assert.Contains("if (!(await askAboutGaps(form, gaps, button))) return;", script, StringComparison.Ordinal);
+        Assert.Contains("if (!(await askAboutGaps(form, gaps, button))) {", script, StringComparison.Ordinal);
+        // How it ended goes to whoever started it (Create and download), so an error is not lost.
+        Assert.Contains("new CustomEvent('pbd:download-settled', { bubbles: true, detail: outcome })", script, StringComparison.Ordinal);
         // The Studio still honours an old ?generate=1 link only with its one-time marker, which the
         // library no longer leaves, so such a link just opens the deck.
         Assert.Contains("if (generateFlag && generateMarked) {", Read("project-briefing-decks.js"), StringComparison.Ordinal);
