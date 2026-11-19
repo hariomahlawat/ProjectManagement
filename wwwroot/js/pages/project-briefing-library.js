@@ -137,25 +137,16 @@ if (library) {
   } catch { /* start fresh */ }
 }
 
-// Generate from the library: leave a one-time marker for the Studio, which then generates. A link
-// with ?generate=1 opened any other way only opens the deck (review 2 fixes, Low 9).
-document.addEventListener('click', (event) => {
-  const link = event.target instanceof Element ? event.target.closest('a[href*="generate=1"]') : null;
-  if (!link) return;
-  // Only a plain click that opens the deck in this tab: a link opened in another tab or window
-  // would leave the marker here, for a later plain Open to consume (Codex review on #3389).
-  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
-      || (link.target && link.target !== '_self')) return;
-  const match = /BriefingDecks\/(\d+)/.exec(link.getAttribute('href') || '');
-  if (!match) return;
-  try { window.sessionStorage.setItem(`prism.briefingDecks.generate.${match[1]}`, '1'); } catch { /* opens without generating */ }
-});
-
 // Download builds the PowerPoint on the server and returns a file, so the page does not change.
 // It runs as a request: the button stays busy until the file has arrived (or failed), and a
 // second click cannot build it twice (review 4 fixes Low 7, review 5 fixes L2). A refusal comes
 // back as a message, shown here; anything else that is not a PowerPoint (the sign-in page after it
 // expired) opens as the page the server answered with.
+//
+// Before building, the deck's gaps are read (the Gaps handler, the Studio's own rule) and, when
+// some project lacks content its slides show, the person is asked first (owner, 19 Nov 2026,
+// "Plan: The Studio is optional", PR 2). A deck the person may change downloads through Generate,
+// which records the PowerPoint, so the card's line is updated in place.
 const fileNameOf = (header) => {
   if (!header) return 'Project_Briefing_Deck.pptx';
   const encoded = header.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
@@ -165,9 +156,78 @@ const fileNameOf = (header) => {
   return header.match(/filename="?([^";]+)"?/i)?.[1] || 'Project_Briefing_Deck.pptx';
 };
 
+const SIGNED_OUT = 'Your sign-in has expired, so nothing was downloaded. Reload this page and sign in again.';
+
+// The deck's gaps, or a message saying why they could not be read.
+const readGaps = async (url) => {
+  let response;
+  try {
+    response = await fetch(url, {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    });
+  } catch {
+    return { error: 'The deck could not be checked. Check the connection and try again.' };
+  }
+  const type = response.headers.get('content-type') || '';
+  if (response.redirected || !type.includes('json')) return { error: SIGNED_OUT };
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || !payload) return { error: payload?.message || 'The deck could not be checked.' };
+  return payload;
+};
+
+const askAboutGaps = async (form, gaps, button) => {
+  const projects = Number(gaps.projectsWithGaps) || 0;
+  if (!projects) return true;
+  const total = Number(gaps.projects) || projects;
+  const kinds = Array.isArray(gaps.kinds) && gaps.kinds.length
+    ? `: ${gaps.kinds.join(', ').toLowerCase().replace(/r&d/g, 'R&D')}`
+    : '';
+  const canFix = form.hasAttribute('data-pbd-library-generate');
+  const options = {
+    title: 'Download with gaps?',
+    message: `${projects} of ${total} ${total === 1 ? 'project has' : 'projects have'} gaps${kinds}. `
+      + 'Those slides show placeholders such as "Not recorded".'
+      + (canFix ? ' Open the deck to fill them first.' : ''),
+    confirmText: 'Download anyway',
+    cancelText: 'Cancel',
+    tone: 'primary',
+    returnFocus: button
+  };
+  try {
+    const { prismConfirm } = await import('./project-briefing-confirm.js');
+    return await prismConfirm(options);
+  } catch {
+    return askConfirm(options);
+  }
+};
+
+// After a recorded download: the card's PowerPoint line says what was just made.
+const markGenerated = (form, slides) => {
+  const card = form.closest('[data-pbd-library-row]');
+  const status = card?.querySelector('[data-pbd-library-status]');
+  if (!card || !status) return;
+  const now = new Date();
+  card.dataset.generated = String(Math.floor(now.getTime() / 1000));
+  let time;
+  try {
+    time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+  } catch {
+    time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+  const when = document.createElement('span');
+  when.textContent = `Today, ${time}${slides ? ` · ${slides} slides` : ''}`;
+  const current = document.createElement('span');
+  current.className = 'pbd-library__current';
+  current.textContent = ' · up to date';
+  status.replaceChildren(when, current);
+};
+
+const toast = (tone, text) => window.PrismToast?.show({ tone, text });
+
 document.addEventListener('submit', async (event) => {
   const form = event.target instanceof HTMLFormElement ? event.target : null;
-  if (!form || !/handler=Download/i.test(form.getAttribute('action') || '')) return;
+  if (!form || !form.hasAttribute('data-pbd-library-download')) return;
   event.preventDefault();
   const button = form.querySelector('button[type="submit"]');
   if (button instanceof HTMLButtonElement) {
@@ -175,19 +235,31 @@ document.addEventListener('submit', async (event) => {
     button.dataset.pbdDownloading = 'true';
     button.setAttribute('aria-disabled', 'true');
   }
-  const making = window.PrismToast?.show({ tone: 'info', text: 'Making the PowerPoint…', sticky: true });
+  let making = null;
   try {
+    if (form.dataset.gapsUrl) {
+      const gaps = await readGaps(form.dataset.gapsUrl);
+      if (gaps.error) {
+        toast('danger', gaps.error);
+        return;
+      }
+      if (!(await askAboutGaps(form, gaps, button))) return;
+    }
+    making = window.PrismToast?.show({ tone: 'info', text: 'Making the PowerPoint…', sticky: true });
     const response = await fetch(form.action, {
       method: 'POST',
       credentials: 'same-origin',
       body: new FormData(form),
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      headers: {
+        Accept: 'application/vnd.openxmlformats-officedocument.presentationml.presentation, application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
     });
     const type = response.headers.get('content-type') || '';
     if (!response.redirected && type.includes('json')) {
       const payload = await response.json().catch(() => null);
       making?.dismiss?.();
-      window.PrismToast?.show({ tone: 'danger', text: payload?.message || 'The PowerPoint could not be downloaded.' });
+      toast('danger', payload?.message || 'The PowerPoint could not be downloaded.');
       return;
     }
     if (!response.ok || response.redirected || !type.includes('presentationml')) {
@@ -205,10 +277,12 @@ document.addEventListener('submit', async (event) => {
     anchor.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     making?.dismiss?.();
-    window.PrismToast?.show({ tone: 'success', text: 'PowerPoint downloaded.' });
+    const slides = Number(response.headers.get('X-Project-Briefing-Slides')) || 0;
+    if (form.hasAttribute('data-pbd-library-generate')) markGenerated(form, slides);
+    toast('success', slides ? `PowerPoint downloaded (${slides} slides).` : 'PowerPoint downloaded.');
   } catch {
     making?.dismiss?.();
-    window.PrismToast?.show({ tone: 'danger', text: 'The PowerPoint could not be downloaded. Check the connection and try again.' });
+    toast('danger', 'The PowerPoint could not be downloaded. Check the connection and try again.');
   } finally {
     if (button instanceof HTMLButtonElement) {
       delete button.dataset.pbdDownloading;

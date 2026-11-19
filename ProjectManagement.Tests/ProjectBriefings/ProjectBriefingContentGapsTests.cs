@@ -7,6 +7,42 @@ namespace ProjectManagement.Tests.ProjectBriefings;
 
 public sealed class ProjectBriefingContentGapsTests
 {
+    // The library's question before a download (Plan: The Studio is optional, PR 2): projects
+    // with any gap, and the kinds named as the Studio's Gaps tab names them, in its order.
+    [Fact]
+    public void Summarize_CountsProjectsWithGaps_AndNamesTheKindsOnce()
+    {
+        var gaps = new Dictionary<int, IReadOnlyList<string>>
+        {
+            [1] = new[] { ProjectBriefingContentGaps.Photo, ProjectBriefingContentGaps.Status },
+            [2] = Array.Empty<string>(),
+            [3] = new[] { ProjectBriefingContentGaps.Status, ProjectBriefingContentGaps.CostRd }
+        };
+
+        var summary = ProjectBriefingContentGaps.Summarize(3, gaps);
+
+        Assert.Equal(3, summary.Projects);
+        Assert.Equal(2, summary.ProjectsWithGaps);
+        Assert.Equal(new[] { "Status remark", "Cost (R&D)", "Photograph" }, summary.Kinds);
+    }
+
+    [Fact]
+    public void Summarize_ADeckWithoutGaps_HasNothingToAsk()
+    {
+        var summary = ProjectBriefingContentGaps.Summarize(
+            2,
+            new Dictionary<int, IReadOnlyList<string>> { [1] = Array.Empty<string>(), [2] = Array.Empty<string>() });
+
+        Assert.Equal(0, summary.ProjectsWithGaps);
+        Assert.Empty(summary.Kinds);
+    }
+
+    [Fact]
+    public void EveryGapKey_HasAName()
+    {
+        Assert.All(ProjectBriefingContentGaps.AllKeys, key => Assert.NotEqual(key, ProjectBriefingContentGaps.Label(key)));
+    }
+
     [Fact]
     public void CombinedDeck_ReportsEverythingItsSlidesShow()
     {

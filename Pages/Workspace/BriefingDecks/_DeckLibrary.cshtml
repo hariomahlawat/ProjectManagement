@@ -142,7 +142,7 @@
                     <p class="pbd-deck-card__edited" title="@WhenFull(deck.UpdatedAtUtc) · created by @deck.CreatedByDisplay">Edited @WhenShort(deck.UpdatedAtUtc) · @deck.LastModifiedByDisplay</p>
                     @* One status for the PowerPoint: whether there is one, how many slides, and whether
                        the projects' data has moved since (the reason it may need generating again). *@
-                    <p class="pbd-deck-card__status">
+                    <p class="pbd-deck-card__status" data-pbd-library-status>
                         @if (deck.LastGeneratedAtUtc is not { } generatedOn)
                         {
                             <span class="pbd-library__quiet">@(deck.ProjectCount == 0 ? "No PowerPoint yet" : "Not generated")</span>
@@ -174,8 +174,10 @@
                 <div class="pbd-deck-card__actions">
                     @if (!deck.CanEdit)
                     {
-                        @* A Project Officer's own deck: a command user may download or duplicate it. *@
-                        <form method="post" asp-page-handler="Download">
+                        @* A Project Officer's own deck: a command user may download or duplicate it. The
+                           download asks first when the deck has gaps (project-briefing-library.js). *@
+                        <form method="post" asp-page-handler="Download" data-pbd-library-download data-deck-name="@deck.Name"
+                              data-gaps-url="@Url.Page("/Workspace/BriefingDecks/Index", "Gaps", new { deckId = deck.Id })">
                             <input type="hidden" name="deckId" value="@deck.Id" />
                             <button type="submit" class="btn btn-sm btn-primary" disabled="@(deck.ProjectCount == 0)">Download</button>
                         </form>
@@ -193,22 +195,21 @@
                         }
                         else
                         {
-                            <a class="btn btn-sm btn-primary" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id">Open</a>
-                            @* Generate in the Studio, with its progress, saved-changes and gap checks. *@
-                            <a class="btn btn-sm btn-outline-secondary" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id" asp-route-generate="1"
-                               title="Opens the deck and generates the PowerPoint there, after its checks">Generate</a>
+                            @* Download without opening the Studio ("Plan: The Studio is optional", PR 2): asks
+                               first when the deck has gaps, then generates in the page (Generate records it,
+                               so the card's PowerPoint line stays true). *@
+                            <form method="post" asp-page-handler="Generate" data-pbd-library-download data-pbd-library-generate data-deck-name="@deck.Name"
+                                  data-gaps-url="@Url.Page("/Workspace/BriefingDecks/Index", "Gaps", new { deckId = deck.Id })">
+                                <input type="hidden" name="deckId" value="@deck.Id" />
+                                <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-download" aria-hidden="true"></i> Download</button>
+                            </form>
+                            <a class="btn btn-sm btn-outline-secondary" asp-page="/Workspace/BriefingDecks/Index" asp-route-deckId="@deck.Id">Open</a>
                         }
                         <div class="dropdown pbd-deck-card__more">
                             <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="More actions for @deck.Name">
                                 <i class="bi bi-three-dots" aria-hidden="true"></i>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
-                                <li>
-                                    <form method="post" asp-page-handler="Download">
-                                        <input type="hidden" name="deckId" value="@deck.Id" />
-                                        <button type="submit" class="dropdown-item" disabled="@(deck.ProjectCount == 0)"><i class="bi bi-download" aria-hidden="true"></i> Download PowerPoint</button>
-                                    </form>
-                                </li>
                                 <li>
                                     <form method="post" asp-page-handler="Duplicate">
                                         <input type="hidden" name="deckId" value="@deck.Id" />

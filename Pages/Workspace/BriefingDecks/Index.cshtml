@@ -100,8 +100,10 @@
      data-workspace-nav-scope="@(deck is null ? null : "studio")">
     @await Html.PartialAsync("/Pages/Workspace/_CommandWorkspaceRail.cshtml", Model.CommandRail)
 
-    @* A div, not a second main element: the layout already gives the page its main landmark. *@
-    <div class="cw-workspace-content pbd-shell" data-pbd-root
+    @* A div, not a second main element: the layout already gives the page its main landmark.
+       data-whats-new-wait: the What's new card would sit over New deck and Generate, so it waits
+       for another page (whats-new.js). *@
+    <div class="cw-workspace-content pbd-shell" data-pbd-root data-whats-new-wait
           data-filter-url="@Url.Page("/Workspace/BriefingDecks/Index", "FilterProjects")"
           data-filter-options-url="@Url.Page("/Workspace/BriefingDecks/Index", "FilterOptions")"
           data-max-projects="@ProjectBriefingDeckService.MaximumProjectsPerDeck"

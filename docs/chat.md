@@ -13,7 +13,8 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 - **What's new card** (`Pages/Shared/_WhatsNew.cshtml`, `wwwroot/js/core/whats-new.js`): signed-in
   users see "PRISM just learned to talk." once, near the top bar, with **Show me** (opens the
   contact list and briefly rings the chat button), **Quick guide** and **Not now**. It shows on up
-  to three page loads until answered, never over a dialog or while typing, and never to someone
+  to three page loads until answered, never over a dialog or while typing, never on a page marked
+  `data-whats-new-wait` (the briefing decks, whose New deck and Generate sit in that corner), and never to someone
   who has already opened chat (`prism.chat.dock.{userId}` exists). Cards queue: the Dark theme
   card waits until the Chat card has been answered and a day has passed
   (`prism.whatsNew.lastAnswered`), and no card appears while the contact list is open.

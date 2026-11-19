@@ -26,6 +26,34 @@ public static class ProjectBriefingContentGaps
         Status, CostRd, ProliferationCost, Photo, CapabilityOverview, ProjectBrief, KeyPoints, UpdateSheetFacts
     };
 
+    // What each key is called to people, as the Studio's Gaps tab names it.
+    public static string Label(string key) => key switch
+    {
+        Status => "Status remark",
+        CostRd => "Cost (R&D)",
+        ProliferationCost => "Proliferation cost",
+        Photo => "Photograph",
+        CapabilityOverview => "Capability overview",
+        ProjectBrief => "Project brief",
+        KeyPoints => "Key points",
+        UpdateSheetFacts => "Update-sheet facts",
+        _ => key
+    };
+
+    // A deck's gaps in brief, for asking before a download from the library: how many presented
+    // projects lack something, and which kinds of content (in AllKeys order).
+    public static ProjectBriefingGapSummary Summarize(
+        int presentedProjects,
+        IReadOnlyDictionary<int, IReadOnlyList<string>> gaps)
+    {
+        ArgumentNullException.ThrowIfNull(gaps);
+        var open = gaps.Values.SelectMany(keys => keys).ToHashSet(StringComparer.Ordinal);
+        return new ProjectBriefingGapSummary(
+            presentedProjects,
+            gaps.Values.Count(keys => keys.Count > 0),
+            AllKeys.Where(open.Contains).Select(Label).ToArray());
+    }
+
     public static IReadOnlyDictionary<int, IReadOnlyList<string>> Resolve(
         IEnumerable<ProjectBriefingProjectVm> projects,
         ProjectBriefingContentGapSettings settings)
@@ -159,3 +187,8 @@ public sealed record ProjectBriefingContentGapSettings(
     ProjectBriefingNarrativeMode NarrativeMode,
     ProjectBriefingStandardSlideOptions StandardSlideOptions,
     ProjectBriefingUpdateSheetOptions UpdateSheetOptions);
+
+public sealed record ProjectBriefingGapSummary(
+    int Projects,
+    int ProjectsWithGaps,
+    IReadOnlyList<string> Kinds);

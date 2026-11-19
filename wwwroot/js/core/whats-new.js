@@ -8,8 +8,9 @@
 // A card never appears over an open dialog or panel, never while a form field has focus, never
 // to someone who has already used the feature (data-whats-new-skip-if-stored lists the storage
 // keys that feature writes), never while the chat contact list is open (it sits in the same
-// corner), and never when the browser cannot remember the answer (it would otherwise come back
-// on every page).
+// corner), never on a page marked data-whats-new-wait (its main action sits where the card
+// would: the briefing decks' New deck and Generate), and never when the browser cannot remember
+// the answer (it would otherwise come back on every page).
 //
 // Actions inside a card:
 //   data-whats-new-theme="dark|system"  choose a theme, then show the card's confirmation
@@ -67,6 +68,8 @@
     // Briefing Studio's focus view) they would cover the page instead, so wait for a later page.
     var topbar = document.querySelector('.pm-topbar');
     if (topbar && topbar.getClientRects().length === 0) return true;
+    // A page whose main action sits under the card's corner asks it to wait for another page.
+    if (document.querySelector('[data-whats-new-wait]')) return true;
     return !!document.querySelector('.modal.show, .offcanvas.show, dialog[open], [data-chat-root].has-buddy');
   }
 

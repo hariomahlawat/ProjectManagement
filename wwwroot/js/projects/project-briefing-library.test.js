@@ -116,3 +116,125 @@ test('delete waits for confirmation and goes ahead only when confirmed', async (
   await settle();
   assert.deepEqual(sent, ['true']);
 });
+
+// ---- Download from the library (Plan: The Studio is optional, PR 2) -------------------------
+
+const fakeReply = ({ status = 200, type = 'application/json', body = null, headers = {}, redirected = false, url = '' } = {}) => ({
+  ok: status >= 200 && status < 300,
+  status,
+  redirected,
+  url,
+  headers: { get: (name) => ({ 'content-type': type, ...headers })[name.toLowerCase()] ?? null },
+  json: async () => body,
+  blob: async () => new Blob(['pptx'])
+});
+
+const PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
+const startDownloadCard = ({ gaps, file, generate = true }) => {
+  const window = startLibrary();
+  const document = window.document;
+  document.querySelector('[data-pbd-library]').insertAdjacentHTML('beforeend', `
+    <article data-pbd-library-row data-name="Monthly" data-search="monthly" data-mine="true" data-edited="1" data-generated="0">
+      <p data-pbd-library-status><span>Not generated</span></p>
+      <form method="post" action="/Workspace/BriefingDecks?handler=${generate ? 'Generate' : 'Download'}"
+            data-pbd-library-download ${generate ? 'data-pbd-library-generate' : ''} data-gaps-url="/Workspace/BriefingDecks?handler=Gaps&amp;deckId=7">
+        <input type="hidden" name="deckId" value="7">
+        <button type="submit">Download</button>
+      </form>
+    </article>`);
+  const calls = [];
+  window.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), method: options.method || 'GET' });
+    return /handler=Gaps/.test(String(url)) ? gaps() : file();
+  };
+  const toasts = [];
+  window.PrismToast = { show: (options) => { toasts.push(options); return { dismiss() {} }; } };
+  window.URL.createObjectURL = () => 'blob:pptx';
+  window.URL.revokeObjectURL = () => {};
+  const asked = [];
+  window.confirm = (text) => { asked.push(text); return window.answer; };
+  const submit = async () => {
+    document.querySelector('[data-pbd-library-download]').requestSubmit();
+    await new Promise((resolve) => window.setTimeout(resolve, 30));
+  };
+  return { window, document, calls, toasts, asked, submit };
+};
+
+test('a deck without gaps downloads at once, and its card says it is up to date', async () => {
+  const page = startDownloadCard({
+    gaps: () => fakeReply({ body: { projects: 6, projectsWithGaps: 0, kinds: [] } }),
+    file: () => fakeReply({ type: PPTX, headers: { 'x-project-briefing-slides': '11', 'content-disposition': 'attachment; filename=Monthly_20261119.pptx' } })
+  });
+
+  await page.submit();
+
+  assert.deepEqual(page.asked, [], 'nothing to ask');
+  assert.deepEqual(page.calls.map((call) => call.method), ['GET', 'POST']);
+  assert.match(page.document.querySelector('[data-pbd-library-status]').textContent, /^Today, \d\d:\d\d · 11 slides · up to date$/);
+  assert.notEqual(page.document.querySelector('[data-pbd-library-row][data-name="Monthly"]').dataset.generated, '0');
+  assert.equal(page.toasts.at(-1).text, 'PowerPoint downloaded (11 slides).');
+});
+
+test('a deck with gaps asks first; Cancel downloads nothing, Download anyway does', async () => {
+  const page = startDownloadCard({
+    gaps: () => fakeReply({ body: { projects: 6, projectsWithGaps: 4, kinds: ['Status remark', 'Cost (R&D)'] } }),
+    file: () => fakeReply({ type: PPTX, headers: { 'x-project-briefing-slides': '11' } })
+  });
+
+  page.window.answer = false;
+  await page.submit();
+  assert.equal(page.asked.length, 1);
+  assert.match(page.asked[0], /Download with gaps\?/);
+  assert.match(page.asked[0], /4 of 6 projects have gaps: status remark, cost \(R&D\)\. /);
+  assert.match(page.asked[0], /Open the deck to fill them first/);
+  assert.deepEqual(page.calls.map((call) => call.method), ['GET'], 'declined: no PowerPoint built');
+  assert.equal(page.document.querySelector('[data-pbd-library-status]').textContent.trim(), 'Not generated');
+
+  page.window.answer = true;
+  await page.submit();
+  assert.deepEqual(page.calls.map((call) => call.method), ['GET', 'GET', 'POST']);
+  assert.match(page.document.querySelector('[data-pbd-library-status]').textContent, /up to date/);
+});
+
+test('a view-only deck asks too, without offering to fix, and is not marked generated', async () => {
+  const page = startDownloadCard({
+    generate: false,
+    gaps: () => fakeReply({ body: { projects: 2, projectsWithGaps: 1, kinds: ['Photograph'] } }),
+    file: () => fakeReply({ type: PPTX })
+  });
+  page.window.answer = true;
+
+  await page.submit();
+
+  assert.doesNotMatch(page.asked[0], /Open the deck/);
+  assert.deepEqual(page.calls.map((call) => call.method), ['GET', 'POST']);
+  assert.equal(page.document.querySelector('[data-pbd-library-status]').textContent.trim(), 'Not generated');
+});
+
+test('an expired sign-in while checking stops before building and says so', async () => {
+  const page = startDownloadCard({
+    gaps: () => fakeReply({ type: 'text/html', redirected: true, url: '/Identity/Account/Login' }),
+    file: () => { throw new Error('not reached'); }
+  });
+
+  await page.submit();
+
+  assert.deepEqual(page.calls.map((call) => call.method), ['GET']);
+  assert.equal(page.toasts.at(-1).tone, 'danger');
+  assert.match(page.toasts.at(-1).text, /sign-in has expired/);
+});
+
+test('a refusal from the server is shown, and the button can be used again', async () => {
+  const page = startDownloadCard({
+    gaps: () => fakeReply({ body: { projects: 1, projectsWithGaps: 0, kinds: [] } }),
+    file: () => fakeReply({ status: 400, body: { message: 'Add at least one project before generating.' } })
+  });
+
+  await page.submit();
+
+  assert.equal(page.toasts.at(-1).text, 'Add at least one project before generating.');
+  const button = page.document.querySelector('[data-pbd-library-download] button');
+  assert.equal(button.dataset.pbdDownloading, undefined);
+  assert.equal(button.getAttribute('aria-disabled'), null);
+});

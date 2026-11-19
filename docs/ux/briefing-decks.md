@@ -33,10 +33,18 @@ last-updated deck, so nobody edits a deck they did not pick.
   status: when it was generated and how many slides, then "up to date", "N changes since" (a link
   to the deck) or "changes not tracked yet"; "Not generated" or "No PowerPoint yet" before that.
   The deck the person last edited carries a **Continue** tag (else "Recently edited" on the
-  latest); with the default sort it is the first card. Buttons: Open and Generate (Add projects
-  and Open for an empty deck), and a ⋯ menu with Download, Duplicate and Delete through the
-  Studio confirmation dialog. A Project Officer's deck that a command user can only view is
-  tagged "<name>'s deck · view only" and offers Download and Duplicate. **Mine** keeps decks the
+  latest); with the default sort it is the first card. Buttons: **Download** and Open (Add
+  projects and Open for an empty deck), and a ⋯ menu with Duplicate and Delete through the
+  Studio confirmation dialog. Download makes the PowerPoint without opening the Studio (19 Nov
+  2026): it reads the deck's gaps (`OnGetGapsAsync`, the Studio's `ProjectBriefingContentGaps`
+  rule) and, when a presented project lacks content its slides show, asks first ("Download with
+  gaps?", *Download anyway* / *Cancel*); it then posts `Generate` in the page, so the generation
+  is recorded and the card's PowerPoint line changes to "Today, HH:MM · N slides · up to date".
+  The button is busy until the file arrives; an expired sign-in or a refusal is said in a toast.
+  A Project Officer's deck that a command user can only view is tagged "<name>'s deck · view
+  only" and offers Download (asking about gaps the same way; nothing is recorded) and Duplicate.
+  An old `?generate=1` link only opens the deck: the library no longer leaves the one-time
+  marker the Studio needs to generate from it. **Mine** keeps decks the
   person owns or last edited; search also matches the names of projects in a deck; sort by last
   edited, last generated or name. Filtering runs in the page (`project-briefing-library.js`),
   on the cards' `data-pbd-library-row` hooks.
@@ -664,7 +672,7 @@ An independent UI/UX review of the deck library (`/Workspace/BriefingDecks`) at 
    load with a deck.
 
 Outside this module: the shared "What's new" announcement can cover the page's top-right buttons
-on a first visit.
+on a first visit. (Fixed 19 Nov 2026: it waits on these pages, `data-whats-new-wait`.)
 
 
 ## Plan: Blocks, Project Officer decks and focus view (16 Nov 2026)
@@ -898,3 +906,89 @@ https://claude.ai/artifact/FbmeUVZx6P9vaQbAHAAsPV (a clickable Deck tab built fr
    so they read on dark cards (they were nearly invisible). The Add block library no longer shows
    a group heading with nothing under it on first load. This file's Studio section describes the
    Deck tab as it now is; `docs/current-state.md` names Project Officers.
+
+## Plan: The Studio is optional (19 Nov 2026)
+
+**Review.** An independent review (19 Nov 2026, the running app at 1366×768 as an HoD, six
+projects) found the core job easy (New deck, tick projects, Generate: about six clicks, the
+PowerPoint in 1.5 s) but every route running through the Studio: a new deck opens there, and the
+library's Generate opens it too (`?generate=1`). The Studio itself is dense: about 78 visible
+buttons; gaps shown in six places (header step, outline badge, This slide's box, Gaps tab, the
+note under Generate, the Generate question); Template, Design and "Settings" naming one idea; a
+Key points design and a Key points chip that switches it; the same slides named differently in the
+outline and the Deck tab. On a first visit the shared What's new card covered Generate.
+
+Mockup reviewed with the owner: https://claude.ai/artifact/Lmt7nts45pR68qCiX1KHqq (a clickable
+library, New deck dialog and simplified Studio).
+
+**Owner decisions (19 Nov 2026)**
+
+- The Studio is for reviewing and changing a deck, not a step every deck must pass through. A
+  deck can be made and downloaded from the library.
+- Download from the library **asks first** when the deck has gaps: "N projects have gaps",
+  *Download anyway* / *Open to fix* / *Cancel*. A deck without gaps downloads at once.
+- **Marking is required** when a deck is created. Decks that already exist are unchanged.
+- New deck offers **Same as a deck** beside choosing projects (as in the mockup).
+
+**PRs**, each additive and revertible on its own, none with a migration:
+
+1. **What's new never covers the primary action.** The shared What's new card waits on the
+   briefing deck pages (as it already waits in focus view), so Generate is never under it.
+   Outside this module's code, so its own small PR with a test in `whats-new.test.js`.
+   Built: a page marked `data-whats-new-wait` is "busy" for the card (as an open dialog is), so
+   the card waits for another page without using up one of its three showings; the briefing
+   decks root (library and Studio) carries the mark.
+2. **Download from the library.** The card's Generate becomes **Download**. A new read handler
+   (`OnGetGapsAsync(deckId)`, View access) returns how many presented projects have gaps, from
+   the same `ProjectBriefingContentGaps` rule the Studio uses; with gaps the card asks as decided;
+   then the page posts the existing `Generate` handler in-page (it already answers in-page
+   requests with the file, records the generation and keeps the integrity check), shows
+   "Preparing…" with a double-click guard, downloads, and updates the card's PowerPoint line.
+   Errors and an expired sign-in use the existing `checkReply`. A view-only Project Officer deck
+   keeps `Download` (no generation recorded). The `?generate=1` hand-off stays for old links but
+   the library stops using it. Tests: the handler's access and its count against the Studio's for
+   the same deck; the card's ask / download / error behaviour (`project-briefing-library.test.js`).
+   Built: as planned, with the library's own reply checks (it loads without the Studio's
+   scripts). The ⋯ menu's Download PowerPoint is gone (the card's Download replaces it); the
+   view-only deck's Download asks too. Checked in the browser: the question, Download anyway, the
+   file, and the card's line updating in place.
+3. **Marking required at creation.** The New deck dialog gets a required Marking choice and the
+   server's `Create` rejects a deck without one, with a plain message. The choices come from one
+   list (configuration, so a site can match its handling rules without a release); the Studio's
+   Handling step offers the same list and still shows an existing free-text marking as it is.
+   **Needs the owner first:** the list of markings. Before choosing it, list the markings
+   production decks already use (`SELECT "HandlingMarking", count(*) FROM
+   "ProjectBriefingDecks" GROUP BY 1`), run read-only by the operator. During a rolling deploy a
+   New deck form from the old build posts without a marking and is told to choose one; nothing is
+   lost but the typed name.
+4. **Projects in the New deck dialog, and Create and download.** The dialog takes a slide style,
+   the marking and the projects, by filters and ticks (the Add projects module in a no-deck mode:
+   the filter handlers accept no deck and mark nothing "in deck") or **Same as a deck** (any deck
+   the person can view; its project list is copied, not its notes, photos or settings). The
+   service creates the deck and its items in one transaction, with the same 120-project limit and
+   project access rules as `AddSelection`. **Create and open** opens the Studio on the new deck;
+   **Create and download** asks about gaps as in PR 2, then downloads and lands on the library
+   with the new deck first. The footer says what is still needed, or how many projects have gaps.
+   The old two-step path (create, then Add projects) keeps working for posts from older pages.
+5. **One name for the slide style.** Template (New deck) and Design (Deck tab) become one
+   **Slide style**: Portfolio, Key points, Brief, Fact sheet, written as the deck's existing
+   settings exactly as designs are now (`ProjectBriefingProjectSlideDesigns`), so stored decks
+   and older builds are unaffected. The Key points chip goes (the style decides it); Key points
+   only and Capability and brief stay for decks that already use them, shown only to those
+   decks. Outline titles use the Deck tab's slide names. Before this PR, count the designs
+   production decks use, to confirm what can stop being offered.
+6. **A quieter Studio.** Header: name, one summary line (projects, style, marking, saved),
+   Present and **Download PowerPoint**; the three progress steps, the note under Generate and the
+   one-time banner go (its sentence moves to the empty state). Gaps live in the outline badges and
+   the Gaps tab; This slide shows a missing fact as "Not recorded" beside its *Fix* link instead
+   of a separate gaps box. This slide's per-project choices (Own slides / Table row only / Leave
+   out, photograph, speaker notes, this deck's capability text, Remove) move under **More
+   options**, closed by default and remembered for the session. Look and Handling fold into one
+   **Appearance** step beside the marking. Nothing stored changes. Re-measure the visible
+   controls at 1366×768 (the review counted about 78) and check 375 px and Dark.
+7. **Docs and a timed first-deck test.** This file's library and Studio sections rewritten to the
+   new flow; the review measure from here is how long a person new to PRISM takes to make and
+   download a first deck, not a count of findings.
+
+Not in this plan: removing the hidden Layout, NarrativeMode and CostMode inputs or other code
+clean-up. That follows PR 5 and the production usage counts, as its own change.

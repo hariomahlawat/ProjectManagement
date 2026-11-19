@@ -311,10 +311,10 @@ test('small honest fixes (review 2 fixes, PR 6)', () => {
   assert.match(source, /is already \$\{up \? 'first' : 'last'\} in \$\{zoneName\}\./);
   // ?generate=1 needs the library's one-time marker in this tab.
   assert.match(source, /sessionStorage\.getItem\(`prism\.briefingDecks\.generate\.\$\{deckId\}`\) === '1'/);
-  // Both the link flag and the marker; only a plain same-tab click leaves the marker.
+  // Both the link flag and the marker. The library downloads in place now (Plan: The Studio is
+  // optional, PR 2) and leaves no marker, so an old ?generate=1 link only opens the deck.
   assert.match(source, /if \(generateFlag && generateMarked\) \{/);
-  assert.match(fs.readFileSync(path.resolve(__dirname, '..', 'pages', 'project-briefing-library.js'), 'utf8'), /event\.button !== 0 \|\| event\.metaKey \|\| event\.ctrlKey/);
-  assert.match(fs.readFileSync(path.resolve(__dirname, '..', 'pages', 'project-briefing-library.js'), 'utf8'), /sessionStorage\.setItem\(`prism\.briefingDecks\.generate\./);
+  assert.doesNotMatch(fs.readFileSync(path.resolve(__dirname, '..', 'pages', 'project-briefing-library.js'), 'utf8'), /sessionStorage\.setItem\(`prism\.briefingDecks\.generate\./);
   // A view-only deck whose data moved shows its change count, without a link.
   assert.match(fs.readFileSync(path.resolve(__dirname, '..', '..', '..', 'Pages', 'Workspace', 'BriefingDecks', '_DeckLibrary.cshtml'), 'utf8'), /else if \(deck\.DataMovement\.HasMoved\)/);
 });
