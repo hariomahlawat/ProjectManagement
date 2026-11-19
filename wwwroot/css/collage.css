@@ -1010,6 +1010,8 @@ details.clg-custom-size[open] > summary {
         min-width: 3.6rem;
         padding: 0.3rem 0.4rem;
         font-size: 0.68rem;
+        /* Room under the labels for letters that go below the line. */
+        line-height: 1.3;
     }
 
     .clg-rail button i {
@@ -2377,3 +2379,12 @@ body.clg-dialog-open .prism-toasts .prism-toast {
     }
 }
 /* END GENERATED: color-mix() fallbacks */
+
+/* The Card panel's logo choices show their whole name, on two lines if need be. */
+.clg-card-logo__choices .clg-sticker__name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.15;
+    text-align: center;
+}

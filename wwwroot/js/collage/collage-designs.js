@@ -449,7 +449,7 @@
         logo(0.5, 0.11, 0.1),
         words('occasion', 0.5, 0.24, 0.8, 34, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
         words('programmeTitle', 0.5, 0.33, 0.8, 26, { font: 'elegant', color: GOLD, bold: false, italic: true }, { lines: 1 }),
-        words('programme', 0.5, 0.58, 0.84, 30, { font: 'clean', color: INK, bold: false }, { lines: 10 }),
+        words('programme', 0.5, 0.58, 0.84, 30, { font: 'clean', color: INK, bold: false, align: 'left' }, { lines: 10 }),
         words('when', 0.5, 0.88, 0.8, 22, { font: 'clean', color: INK, bold: true }, { lines: 2 })
       ],
       landscape: [
@@ -457,7 +457,7 @@
         logo(0.14, 0.5, 0.12),
         words('occasion', 0.6, 0.18, 0.66, 30, { font: 'elegant', color: MAROON, bold: true }, { lines: 1 }),
         words('programmeTitle', 0.6, 0.31, 0.66, 22, { font: 'elegant', color: GOLD, bold: false, italic: true }, { lines: 1 }),
-        words('programme', 0.6, 0.6, 0.66, 19, { font: 'clean', color: INK, bold: false }, { lines: 10 }),
+        words('programme', 0.6, 0.6, 0.66, 19, { font: 'clean', color: INK, bold: false, align: 'left' }, { lines: 10 }),
         words('when', 0.6, 0.88, 0.66, 16, { font: 'clean', color: INK, bold: true }, { lines: 1 })
       ]
     }),
@@ -865,7 +865,7 @@
         border('backborder', 0.04, look.accent, 1.2),
         words('programmeTitle', 0.5, 0.11, 0.7, 40, { font: 'elegant', color: look.title, bold: true }, { lines: 1 }),
         rule('backrule', 0.5, 0.165, 0.2, look.accent, 2),
-        words('programme', 0.5, 0.33, 0.8, 31, { font: 'clean', color: look.ink, bold: false }, { lines: 10 }),
+        words('programme', 0.5, 0.33, 0.8, 31, { font: 'clean', color: look.ink, bold: false, align: 'left' }, { lines: 10 }),
         backPhoto(0.5, 0.63, 0.76, 0.22),
         words('backNote', 0.5, 0.82, 0.8, 20, { font: 'clean', color: look.ink, bold: false, italic: true }, { lines: 2 }),
         { ...logo(0.5, 0.91, 0.045), role: 'backlogo' }
@@ -874,7 +874,7 @@
         border('backborder', 0.04, look.accent, 1.2),
         words('programmeTitle', 0.5, 0.14, 0.6, 36, { font: 'elegant', color: look.title, bold: true }, { lines: 1 }),
         rule('backrule', 0.5, 0.23, 0.16, look.accent, 2),
-        words('programme', 0.29, 0.54, 0.46, 26, { font: 'clean', color: look.ink, bold: false }, { lines: 10 }),
+        words('programme', 0.29, 0.54, 0.46, 26, { font: 'clean', color: look.ink, bold: false, align: 'left' }, { lines: 10 }),
         backPhoto(0.73, 0.54, 0.4, 0.5),
         words('backNote', 0.5, 0.88, 0.84, 18, { font: 'clean', color: look.ink, bold: false, italic: true }, { lines: 1 })
       ];
