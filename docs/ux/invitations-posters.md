@@ -248,6 +248,8 @@ comes with tests that fail without it.
     browser memory test in its "Done when". Canvases are let go one at a time, but each card's
     picture stays in the PDF, so a long list makes a large PDF (300 A5 cards, about 69 MB, 13 s).
     The estimate and preview are left for later.
+- **Fonts (owner approved, 19 Nov):** Cinzel (Engraved) and Pinyon Script (Formal script) were
+  downloaded from @fontsource 5.3.0 and shipped to master on their own (#3447).
 - **Fonts in the designs (19 Nov):** after #3447 merged, Classic ivory, Navy and gold and
   Regimental set the host in Engraved (Cinzel) and the invitation line in Formal script (Pinyon
   Script, a size larger as its letters run small), on flat and folded cards.
@@ -256,8 +258,6 @@ comes with tests that fail without it.
 - **Release order (owner agreed, 19 Nov):** PR 2 reaches production a release before PR 3 and
   later (see Deployment). If they went in one release, a user on a cached tab during the
   change-over could lose a card's shapes from a draft.
-- **Fonts (owner approved, 19 Nov):** Cinzel (Engraved) and Pinyon Script (Formal script) were
-  downloaded from @fontsource 5.3.0 and shipped to master on their own (#3447).
 - **Cold review, 19 Nov:** UX 6.5, code and tests 7. Fixed on top of the stack in three parts:
   sides taken from the design, guest names on the right side, locks and both sides (part 1);
   logos, the Card panel's order, posters, phones and wording (part 2); long words, long
