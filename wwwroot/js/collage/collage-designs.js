@@ -793,6 +793,52 @@
     return showingBack ? core.flipSide(applied) : applied;
   }
 
+  /**
+   * The parts a poster's logo choice moves, moved and nothing else changed (Codex on PR 11): the
+   * design laid out as `previous` was and as `collage` is now; each design part whose place moved
+   * between the two (the heading moving up into a logo's space) moves by as much, from wherever
+   * the user put it. Fonts, colours, the background, deleted parts and locked parts stay as they
+   * are. The logo itself is left to the caller.
+   */
+  function moveForLogo(previous, collage, opts) {
+    const design = collage.card?.design;
+    if (!DESIGNS[design]) return collage;
+    const before = applyDesign(previous, design, detailsOf(previous), opts);
+    const after = applyDesign(collage, design, detailsOf(collage), opts);
+    const keyOf = (item) => (item.field ? `field:${item.field}` : item.role && !/^logo/.test(item.role) ? `role:${item.role}` : null);
+    const placeOf = (items) => new Map(items.filter(keyOf).map((item) => [keyOf(item), item]));
+    const was = placeOf(before.items);
+    const now = placeOf(after.items);
+    return {
+      ...collage,
+      items: collage.items.map((item) => {
+        const key = keyOf(item);
+        const a = key && was.get(key);
+        const b = key && now.get(key);
+        if (!a || !b || item.locked) return item;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        return Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6 ? item : { ...item, x: item.x + dx, y: item.y + dy };
+      })
+    };
+  }
+
+  /**
+   * A poster's logo choice (PR 11): 'later' keeps a place for the logo, 'none' has no logo and the
+   * heading moves up into its space. Only the logo and the parts it moves change.
+   */
+  function setLogoMode(collage, mode, opts) {
+    const details = { ...detailsOf(collage), logoMode: mode };
+    let items = collage.items;
+    if (mode === 'none') items = items.filter((item) => item.role !== 'logo' || item.locked);
+    else if (!items.some((item) => item.role === 'logo')) {
+      const place = roleItem({ ...collage, card: { ...collage.card, details } }, 'logo', opts);
+      if (place) items = [...items, place];
+    }
+    const next = { ...collage, items, card: { ...collage.card, details: { ...collage.card.details, logoMode: mode } } };
+    return moveForLogo(collage, next, opts);
+  }
+
   /** The fields that have an item on either side of a card. */
   function placedOn(collage) {
     return [...new Set([...(collage.items || []), ...(collage.back?.items || [])].filter((item) => item.field).map((item) => item.field))];
@@ -844,5 +890,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode });
 });

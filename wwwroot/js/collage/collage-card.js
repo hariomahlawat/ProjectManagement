@@ -366,6 +366,7 @@
     function setLogo(make, said, role = targetRole()) {
       // A poster that had no logo gets its design back with the logo's place (PR 11).
       const wasNone = isPoster() && designs.detailsOf(state.collage).logoMode === 'none';
+      const before = state.collage;
       const current = state.collage.items.find((item) => item.role === role) || null;
       // A locked logo is not replaced: unlocked first, as everywhere else.
       if (current?.locked) { messages.sayLocked(); return; }
@@ -382,7 +383,8 @@
           draft.items.splice(own < 0 ? draft.items.length : own, 0, fresh);
         }
       }, 'none');
-      if (wasNone) doc.edit((draft) => designs.applyDesign(draft, draft.card.design, designs.detailsOf(draft), options()), 'none');
+      // The heading moves back down to make room; nothing else changes.
+      if (wasNone) doc.edit((draft) => designs.moveForLogo(before, draft, options()), 'none');
       followLogoOnBack();
       history.commit();
       surface.syncAll();
@@ -515,11 +517,8 @@
     /** A poster's logo choice that is not a picture: none (the design closes the gap) or later. */
     function setLogoMode(mode) {
       selection.select(null);
-      doc.edit((draft) => {
-        const details = { ...designs.detailsOf(draft), logoMode: mode };
-        const kept = mode === 'none' ? { ...draft, items: draft.items.filter((item) => item.role !== 'logo') } : draft;
-        return designs.applyDesign({ ...kept, card: { ...draft.card, details } }, draft.card.design, details, options());
-      }, 'none');
+      // Only the logo and the parts it moves change: the user's fonts, colours and places stay.
+      doc.edit((draft) => designs.setLogoMode(draft, mode, options()), 'none');
       history.commit();
       surface.syncAll();
       renderPanel();

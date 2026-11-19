@@ -139,7 +139,8 @@
     || (side.background?.type === 'photo' && photos.has(side.background.photo));
   const hasContent = () => sideHasContent(collage) || Boolean(collage.back && sideHasContent(collage.back))
     || core.keptCount(collage) > 0;
-  const firstSlot = () => collage.items.find((item) => item.kind === 'slot' && !item.locked) || null;
+  // A logo's place is filled only when it is asked for, not as the first free frame.
+  const firstSlot = () => collage.items.find((item) => item.kind === 'slot' && !item.locked && !core.isLogoPlace(item)) || null;
   const isFrame = (item) => item && (item.kind === 'photo' || item.kind === 'slot');
 
   // The editor's values, read by its parts but changed only through the named changes each part

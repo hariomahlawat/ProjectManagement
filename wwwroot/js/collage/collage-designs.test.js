@@ -393,3 +393,43 @@ test('posters: no logo until one is chosen, the heading moves up with No logo, e
   }
   assert.equal(designs.POSTER_DETAILS.venue, 'Unit Sports Ground');
 });
+
+// Codex on PR 11: a poster's logo choice moves only the parts the logo moves.
+test('a poster logo choice keeps the user fonts, colours, background and places; the heading moves', () => {
+  const opts = { measure, newId };
+  const poster = designs.applyDesign(core.newCollage('a4p'), 'notice', designs.POSTER_DETAILS, opts);
+  const mine = {
+    ...poster,
+    background: { type: 'color', value: '#123456' },
+    items: poster.items
+      .filter((item) => item.role !== 'rule')
+      .map((item) => (item.field === 'title' ? { ...item, font: 'typewriter', color: '#00ff00', x: item.x + 40 } : item))
+  };
+  const title = (c) => c.items.find((item) => item.field === 'title');
+  const none = designs.setLogoMode(mine, 'none', opts);
+  assert.equal(none.card.details.logoMode, 'none');
+  assert.equal(none.items.some((item) => item.role === 'logo'), false);
+  assert.deepEqual(none.background, mine.background);
+  assert.equal(title(none).font, 'typewriter');
+  assert.equal(title(none).color, '#00ff00');
+  assert.equal(title(none).x, title(mine).x, 'across stays where the user put it');
+  assert.ok(title(none).y < title(mine).y, 'the heading moves up into the space');
+  assert.equal(none.items.length, mine.items.length - 1, 'only the logo place went; nothing deleted comes back');
+  // Decide later brings the place back and the heading back down, still in the user's font.
+  const later = designs.setLogoMode(none, 'later', opts);
+  assert.ok(later.items.some((item) => item.role === 'logo' && item.kind === 'slot'));
+  assert.ok(Math.abs(title(later).y - title(mine).y) < 1e-6);
+  assert.equal(title(later).font, 'typewriter');
+  // A locked heading stays put.
+  const locked = { ...mine, items: mine.items.map((item) => (item.field === 'title' ? { ...item, locked: true } : item)) };
+  assert.equal(title(designs.setLogoMode(locked, 'none', opts)).y, title(locked).y);
+});
+
+test('a photo added without a chosen frame never goes in a logo place', () => {
+  const logo = { ...core.slotItem('l', { x: 100, y: 100, width: 100, aspect: 0.6 }), role: 'logo' };
+  const frame = { ...core.slotItem('p', { x: 500, y: 500, width: 300, aspect: 1.5 }), role: 'photo' };
+  assert.equal(core.bestSlotFor([logo, frame], 0.6).id, 'p');
+  assert.equal(core.bestSlotFor([logo], 0.6), null);
+  assert.equal(core.isLogoPlace(logo), true);
+  assert.equal(core.isLogoPlace(frame), false);
+});
