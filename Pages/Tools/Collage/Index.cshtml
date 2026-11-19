@@ -336,6 +336,14 @@
                     <label class="clg-option"><input type="radio" name="sides" value="back">
                         <span><b>Back only</b></span></label>
                 </fieldset>
+                @* One card for each guest on the card's guest list (docs/ux/invitations-posters.md, PR 10). *@
+                <fieldset class="clg-options clg-save-guests" data-save-guests hidden>
+                    <legend>Guests</legend>
+                    <label class="clg-option"><input type="radio" name="guests" value="each" checked>
+                        <span><b data-guest-label>One card for each guest</b><small>Each card with its guest's name, in the order of the list.</small></span></label>
+                    <label class="clg-option"><input type="radio" name="guests" value="one">
+                        <span><b>The card as it is</b><small>With a line to write a name on.</small></span></label>
+                </fieldset>
                 @* Cards on an A4 or A3 sheet with cut marks (docs/ux/invitations-posters.md, PR 9). *@
                 <fieldset class="clg-options clg-save-sheet" data-save-sheet hidden>
                     <legend>Print on</legend>

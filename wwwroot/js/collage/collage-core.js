@@ -1822,7 +1822,37 @@
     }
     // The fields the design placed (PR 5): names only, as the designs name them.
     const placed = Array.isArray(raw.placed) ? [...new Set(raw.placed.filter((field) => typeof field === 'string' && CARD_FIELD.test(field)))].slice(0, 40) : [];
-    return design ? { design, details, placed } : null;
+    // The guest list (PR 10): plain names, at most GUEST_LIMITS of them.
+    const guests = guestNames(Array.isArray(raw.guests) ? raw.guests.filter((name) => typeof name === 'string').join(String.fromCharCode(10)) : '');
+    return design ? { design, details, placed, ...(guests.length ? { guests } : {}) } : null;
+  }
+
+  /** A guest list's limits (docs/ux/invitations-posters.md, PR 10). */
+  const GUEST_LIMITS = Object.freeze({ names: 300, length: 120 });
+
+  /**
+   * Guest names from pasted text or a .txt file (one a whole line, commas and all), or a .csv file
+   * (`csv`: its first column, quotes allowed); blanks and a first line "Name" left out, each
+   * trimmed to GUEST_LIMITS.length, at most GUEST_LIMITS.names.
+   */
+  function guestNames(text, { csv = false } = {}) {
+    const lines = String(text || '').split(/\r?\n/);
+    const names = [];
+    for (const line of lines) {
+      let name = line.trim();
+      if (csv && name.startsWith('"')) {
+        // A quoted first column ("Brig P. Singh, SM",…); a doubled quote is a quote.
+        const match = /^"((?:[^"]|"")*)"/.exec(name);
+        name = match ? match[1].replace(/""/g, '"') : name.slice(1);
+      } else if (csv) {
+        name = name.split(',')[0];
+      }
+      name = name.replace(/\s+/g, ' ').trim().slice(0, GUEST_LIMITS.length);
+      if (!name || (!names.length && /^names?$/i.test(name))) continue;
+      names.push(name);
+      if (names.length >= GUEST_LIMITS.names) break;
+    }
+    return names;
   }
 
   /**
@@ -2095,6 +2125,8 @@
     SHEETS,
     SHEET_SPACE,
     sheetLayout,
+    GUEST_LIMITS,
+    guestNames,
     cutMarks,
     decodeSize,
     itemsToSave,
