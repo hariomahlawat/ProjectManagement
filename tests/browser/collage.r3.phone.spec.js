@@ -34,10 +34,14 @@ test('at 390 px the page is wide, the toolbar is in view and clear of the chosen
   await page.getByRole('button', { name: /^4 grid/ }).click();
   const files = [];
   for (let i = 0; i < 4; i += 1) files.push(await photoFile(page, { name: `p${i}.jpg`, colour: `hsl(${i * 60}, 55%, 40%)` }));
-  await page.locator('[data-file-input]').setInputFiles(files);
+  // Three at once leave nothing chosen; the fourth, added on its own, stays chosen
+  // (docs/ux/collage-usability-plan.md, round 2, PR 5).
+  await page.locator('[data-file-input]').setInputFiles(files.slice(0, 3));
+  await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(3);
+  await page.locator('[data-file-input]').setInputFiles(files[3]);
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(4);
 
-  // With the Photos sheet open (the last photo added is selected).
+  // With the Photos sheet open (the photo just added is selected).
   await expect.poll(async () => (await measure(page)).toolbar).not.toBeNull();
   let m = await measure(page);
   expect(m.sheetTop).not.toBeNull();
