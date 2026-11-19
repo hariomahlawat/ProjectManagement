@@ -779,9 +779,12 @@
         const first = draft.items.find((item) => item.role === 'logo');
         const made = make({ x: first.x, y: first.y, width: first.width });
         // As tall as the first, in its own shape.
-        const width = core.itemHeight(first) * (made.width / core.itemHeight(made));
-        const second = { ...made, role: 'logo2', y: first.y, width, angle: 0, locked: false };
         const gap = first.width * 0.35;
+        // A wide picture is made narrower (and so shorter) until the pair fits inside 80% of the
+        // page's width, so neither logo is cut off at the edge (Codex on #3456).
+        const room = core.PAGE_WIDTH * 0.8 - first.width - gap;
+        const width = Math.min(core.itemHeight(first) * (made.width / core.itemHeight(made)), Math.max(first.width * 0.5, room));
+        const second = { ...made, role: 'logo2', y: first.y, width, angle: 0, locked: false };
         // A locked first logo stays where it is; the second goes beside it, on the right if it fits.
         if (first.locked) {
           const right = first.x + first.width / 2 + gap + width / 2;
@@ -793,6 +796,8 @@
         } else {
           second.x = core.PAGE_WIDTH - first.x;
         }
+        // Never past the page's edge, wherever it went.
+        second.x = Math.min(core.PAGE_WIDTH - width / 2, Math.max(width / 2, second.x));
         draft.items.splice(draft.items.indexOf(first) + 1, 0, second);
       }, 'none');
       fitRoundel();

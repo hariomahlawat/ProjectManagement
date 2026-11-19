@@ -110,3 +110,20 @@ test('M3: a dark crest on the navy card gets a light tile behind it, gone again 
   await page.keyboard.press('Escape');
   expect(errors).toEqual([]);
 });
+
+// Codex on #3456: a wide picture as the second logo beside the SDD logo still fits on the page.
+test('a wide second logo beside the SDD logo is narrowed so both stay on the page', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await touch(page);
+  await page.locator('[data-card-logo="second"]').click();
+  await ownLogo(page, { name: 'wide.png', width: 500, height: 100 });
+  await expect.poll(async () => (await roles(page)).find((item) => item.role === 'logo2')?.kind).toBe('photo');
+  const items = await roles(page);
+  for (const role of ['logo', 'logo2']) {
+    const item = items.find((each) => each.role === role);
+    expect(item.x - item.width / 2, role).toBeGreaterThanOrEqual(0);
+    expect(item.x + item.width / 2, role).toBeLessThanOrEqual(1000);
+  }
+  expect(errors).toEqual([]);
+});
