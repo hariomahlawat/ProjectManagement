@@ -34,7 +34,7 @@ test('the line under the purposes says what Save will make', () => {
     'A JPG picture at screen size: 1,920 × 1,358 pixels, kept under 500 KB.');
   assert.equal(
     save.saveSummary({ format: 'pdf', quality: 'print', pixels: { width: 3508, height: 2480 }, paper: 'A4 landscape' }),
-    'A PDF at print quality: A4 landscape at its true size, 3,508 × 2,480 pixels.');
+    'A PDF at print quality: A4 landscape at its true size.');
   assert.equal(
     save.saveSummary({ format: 'pdf', quality: 'screen', pixels: { width: 1920, height: 1080 } }),
     'A PDF at screen size: 1,920 × 1,080 pixels.');

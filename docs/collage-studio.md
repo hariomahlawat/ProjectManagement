@@ -186,8 +186,11 @@ its npm package by hand; the libman entry records the version.
     landscape card on its own pages.
 
     **Print sheets** (PR 9): a card, pocket card or custom size saved as a PDF can go **on A4
-    sheets** or **on A3 sheets**, or each card on its own page. The note says how many fit, and
-    the summary line says how many cards go to each sheet. Where it fits more, **A4 sheets, edge
+    sheets** or **on A3 sheets**, or each card on its own page. **Printing** starts on A4 sheets
+    with cut marks, ready for an office printer, until another is picked in that dialog
+    ([ux/collage-usability-plan.md](ux/collage-usability-plan.md), round 2, PR 4); a folded card,
+    saved one to a page, has no sheet choice. The note says how many fit, and the summary line
+    says how many cards go to each sheet; a PDF's summary names its paper, not pixels. Where it fits more, **A4 sheets, edge
     to edge** packs the cards touching, with no margin, gaps or cut marks (4 A6, 2 A5 or 8 A7 on
     A4): it needs a printer that prints to the paper's edge, and the note says so.
     - There are 8 mm margins and 4 mm gaps. On A4 that's 2 A6, 4 A7 or 10 visiting-card passes;

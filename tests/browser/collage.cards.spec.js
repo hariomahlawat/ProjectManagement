@@ -96,6 +96,8 @@ test('a custom card size typed in mm: refused out of range, then the card saves 
   await expect(page.locator('[data-size]')).toHaveValue('mm:120x180');
   await page.getByRole('button', { name: 'Save as…' }).click();
   await page.getByRole('button', { name: 'Printing' }).click();
+  // Printing starts on A4 sheets (round 2, PR 4); this checks the card's own pages.
+  await page.locator('[data-save-sheet] input[value="card"]').check();
   const download = page.waitForEvent('download');
   await page.locator('[data-action="save-go"]').click();
   const file = await download;
@@ -213,6 +215,8 @@ test('a guest list makes one card for each guest: on their own pages, or filling
   await expect(page.locator('[data-save-guests]')).toBeVisible();
   await expect(page.locator('[data-guest-label]')).toHaveText('One card for each guest (3)');
   // Each on its own A6 page.
+  // Printing starts on A4 sheets (round 2, PR 4); this checks the card's own pages.
+  await page.locator('[data-save-sheet] input[value="card"]').check();
   let download = page.waitForEvent('download');
   await page.locator('[data-action="save-go"]').click();
   let file = await download;
