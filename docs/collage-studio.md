@@ -593,11 +593,13 @@ Photos are decoded straight at their working size, and a picture over 250 millio
 ### First use
 
 With nothing selected, the settings panel shows the page size and one line of help for what is
-open ([ux/collage-usability-plan.md](ux/collage-usability-plan.md), PR 6): on a card or poster
-"Type the words in Card details, or click anything on the card to move or restyle it", on a
-collage "Click a photo to change it; drag it to move it" (tap, on a touch screen). **Tips** beside
-it opens a dialog with every tip: cards and posters, photos and the page (for the mouse or for
-touch), and the keys.
+open ([ux/collage-usability-plan.md](ux/collage-usability-plan.md), PR 6): on a card "Type the
+words in Card details, or click anything on the card to move or restyle it" (Poster details on a
+poster), on a collage "Click a photo to change it; drag it to move it" (tap, on a touch screen).
+**Tips** beside it opens a dialog with every tip: cards and posters, photos and the page (for the
+mouse or for touch), and the keys; the group for what is open comes first (round 2, PR 5).
+Several photos added at once leave nothing chosen, so this short help shows rather than the last
+photo's settings; one photo added stays chosen.
 
 The start screen shows one row of drafts (with "Show all") so the three choices and the chosen
 section are in view. A collage nobody named is called by the first line of its first text (not the words

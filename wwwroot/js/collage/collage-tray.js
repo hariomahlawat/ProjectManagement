@@ -165,6 +165,10 @@
         }));
         if (placing.length) {
           setTarget(null);
+          // After a batch nothing is chosen, so the settings show the page's short help rather
+          // than the last photo's long list; one photo added stays chosen to work on
+          // (docs/ux/collage-usability-plan.md, round 2, PR 5). Before the commit, which redraws.
+          if (placing.length > 1 && !frameId && !at) change.choose(null);
           history.commit();
         }
         // Photos past the layout's frames wait in the tray rather than sit loose on the grid. The

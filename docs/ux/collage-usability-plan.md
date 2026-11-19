@@ -297,4 +297,11 @@ draft format. Drafts made before keep working: a card opened from a draft keeps 
   sheet in that dialog; a PDF's summary names its paper, not pixels; the sheet note reads "With
   room left for cutting only one fits; A4, edge to edge fits 2". The flip hint is worked out after
   the sheet is set (Codex). Three card browser tests that check a card's own pages now pick "Each
-  card on its own page".
+  card on its own page". #3478, merged 19 Nov 2026.
+- Round 2, PR 5: wording and smaller fixes. A poster's help line says Poster details; Tips lead
+  with what is open; several photos added at once leave nothing chosen (one photo stays chosen).
+  Left as they are, on purpose: Save stays open after saving with its "Saved" line (many flows
+  save twice, front and back or picture and PDF); Stickers opens on Crests and logos when the unit
+  has some (an earlier owner choice); the phone header's shield already has words for screen
+  readers. Not done yet: a poster draft's small picture still shows the "Add logo" place; a short
+  poster heading's gap; a PDF whose words can be selected.
