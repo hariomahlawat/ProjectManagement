@@ -237,6 +237,13 @@
         return;
       }
       change.setCollage(core.changeSize(state.collage, ui.sizeSelect.value));
+      // A card is laid out again by its design for the new shape, both sides, keeping its words,
+      // logo and photos: a card changed to or from a folded size gets its outside and inside, and
+      // each field goes to the side Card details types it on (Codex on PR 9c).
+      const designs = window.PrismCollageDesigns;
+      if (state.collage.card && designs?.DESIGNS[state.collage.card.design]) {
+        change.setCollage(designs.applyDesign(state.collage, state.collage.card.design, designs.detailsOf(state.collage), { measure: surface.measureText, newId: doc.newItemId }));
+      }
       // A page laid out in a grid is laid out again on the new page, every frame in its own place.
       if (state.collage.layout) change.setCollage(core.reflowLayout(state.collage, state.collage.layout.gap));
       // The side not showing has its own layout, laid out again on the new page too (PR 8).
