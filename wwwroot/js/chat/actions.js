@@ -17,18 +17,31 @@
   const document = global.document;
   const { ChatApp, el, icon, mergeMessages } = global.PMChatParts;
 
-  /** The reactions offered, in order (ChatReactionKind on the server). */
+  /**
+   * The reactions offered, in order (ChatReactionKind on the server). Drawn with the shipped
+   * Bootstrap Icons font, not emoji: emoji depend on the computer's fonts, and an office PC
+   * without a colour-emoji font showed 👀 as an empty box. Noted also shows its word.
+   */
   const REACTIONS = [
-    { kind: 'noted', symbol: '✓', label: 'Noted' },
-    { kind: 'like', symbol: '👍', label: 'Like' },
-    { kind: 'looking', symbol: '👀', label: 'Looking into it' },
+    { kind: 'noted', icon: 'check2', label: 'Noted', word: 'Noted' },
+    { kind: 'like', icon: 'hand-thumbs-up-fill', label: 'Like' },
+    { kind: 'looking', icon: 'eye-fill', label: 'Looking into it' },
   ];
+
+  /** The reaction's icon, and its word for Noted, as nodes. */
+  function reactionFace(info) {
+    const nodes = [];
+    if (info.icon) nodes.push(icon(info.icon));
+    if (info.word) nodes.push(document.createTextNode(` ${info.word}`));
+    if (!nodes.length) nodes.push(document.createTextNode(info.label));
+    return nodes;
+  }
   const QUOTE_LENGTH = 90;
   const MENTION_LIMIT = 6; // suggestions shown at once
   const RECORD_DELAY_MS = 250; // typing pause before #record suggestions are asked for
 
   function reactionInfo(kind) {
-    return REACTIONS.find((r) => r.kind === kind) || { kind, symbol: kind, label: kind };
+    return REACTIONS.find((r) => r.kind === kind) || { kind, label: kind };
   }
 
   function snippet(text) {
@@ -94,6 +107,46 @@
    * message, in time) Edit. One tab stop (role=toolbar); ← → move between its buttons. Returns
    * { node, expiresIn } (ms until Edit runs out, to redraw then) or null.
    */
+  /**
+   * The message toolbar sits above its message, on the side with free space (to the right of
+   * someone else's message, to the left of yours), so it covers neither the text being pointed
+   * at nor the window's edge. A message at the top of the visible area has no room above it:
+   * there the toolbar goes below it instead, and over the top of what can be seen of it when a
+   * tall message leaves no room either side. Decided as the pointer or focus arrives.
+   */
+  ChatApp.prototype.bindActionPlacement = function (win) {
+    let active = null; // the message whose toolbar was placed last (pointer or focus in it)
+    const place = (item) => {
+      const bar = Array.from(item.children).find((child) => child.classList.contains('pm-chat__actions'));
+      if (!bar) return;
+      const view = win.body.getBoundingClientRect();
+      const box = item.getBoundingClientRect();
+      const needed = bar.offsetHeight + 4;
+      const above = box.top - view.top >= needed;
+      const below = !above && view.bottom - box.bottom >= needed;
+      bar.classList.toggle('is-below', below);
+      // A tall message filling the visible area has room on neither side: the toolbar is pinned
+      // to the top of the part of it that can be seen, over its text, rather than out of sight.
+      const pinned = !above && !below;
+      bar.classList.toggle('is-pinned', pinned);
+      bar.style.top = pinned ? `${Math.max(0, view.top - box.top) + 4}px` : '';
+    };
+    const arrive = (event) => {
+      const item = event.target && event.target.closest ? event.target.closest('.pm-chat__msg') : null;
+      if (!item || !win.body.contains(item)) return;
+      active = item;
+      place(item);
+    };
+    win.log.addEventListener('mouseover', arrive);
+    win.log.addEventListener('focusin', arrive);
+    // Scrolling moves the message under a still pointer (or a focused toolbar) without either
+    // event: place its toolbar again, so a pinned one follows the visible part of the message.
+    win.body.addEventListener('scroll', () => {
+      if (active && active.isConnected) place(active);
+      else active = null;
+    }, { passive: true });
+  };
+
   ChatApp.prototype.actionBar = function (win, message, mine, who) {
     if (!message.id || message.isUnsent || message.eventKind) return null;
     const canWrite = !win.form.hidden;
@@ -101,11 +154,12 @@
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', `Actions for the message from ${mine ? 'you' : who}`);
     const buttons = [];
-    // text: shown as is (reactions), or "icon:name" for an icon button (its label is its name).
-    const add = (text, label, key, handler, pressed) => {
-      const isIcon = text.startsWith('icon:');
-      const button = el('button', `pm-chat__action${isIcon ? ' is-icon' : ''}`, isIcon ? null : text);
-      if (isIcon) button.append(icon(text.slice('icon:'.length)));
+    // face: "icon:name" for an icon button (its label is its name), or the nodes to show.
+    const add = (face, label, key, handler, pressed) => {
+      const isIcon = typeof face === 'string';
+      const button = el('button', `pm-chat__action${isIcon ? ' is-icon' : ''}`);
+      if (isIcon) button.append(icon(face.slice('icon:'.length)));
+      else button.append(...face);
       button.type = 'button';
       button.setAttribute('aria-label', label);
       button.title = label;
@@ -119,7 +173,7 @@
     if (canWrite) {
       for (const reaction of REACTIONS) {
         const on = this.myReaction(message, reaction.kind);
-        add(reaction.kind === 'noted' ? `${reaction.symbol} ${reaction.label}` : reaction.symbol,
+        add(reactionFace(reaction),
           on ? `Take back your ${reaction.label} reaction` : `React: ${reaction.label}`,
           `react-${reaction.kind}:${message.id}`,
           () => this.toggleReaction(win, message.id, reaction.kind),
@@ -218,7 +272,7 @@
     if (fresh && typeof fresh.scrollIntoView === 'function') fresh.scrollIntoView({ block: 'center' });
   };
 
-  /** "✓ Noted 2  👍 1" under a message; each chip toggles the person's own reaction. */
+  /** "✓ Noted 2  (thumbs up) 1" under a message; each chip toggles the person's own reaction. */
   ChatApp.prototype.reactionChips = function (win, message) {
     const given = (message.reactions || []).filter((r) => r.userIds && r.userIds.length);
     if (!given.length || message.isUnsent) return null;
@@ -230,8 +284,10 @@
       const chip = el('button', `pm-chat__reaction${mine ? ' is-mine' : ''}`);
       chip.type = 'button';
       chip.dataset.focusKey = `chip-${reaction.kind}:${message.id}`;
+      const face = el('span', 'pm-chat__reaction-symbol');
+      face.append(...reactionFace(info));
       chip.append(
-        el('span', 'pm-chat__reaction-symbol', reaction.kind === 'noted' ? `${info.symbol} ${info.label}` : info.symbol),
+        face,
         el('span', 'pm-chat__reaction-count', String(reaction.userIds.length)));
       const who = listNames(names);
       chip.title = `${info.label}: ${who}`;

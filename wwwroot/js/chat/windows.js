@@ -225,6 +225,7 @@
     };
     this.buildAttach(win); // chat/files.js: attach button and waiting files, when attachments are on
     this.bindComposer(win); // chat/actions.js: replies, edits and (groups) @mentions
+    this.bindActionPlacement(win); // chat/actions.js: the message toolbar stays inside the window
 
     people.addEventListener('click', () => {
       if (win.panelOpen) {

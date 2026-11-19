@@ -97,8 +97,11 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   and unread counts, and reaches the other person live. After the window the link disappears
   and the server refuses. Unsending also clears the message's reactions and mentions.
 - **Message toolbar** (Phase 3, owner defaults of 2026-11-18): pointing at a message (or
-  keyboard focus in it) shows a toolbar over its corner: **✓ Noted**, **👍**, **👀** (looking
-  into it), **Reply**, **Copy**, and on your own recent messages **Edit**. It is one tab stop
+  keyboard focus in it) shows a toolbar just above it, on the side with free space (to the right
+  of someone else's message, to the left of yours), so it covers neither the message's text nor
+  the window's edge; where there is no room above (the top of the visible area) it shows below.
+  It offers **✓ Noted**, **Like** (thumbs up), **Looking into it** (eye), **Reply**, **Copy**,
+  and on your own recent messages **Edit**. It is one tab stop
   (`role=toolbar`); ← → Home End move inside it. In a conversation you can no longer write to
   (inactive account, removed from the group) only Copy is offered.
 - **Replies**: Reply shows "Replying to Ravi: …" above the message box (× or Esc cancels); the
@@ -107,8 +110,10 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   ("An earlier message"). The server stores only which message it replies to, and checks it is
   in the same conversation and, in a group, one the sender could see; the quote is built in the
   browser from messages it has, so a reply never carries text from before a member joined.
-- **Reactions**: a fixed set (✓ Noted, 👍, 👀), not an emoji picker. Each shows as a chip
-  under the message with a count ("✓ Noted 3"); its tooltip and label name who reacted, and
+- **Reactions**: a fixed set (Noted, Like, Looking into it), not an emoji picker, drawn with
+  the shipped Bootstrap Icons font rather than emoji (an office PC without a colour-emoji font
+  showed 👀 as an empty box). Each shows as a chip under the message with a count
+  ("✓ Noted 3"); its tooltip and label name who reacted, and
   your own chips are highlighted. Clicking a chip (or the toolbar button) adds or takes back
   yours; the change shows at once and reaches everyone who can see the message live. Anyone
   who can read a message may react to it (in a group, members who had joined by then).
