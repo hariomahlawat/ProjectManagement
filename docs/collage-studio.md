@@ -152,6 +152,17 @@ its npm package by hand; the libman entry records the version.
     the new design), a removed logo stays removed, and a second logo (`role: "logo2"`) stays
     where the user put it. A new card gets the SDD logo.
   - A plain collage has no Card button.
+- **Posters** (PR 11): the start screen's **Make a poster** row offers **Event** (a big poster
+  heading and a turned band), **Notice**, **With a photo** (a turned frame for a farewell or
+  felicitation photo) and **Talk or seminar**, at A3 or A4.
+  - The panel is **Poster details**, with a heading, the line under it, a small heading above,
+    when, where, details (one a line) and contact. A poster starts with a poster's wording.
+  - **No logo until one is chosen.** At first the logo's place is an empty frame, which Preview
+    and Save leave out, and the panel asks **Which logo goes on this poster?**: pick a crest or
+    the SDD logo, use your own, **No logo**, or **Decide later**.
+  - With **No logo** (also **Remove logo** on a poster) the design moves the heading up into the
+    space (`yNoLogo`). A logo picked afterwards brings the place back. The choice is the card's
+    `logoMode` detail ('' asks, 'later', 'none').
 - **Card sizes** ([ux/invitations-posters.md](ux/invitations-posters.md), PR 4). The page size
   menu (top bar and Page settings) groups every size: **Pages and screens** (the seven above),
   **Cards** and **Pocket cards**. Every card size is a true paper size, both ways round:

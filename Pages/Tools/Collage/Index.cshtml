@@ -81,6 +81,18 @@
                 </div>
                 <div class="clg-design-grid" data-start-designs></div>
             </section>
+            @* Posters (docs/ux/invitations-posters.md, PR 11): no logo until one is picked. *@
+            <section class="clg-start-cards clg-start-posters" aria-labelledby="clgPostersTitle">
+                <div class="clg-start-cards__head">
+                    <h2 class="clg-start__heading" id="clgPostersTitle">Make a poster <small>You choose the logo, or none; every word and part can be changed</small></h2>
+                    <label class="clg-start-cards__size"><span>Poster size</span>
+                        <select class="form-select form-select-sm" data-poster-size aria-label="Poster size">
+                            <option value="a3p" selected>A3 poster</option>
+                            <option value="a4p">A4 portrait</option>
+                        </select></label>
+                </div>
+                <div class="clg-design-grid" data-start-posters></div>
+            </section>
             <h2 class="clg-start__heading">Start with a layout <small>A4 landscape; the size can be changed later</small></h2>
             <div class="clg-layouts" data-start-layouts></div>
             <h2 class="clg-start__heading">Start with a blank page</h2>

@@ -488,6 +488,36 @@ test('turning to the back keeps the card\'s own title, from its front', async ({
   await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
   expect(await title.getAttribute('placeholder')).toBe(before);
   expect(before).not.toMatch(/Programme/);
+});
+
+// Posters (docs/ux/invitations-posters.md, PR 11).
+test('a poster asks which logo; Decide later keeps its place; No logo moves the heading up; a logo picked brings its place back', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await expect(page.locator('[data-start-poster]')).toHaveCount(4);
+  await page.locator('[data-start-poster="notice"]').click();
+  await expect(page.locator('#clgCardTitle')).toHaveText('Poster details');
+  await expect(page.locator('.clg-rail [data-panel="card"] span')).toHaveText('Poster');
+  await expect(page.locator('[data-card-field="title"]')).toHaveValue('Annual Sports Meet 2026');
+  await expect(page.locator('.clg-card-question')).toContainText('Which logo goes on this poster?');
+  await expect(page.locator('[data-card-design]')).toHaveCount(4);
+  const titleY = async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'title')?.y;
+  // Decide later: the question goes, the logo's place stays (and the draft is written).
+  await page.locator('.clg-card-question [data-card-logo="later"]').click();
+  await expect(page.locator('.clg-card-question')).toHaveCount(0);
+  await expect.poll(titleY).toBeGreaterThan(0);
+  const before = await titleY();
+  expect((await newestDraft(page)).model.items.find((item) => item.role === 'logo').kind).toBe('slot');
+
+  // No logo: the heading moves up.
+  await page.locator('[data-card-logo="none"]').click();
+  await expect.poll(titleY).toBeLessThan(before);
+  expect((await newestDraft(page)).model.items.some((item) => item.role === 'logo')).toBe(false);
+
+  // The SDD logo picked: its place comes back and the heading goes back down.
+  await page.locator('[data-card-logo-use="logo:sdd"]').click();
+  await expect.poll(titleY).toBe(before);
+  expect((await newestDraft(page)).model.items.find((item) => item.role === 'logo').sticker).toBe('logo:sdd');
   expect(errors).toEqual([]);
 });
 
@@ -550,5 +580,32 @@ test('a programme card\'s programme typed in Card details is the programme on th
   await programme.blur();
   await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'programme')?.text).toBe('1900 h  Arrival\n1930 h  Dinner');
   await expect(programme).toHaveValue('1900 h  Arrival\n1930 h  Dinner');
+  expect(errors).toEqual([]);
+});
+
+// Codex on PR 11: the contact line is in Poster details; a poster's back logo follows No logo.
+test('Poster details changes the contact line; Remove logo takes the back logo too', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-start-poster="notice"]').click();
+  const contact = page.locator('[data-card-field="contact"]');
+  await expect(contact).toHaveValue('Sports Officer · Ext 2210');
+  await contact.fill('Adjutant · Ext 2201');
+  await contact.blur();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'contact')?.text).toBe('Adjutant · Ext 2201');
+
+  await page.locator('[data-card-logo-use="logo:sdd"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
+  const backLogo = async () => {
+    const model = (await newestDraft(page))?.model;
+    const back = model?.side === 'back' ? model.items : model?.back?.items;
+    return (back || []).some((item) => item.role === 'backlogo');
+  };
+  await expect.poll(backLogo).toBe(true);
+  await page.locator('[data-card-side="front"]').click();
+  await page.locator('[data-card-logo="remove"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.some((item) => item.role === 'logo')).toBe(false);
+  await expect.poll(backLogo).toBe(false);
   expect(errors).toEqual([]);
 });

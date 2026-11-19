@@ -139,7 +139,8 @@
     || (side.background?.type === 'photo' && photos.has(side.background.photo));
   const hasContent = () => sideHasContent(collage) || Boolean(collage.back && sideHasContent(collage.back))
     || core.keptCount(collage) > 0;
-  const firstSlot = () => collage.items.find((item) => item.kind === 'slot' && !item.locked) || null;
+  // A logo's place is filled only when it is asked for, not as the first free frame.
+  const firstSlot = () => collage.items.find((item) => item.kind === 'slot' && !item.locked && !core.isLogoPlace(item)) || null;
   const isFrame = (item) => item && (item.kind === 'photo' || item.kind === 'slot');
 
   // The editor's values, read by its parts but changed only through the named changes each part
@@ -388,7 +389,10 @@
       collage = frozen(core.applyLayout(collage, layoutKey, core.LAYOUT_LIMITS.defaultGap, 0, [], newItemId).collage);
     }
     if (designKey && window.PrismCollageDesigns.DESIGNS[designKey]) {
-      collage = frozen(window.PrismCollageDesigns.applyDesign(collage, designKey, window.PrismCollageDesigns.DEFAULT_DETAILS, { measure: measureText, newId: newItemId }));
+      const designs = window.PrismCollageDesigns;
+      // A poster starts with a poster's wording (PR 11).
+      const details = designs.DESIGNS[designKey].poster ? designs.POSTER_DETAILS : designs.DEFAULT_DETAILS;
+      collage = frozen(designs.applyDesign(collage, designKey, details, { measure: measureText, newId: newItemId }));
     }
     changes.start(collage);
     // A new draft: it is first stored once it has a photo.

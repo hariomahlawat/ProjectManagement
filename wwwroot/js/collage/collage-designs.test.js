@@ -18,7 +18,7 @@ function box(item) {
 const overlap = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
 
 const pocketSizes = Object.keys(core.SIZES).filter((key) => core.SIZES[key].group === 'pocket');
-for (const key of Object.keys(designs.DESIGNS)) {
+for (const key of Object.keys(designs.DESIGNS).filter((each) => !designs.DESIGNS[each].poster)) {
   test(`${key}: at every size it is offered for, every part is on the page and no words overlap`, () => {
     for (const size of designs.DESIGNS[key].pocket ? pocketSizes : cardSizes) {
       const card = designs.applyDesign(core.newCollage(size), key, { guest: 'Brig P. Singh, SM and Mrs Singh' }, { measure, newId });
@@ -272,7 +272,7 @@ test('a card gets a back in its design, turns over, keeps both sides through a d
 });
 
 test('every design\'s back stays on the page with no overlapping words at every card size', () => {
-  for (const key of Object.keys(designs.DESIGNS).filter((each) => !designs.DESIGNS[each].pocket)) {
+  for (const key of Object.keys(designs.DESIGNS).filter((each) => !designs.DESIGNS[each].pocket && !designs.DESIGNS[each].poster)) {
     for (const size of cardSizes) {
       const card = designs.addBack(designs.applyDesign(core.newCollage(size), key, {}, { measure, newId }), { measure, newId });
       const height = core.pageHeight(size);
@@ -364,4 +364,76 @@ test('the car pass offers no unit colours; deleting the back of a programme card
   // The front's programme deleted on the page stays deleted.
   const without = { ...single, items: single.items.filter((item) => item.field !== 'programme') };
   assert.equal(designs.detailsOf(without).programme, '');
+});
+
+// Posters (PR 11).
+test('posters: no logo until one is chosen, the heading moves up with No logo, every part on the page', () => {
+  assert.deepEqual(designs.designsFor('a3p', 'poster').map((d) => d.key), ['event', 'notice', 'photoposter', 'talk']);
+  assert.ok(designs.designsFor('a3p').every((d) => !d.poster), 'posters are not offered as cards');
+  for (const key of ['event', 'notice', 'photoposter', 'talk']) {
+    for (const size of ['a3p', 'a4p']) {
+      const poster = designs.applyDesign(core.newCollage(size), key, designs.POSTER_DETAILS, { measure, newId });
+      const place = poster.items.find((item) => item.role === 'logo');
+      assert.equal(place.kind, 'slot', `${key}: an empty logo place, left out of Save`);
+      const height = core.pageHeight(size);
+      for (const item of poster.items) {
+        const b = box(item);
+        assert.ok(b.left >= -0.5 - core.PAGE_WIDTH * 0.12 && b.right <= core.PAGE_WIDTH * 1.12 + 0.5 && b.top >= -0.5 && b.bottom <= height + 0.5, `${key} ${size}: ${item.role} off the page`);
+      }
+      const texts = poster.items.filter((item) => item.kind === 'text');
+      for (let i = 0; i < texts.length; i += 1) for (let j = i + 1; j < texts.length; j += 1) {
+        assert.ok(!overlap(box(texts[i]), box(texts[j])), `${key} ${size}: ${texts[i].field} overlaps ${texts[j].field}`);
+      }
+      const none = designs.applyDesign(core.newCollage(size), key, { ...designs.POSTER_DETAILS, logoMode: 'none' }, { measure, newId });
+      assert.ok(!none.items.some((item) => item.role === 'logo'), `${key}: no logo`);
+      assert.ok(none.items.find((item) => item.field === 'title').y <= poster.items.find((item) => item.field === 'title').y, `${key}: the heading does not move down`);
+      // A logo put back is placed where the design wants one, even after "No logo".
+      assert.ok(designs.roleItem(none, 'logo', { measure, newId }));
+    }
+  }
+  assert.equal(designs.POSTER_DETAILS.venue, 'Unit Sports Ground');
+});
+
+// Codex on PR 11: a poster's logo choice moves only the parts the logo moves.
+test('a poster logo choice keeps the user fonts, colours, background and places; the heading moves', () => {
+  const opts = { measure, newId };
+  const poster = designs.applyDesign(core.newCollage('a4p'), 'notice', designs.POSTER_DETAILS, opts);
+  const mine = {
+    ...poster,
+    background: { type: 'color', value: '#123456' },
+    items: poster.items
+      .filter((item) => item.role !== 'rule')
+      .map((item) => (item.field === 'title' ? { ...item, font: 'typewriter', color: '#00ff00', x: item.x + 40 } : item))
+  };
+  const title = (c) => c.items.find((item) => item.field === 'title');
+  const none = designs.setLogoMode(mine, 'none', opts);
+  assert.equal(none.card.details.logoMode, 'none');
+  assert.equal(none.items.some((item) => item.role === 'logo'), false);
+  assert.deepEqual(none.background, mine.background);
+  assert.equal(title(none).font, 'typewriter');
+  assert.equal(title(none).color, '#00ff00');
+  assert.equal(title(none).x, title(mine).x, 'across stays where the user put it');
+  assert.ok(title(none).y < title(mine).y, 'the heading moves up into the space');
+  assert.equal(none.items.length, mine.items.length - 1, 'only the logo place went; nothing deleted comes back');
+  // Decide later brings the place back and the heading back down, still in the user's font.
+  const later = designs.setLogoMode(none, 'later', opts);
+  assert.ok(later.items.some((item) => item.role === 'logo' && item.kind === 'slot'));
+  assert.ok(Math.abs(title(later).y - title(mine).y) < 1e-6);
+  assert.equal(title(later).font, 'typewriter');
+  // A locked heading stays put.
+  const locked = { ...mine, items: mine.items.map((item) => (item.field === 'title' ? { ...item, locked: true } : item)) };
+  assert.equal(title(designs.setLogoMode(locked, 'none', opts)).y, title(locked).y);
+});
+
+test('a photo added without a chosen frame never goes in a logo place', () => {
+  const logo = { ...core.slotItem('l', { x: 100, y: 100, width: 100, aspect: 0.6 }), role: 'logo' };
+  const frame = { ...core.slotItem('p', { x: 500, y: 500, width: 300, aspect: 1.5 }), role: 'photo' };
+  assert.equal(core.bestSlotFor([logo, frame], 0.6).id, 'p');
+  assert.equal(core.bestSlotFor([logo], 0.6), null);
+  assert.equal(core.isLogoPlace(logo), true);
+  assert.equal(core.isLogoPlace(frame), false);
+  // The back's small logo place too (Codex on PR 11).
+  const backLogo = { ...core.slotItem('b', { x: 100, y: 900, width: 60, aspect: 0.6 }), role: 'backlogo' };
+  const backPhoto = { ...core.slotItem('q', { x: 500, y: 400, width: 300, aspect: 1.5 }), role: 'backphoto' };
+  assert.equal(core.bestSlotFor([backLogo, backPhoto], 0.6).id, 'q');
 });

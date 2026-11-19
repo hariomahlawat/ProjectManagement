@@ -39,7 +39,13 @@
     ['replyName', 'Words under the name line'],
     ['attend', 'Will or will not attend'],
     ['replyCount', 'Words under the number line'],
-    ['replyBy', 'Reply by']
+    ['replyBy', 'Reply by'],
+    // Posters (PR 11).
+    ['kicker', 'Small heading above'],
+    ['title', 'Heading'],
+    ['subtitle', 'Line under the heading'],
+    ['lines', 'Details, one line each', true],
+    ['contact', 'Contact line at the bottom']
   ]);
   const COLOUR_NAMES = Object.freeze(['Top', 'Middle', 'Bottom']);
   const OCCASIONS = Object.freeze(['Raising Day Dinner', 'Regimental Dinner', 'Change of Command', 'Farewell', 'Barakhana', 'At Home', 'Ladies’ Night', 'Passing Out Parade']);
@@ -54,6 +60,9 @@
     const railButton = ui.$('[data-panel="card"]');
     const startGrid = ui.$('[data-start-designs]');
     const startSize = ui.$('[data-card-size]');
+    const posterGrid = ui.$('[data-start-posters]');
+    const posterSize = ui.$('[data-poster-size]');
+    const isPoster = () => Boolean(designs.DESIGNS[state.collage?.card?.design]?.poster);
     const options = () => ({ measure: surface.measureText, newId: doc.newItemId });
     // A field's words may be on the side not showing (the back's programme while the front shows).
     // A field's side comes from the design (a programme card shows its programme on the front).
@@ -89,6 +98,7 @@
       }
       const size = core.isSize(startSize.value) ? startSize.value : DEFAULT_CARD_SIZE;
       const round = ++thumbs;
+      if (posterGrid && posterSize) renderPosters(round);
       startGrid.textContent = '';
       for (const design of designs.designsFor(size)) {
         const button = document.createElement('button');
@@ -107,12 +117,32 @@
       }
     }
 
+    /** The Posters row: each poster design drawn at the chosen poster size. */
+    function renderPosters(round) {
+      const size = posterSize.value || 'a3p';
+      posterGrid.textContent = '';
+      for (const design of designs.designsFor(size, 'poster')) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'clg-design-card';
+        button.dataset.startPoster = design.key;
+        button.setAttribute('aria-label', `${design.label} poster, ${core.sizeOf(size).label}`);
+        const width = Math.round(150 / (core.pageHeight(size) / core.PAGE_WIDTH));
+        const height = 150;
+        button.innerHTML = `<span class="clg-design-card__pic"><canvas width="${width * 2}" height="${height * 2}" style="width:${width}px;height:${height}px" aria-hidden="true"></canvas></span><span class="clg-design-card__body"><b></b><small></small></span>`;
+        button.querySelector('b').textContent = design.label;
+        button.querySelector('small').textContent = design.note;
+        posterGrid.appendChild(button);
+        drawThumb(button.querySelector('canvas'), size, design.key, round, designs.POSTER_DETAILS);
+      }
+    }
+
     // A small picture of a design, drawn as Save draws: the same drawing as the page.
     let renderer = null;
-    async function drawThumb(canvas, size, key, round) {
+    async function drawThumb(canvas, size, key, round, details = designs.DEFAULT_DETAILS) {
       try {
         renderer = renderer || window.PrismCollageRender.createRenderer({ core, draw, measureText: surface.measureText, fontsReady: surface.fontsReady, stickerImage: surface.stickerImage });
-        const collage = designs.applyDesign(core.newCollage(size), key, designs.DEFAULT_DETAILS, { measure: surface.measureText, newId: (() => { let n = 0; return () => `t${++n}`; })() });
+        const collage = designs.applyDesign(core.newCollage(size), key, details, { measure: surface.measureText, newId: (() => { let n = 0; return () => `t${++n}`; })() });
         const drawn = await renderer.drawCollage(collage, new Map(), canvas.width, canvas.height);
         if (round !== thumbs) return;
         const context = canvas.getContext('2d');
@@ -183,6 +213,11 @@
     customBox?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && event.target.matches('[data-card-custom-size]')) { event.preventDefault(); useCustomCardSize(); }
     });
+    posterSize?.addEventListener('change', () => renderStart());
+    posterGrid?.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-start-poster]');
+      if (button) screens.startCollage(posterSize.value || 'a3p', null, button.dataset.startPoster);
+    });
     startGrid?.addEventListener('click', (event) => {
       const button = event.target.closest('[data-start-design]');
       if (button) screens.startCollage(core.isSize(startSize.value) ? startSize.value : DEFAULT_CARD_SIZE, null, button.dataset.startDesign);
@@ -224,6 +259,11 @@
         return;
       }
       if (pressing) { waiting = true; return; }
+      const word = isPoster() ? 'Poster' : 'Card';
+      const title = ui.$('#clgCardTitle');
+      if (title) title.textContent = `${word} details`;
+      const label = railButton?.querySelector('span');
+      if (label) label.textContent = word;
       // Drawn again unless a field in it is being typed in; a focused button keeps its focus.
       const typing = form.contains(document.activeElement) && document.activeElement.matches('input:not([type="color"]), textarea');
       if (state.panel === 'card' && !typing) messages.keepingFocus(() => renderPanel());
@@ -284,13 +324,17 @@
 
     /** What the card's logo is, in words. */
     function logoName(item) {
-      if (!item) return 'No logo';
+      if (!item || item.kind === 'slot') return isPoster() && item ? 'No logo chosen yet: the place for it is left out of Save.' : 'No logo';
       if (item.kind === 'photo') return `Your own logo (${doc.photos.get(item.photo)?.name || 'picture'})`;
       return stickers.find(item.sticker)?.label || 'Logo';
     }
 
     function logoSection() {
-      const first = logoOf(state.collage);
+      const first = logoOf(state.collage)?.kind === 'slot' ? null : logoOf(state.collage);
+      const mode = designs.detailsOf(state.collage).logoMode;
+      // A poster asks which logo, until one is chosen, none is, or it is left for later (PR 11).
+      const asking = isPoster() && !first && !mode;
+      const question = asking ? `<p class="clg-card-question" role="note"><b>Which logo goes on this poster?</b> Pick one below, use your own, or choose <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-card-logo="none">No logo</button> or <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-card-logo="later">Decide later</button>.</p>` : '';
       const second = state.collage.items.some((item) => item.role === 'logo2');
       const role = targetRole();
       const current = role === 'logo2' ? state.collage.items.find((item) => item.role === 'logo2') : first;
@@ -303,13 +347,14 @@
         return `<button type="button" class="clg-sticker clg-sticker--named${on ? ' is-on' : ''}" data-card-logo-use="${escapeHtml(entry.id)}" aria-pressed="${on}" title="${escapeHtml(entry.label)}" aria-label="Use ${escapeHtml(entry.label)}"><img src="${escapeHtml(surface.stickerSource({ sticker: entry.id, colour: '' }) || '')}" alt=""><span class="clg-sticker__name">${escapeHtml(entry.label)}</span></button>`;
       }).join('');
       return `<div class="clg-section clg-card-logo">
-          <p class="clg-section__title">Logo</p>${which}
+          <p class="clg-section__title">Logo</p>${question}${which}
           <p class="clg-hint" data-card-logo-name>${escapeHtml(logoName(current))}</p>
           <div class="clg-stickers clg-card-logo__choices">${choices}</div>
           <div class="clg-stack">
             <button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="own"><i class="bi bi-upload" aria-hidden="true"></i> Your own logo…</button>
             ${first && !second ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="second"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add a second logo</button>' : ''}
             ${current ? `<button type="button" class="btn btn-outline-danger btn-sm" data-card-logo="remove"><i class="bi bi-x-lg" aria-hidden="true"></i> ${!second ? 'Remove logo' : role === 'logo2' ? 'Remove second logo' : 'Remove first logo'}</button>` : ''}
+            ${isPoster() && !first && mode !== 'none' && !asking ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="none">No logo</button>' : ''}
           </div>
           <p class="clg-hint">Your own logo stays in this browser, like your photos. A PNG keeps its clear background.</p>
         </div>`;
@@ -320,6 +365,9 @@
      * where the design puts one. One Undo step.
      */
     function setLogo(make, said, role = targetRole()) {
+      // A poster that had no logo gets its design back with the logo's place (PR 11).
+      const wasNone = isPoster() && designs.detailsOf(state.collage).logoMode === 'none';
+      const before = state.collage;
       const current = state.collage.items.find((item) => item.role === role) || null;
       // A locked logo is not replaced: unlocked first, as everywhere else.
       if (current?.locked) { messages.sayLocked(); return; }
@@ -327,6 +375,7 @@
       if (!place) return;
       selection.select(null);
       doc.edit((draft) => {
+        if (draft.card?.details?.logoMode === 'none') draft.card = { ...draft.card, details: { ...draft.card.details, logoMode: '' } };
         const fresh = { ...make({ x: place.x, y: place.y, width: place.width }), role };
         const index = draft.items.findIndex((item) => item.role === role);
         if (index >= 0) draft.items.splice(index, 1, fresh);
@@ -335,6 +384,8 @@
           draft.items.splice(own < 0 ? draft.items.length : own, 0, fresh);
         }
       }, 'none');
+      // The heading moves back down to make room; nothing else changes.
+      if (wasNone) doc.edit((draft) => designs.moveForLogo(before, draft, options()), 'none');
       followLogoOnBack();
       history.commit();
       surface.syncAll();
@@ -464,6 +515,20 @@
       messages.announce('A second logo is on the card. The choices below now change it; First logo goes back to the first.');
     }
 
+    /** A poster's logo choice that is not a picture: none (the design closes the gap) or later. */
+    function setLogoMode(mode) {
+      selection.select(null);
+      // Only the logo and the parts it moves change: the user's fonts, colours and places stay.
+      doc.edit((draft) => designs.setLogoMode(draft, mode, options()), 'none');
+      // The back's small logo follows, in the same Undo step: none with No logo.
+      followLogoOnBack();
+      history.commit();
+      surface.syncAll();
+      renderPanel();
+      if (mode === 'none') messages.offerUndo('No logo on this poster. The heading moves up into the space.');
+      else messages.announce('The logo can be chosen later. Its place is left out of Save until then.');
+    }
+
     /**
      * Removes the logo picked above the choices. The second goes on its own; the first, with a
      * second on the card, leaves the second as the card's logo, so the card keeps a logo to
@@ -475,6 +540,8 @@
       if (!target) return;
       if (target.locked) { messages.sayLocked(); return; }
       const promoting = role === 'logo' && state.collage.items.some((item) => item.role === 'logo2');
+      // A poster's only logo removed: "No logo", so its design closes the gap (PR 11).
+      if (isPoster() && role === 'logo' && !promoting) { setLogoMode('none'); return; }
       selection.select(null);
       doc.edit((draft) => {
         draft.items = draft.items.filter((item) => item.role !== role);
@@ -621,10 +688,11 @@
       if (!strip) return;
       const current = state.collage?.card?.design;
       // The designs for the card's kind (pocket or not); drawn again only when that changes.
-      const offered = designs.designsFor(state.collage.size).map((design) => design.key).join(' ');
+      const kind = isPoster() ? 'poster' : undefined;
+      const offered = designs.designsFor(state.collage.size, kind).map((design) => design.key).join(' ');
       if (strip.dataset.offered !== offered) {
         strip.dataset.offered = offered;
-        strip.innerHTML = designs.designsFor(state.collage.size).map((design) => `<button type="button" class="btn btn-sm" data-card-design="${design.key}">${escapeHtml(design.label)}</button>`).join('');
+        strip.innerHTML = designs.designsFor(state.collage.size, kind).map((design) => `<button type="button" class="btn btn-sm" data-card-design="${design.key}">${escapeHtml(design.label)}</button>`).join('');
       }
       for (const button of strip.querySelectorAll('[data-card-design]')) {
         const on = button.dataset.cardDesign === current;
@@ -738,6 +806,8 @@
         if (logo.dataset.cardLogo === 'own') logoFile.click();
         if (logo.dataset.cardLogo === 'second') addSecondLogo();
         if (logo.dataset.cardLogo === 'remove') removeLogo();
+        if (logo.dataset.cardLogo === 'none') setLogoMode('none');
+        if (logo.dataset.cardLogo === 'later') setLogoMode('later');
         return;
       }
       const pick = event.target.closest('[data-card-pick]');

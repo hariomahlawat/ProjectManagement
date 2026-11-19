@@ -42,8 +42,17 @@
     replyName: 'Name',
     attend: 'will / will not attend',
     replyCount: 'Number attending',
-    replyBy: 'Kindly reply by Friday, 5 December 2026'
+    replyBy: 'Kindly reply by Friday, 5 December 2026',
+    // Posters (PR 11). logoMode: '' asks which logo, 'later' keeps the place, 'none' has none.
+    kicker: 'SDD TALK SERIES',
+    title: 'Annual Sports Meet 2026',
+    subtitle: 'Inter-section championship',
+    lines: 'Athletics · Volleyball · Tug of war' + String.fromCharCode(10) + 'Families welcome' + String.fromCharCode(10) + 'Prize distribution on 22 January, 1600 h',
+    contact: 'Sports Officer · Ext 2210',
+    logoMode: ''
   });
+  /** What a new poster starts with: the same fields, a poster's wording. */
+  const POSTER_DETAILS = Object.freeze({ ...DEFAULT_DETAILS, when: '20 – 22 January 2027 · 0700 h onwards', venue: 'Unit Sports Ground' });
   /** The fields on the back of the card. */
   const BACK_FIELDS = Object.freeze(['programmeTitle', 'programme', 'backNote']);
   /** Fields that are not words on the card: they set something else about it. */
@@ -74,6 +83,9 @@
   const vline = (role, x, y, len, stroke, strokeWidth) => ({ role, kind: 'shape', form: 'line', x, y, len, look: { stroke, strokeWidth } });
   // An empty frame for the user's own photo, by fractions of the page.
   const photo = (x, y, w, h) => ({ role: 'photo', kind: 'slot', x, y, w, h });
+  // A poster's logo place (PR 11): the logo chosen, or an empty frame until one is (Preview and
+  // Save leave an empty frame out), or nothing with "No logo". `aspect` is the frame's shape.
+  const logoPlace = (x, y, w, aspect) => ({ role: 'logo', kind: 'logoplace', x, y, w, aspect });
   // Colours the Regimental band sets: 'band1' to 'band3' in a look stand for the unit's colours.
   const NAVY = '#1d2c55';
   const GREY = '#55607a';
@@ -276,6 +288,79 @@
         words('note', 0.92, 0.91, 0.38, 16, { font: 'elegant', color: INK, bold: false, italic: true, align: 'right' }, { anchor: 'right', lines: 1 })
       ]
     }),
+    // Posters (PR 11): offered in the Posters row, A3 or A4, a logo only when the user picks one.
+    // `yNoLogo` is where a part goes when the poster has no logo, so the heading uses the space.
+    event: Object.freeze({
+      key: 'event',
+      label: 'Event',
+      note: 'A big heading and a bold band',
+      poster: true,
+      background: { type: 'color', value: '#0f2c5c' },
+      portrait: [
+        logoPlace(0.12, 0.09, 0.13, 0.6),
+        words('subtitle', 0.24, 0.07, 0.7, 26, { font: 'clean', color: '#e8b020', bold: true, spacing: 14, align: 'left' }, { anchor: 'left', lines: 1, yNoLogo: 0.06 }),
+        words('title', 0.08, 0.34, 0.86, 140, { font: 'poster', color: '#ffffff', bold: false, align: 'left' }, { anchor: 'left', lines: 3, yNoLogo: 0.29 }),
+        { ...block('band', 0.5, 0.61, 1.2, 0.07, { fill: '#e8b020', stroke: '' }), angle: -4 },
+        { ...words('when', 0.5, 0.61, 0.84, 46, { font: 'poster', color: '#0f2c5c', bold: false }, { lines: 1 }), angle: -4 },
+        words('venue', 0.08, 0.705, 0.84, 30, { font: 'clean', color: '#ffffff', bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('lines', 0.08, 0.8, 0.84, 26, { font: 'clean', color: '#dfe6f2', bold: false, align: 'left' }, { anchor: 'left', lines: 5 }),
+        words('contact', 0.08, 0.94, 0.84, 20, { font: 'clean', color: '#c9d4e8', bold: false, align: 'left' }, { anchor: 'left', lines: 1 })
+      ]
+    }),
+    notice: Object.freeze({
+      key: 'notice',
+      label: 'Notice',
+      note: 'Plain and official',
+      poster: true,
+      background: { type: 'color', value: '#ffffff' },
+      portrait: [
+        block('bar', 0.5, 0.008, 1, 0.016, { fill: MAROON, stroke: '' }),
+        logoPlace(0.5, 0.1, 0.12, 0.6),
+        words('title', 0.5, 0.24, 0.84, 72, { font: 'elegant', color: MAROON, bold: true }, { lines: 2, yNoLogo: 0.12 }),
+        words('subtitle', 0.5, 0.33, 0.84, 30, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2, yNoLogo: 0.21 }),
+        rule('rule', 0.5, 0.385, 0.3, GOLD, 2.5),
+        words('when', 0.5, 0.46, 0.84, 34, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
+        words('venue', 0.5, 0.53, 0.84, 32, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
+        words('lines', 0.5, 0.68, 0.84, 28, { font: 'clean', color: INK, bold: false }, { lines: 6 }),
+        words('contact', 0.5, 0.93, 0.84, 22, { font: 'clean', color: '#55607a', bold: false }, { lines: 1 })
+      ]
+    }),
+    photoposter: Object.freeze({
+      key: 'photoposter',
+      label: 'With a photo',
+      note: 'Farewell or felicitation',
+      poster: true,
+      background: { type: 'color', value: '#f6efe3' },
+      portrait: [
+        logoPlace(0.5, 0.07, 0.1, 0.6),
+        { ...photo(0.5, 0.33, 0.72, 0.36), angle: -2 },
+        words('title', 0.5, 0.61, 0.86, 88, { font: 'script', color: MAROON, bold: false }, { lines: 2 }),
+        words('subtitle', 0.5, 0.72, 0.84, 30, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
+        words('when', 0.5, 0.785, 0.84, 28, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
+        words('venue', 0.5, 0.83, 0.84, 26, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
+        words('contact', 0.5, 0.94, 0.84, 20, { font: 'clean', color: '#6b5a44', bold: false }, { lines: 1 })
+      ]
+    }),
+    talk: Object.freeze({
+      key: 'talk',
+      label: 'Talk or seminar',
+      note: 'Speaker and topic',
+      poster: true,
+      background: { type: 'color', value: '#ffffff' },
+      portrait: [
+        block('lower', 0.5, 0.79, 1, 0.42, { fill: '#e9eef6', stroke: '' }),
+        logoPlace(0.88, 0.08, 0.11, 0.6),
+        words('kicker', 0.08, 0.07, 0.66, 22, { font: 'clean', color: NAVY, bold: true, spacing: 16, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('title', 0.08, 0.2, 0.74, 78, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 3, yNoLogo: 0.19 }),
+        words('subtitle', 0.08, 0.33, 0.84, 30, { font: 'clean', color: '#55607a', bold: false, align: 'left' }, { anchor: 'left', lines: 2 }),
+        { ...photo(0.2, 0.47, 0.24, 0.17), radius: 999 },
+        words('lines', 0.38, 0.47, 0.56, 26, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 5 }),
+        rule('rule', 0.5, 0.64, 0.84, NAVY, 3),
+        words('when', 0.08, 0.69, 0.84, 32, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('venue', 0.08, 0.745, 0.84, 30, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('contact', 0.08, 0.94, 0.84, 22, { font: 'clean', color: '#55607a', bold: false, align: 'left' }, { anchor: 'left', lines: 1 })
+      ]
+    }),
     // Pocket cards (PR 9b): offered for the pocket sizes; each fills from the same Card details.
     pass: Object.freeze({
       key: 'pass',
@@ -445,7 +530,8 @@
     const key = collage?.card?.design;
     if (!DESIGNS[key]) return null;
     const { card, back, side, ...rest } = collage;
-    const made = applyDesign({ ...rest, items: [] }, key, detailsOf(collage), opts);
+    // Where the design puts it with a logo wanted (a poster set to "No logo" still has a place).
+    const made = applyDesign({ ...rest, items: [] }, key, { ...detailsOf(collage), logoMode: '' }, opts);
     return made.items.find((item) => item.role === role) || null;
   }
 
@@ -457,9 +543,10 @@
   }
 
   /** The designs offered for a size: the pocket designs for a pocket card, the others otherwise. */
-  function designsFor(sizeKey) {
+  function designsFor(sizeKey, kind) {
+    if (kind === 'poster') return Object.values(DESIGNS).filter((design) => design.poster);
     const pocket = core.sizeOf(sizeKey).group === 'pocket';
-    return Object.values(DESIGNS).filter((design) => Boolean(design.pocket) === pocket);
+    return Object.values(DESIGNS).filter((design) => !design.poster && Boolean(design.pocket) === pocket);
   }
 
   /** Whether a design follows the unit's colours. */
@@ -494,7 +581,8 @@
   function fieldsOf(designKey, sizeKey) {
     const design = DESIGNS[designKey];
     if (!design) return [];
-    const parts = sizeKey ? (isPortrait(sizeKey) ? design.portrait : design.landscape) : [...design.portrait, ...design.landscape];
+    const landscape = design.landscape || design.portrait;
+    const parts = sizeKey ? (isPortrait(sizeKey) ? design.portrait : landscape) : [...design.portrait, ...landscape];
     return [...new Set(parts.filter((part) => part.kind === 'text').map((part) => part.field))];
   }
 
@@ -531,7 +619,18 @@
     // on the page as their own when this design has none.
     const framed = (items || []).filter((item) => item.role === frameRole && item.kind === 'photo');
     const made = [];
-    for (const part of parts) {
+    // A poster with "No logo" (or a logo place it has no logo for) moves parts up into the space.
+    const chosenLogo = (items || []).find((item) => item.role === 'logo' && item.kind !== 'slot');
+    const noLogo = wording.logoMode === 'none' && !chosenLogo;
+    for (const raw of parts) {
+      const part = noLogo && raw.yNoLogo !== undefined ? { ...raw, y: raw.yNoLogo } : raw;
+      const before = made.length;
+      if (part.kind === 'logoplace') {
+        const w = part.w * 1000 * unit;
+        if (chosenLogo) made.push({ ...chosenLogo, id: newId(), x: part.x * width, y: part.y * height, width: w, angle: 0 });
+        else if (!noLogo) made.push({ ...core.slotItem(newId(), { x: part.x * width, y: part.y * height, width: w, aspect: part.aspect }), role: 'logo' });
+        continue;
+      }
       const look = part.look ? tinted(part.look) : {};
       if (part.kind === 'shape' && part.inset !== undefined) {
         const inset = part.inset * Math.min(width, height);
@@ -584,6 +683,12 @@
         if (part.anchor === 'left') item.x = part.x * width + layout.width / 2;
         if (part.anchor === 'right') item.x = part.x * width - layout.width / 2;
         made.push(item);
+      }
+      // A part turned (a poster's band) or with rounded corners (a speaker's photo).
+      if (made.length > before) {
+        const item = made[made.length - 1];
+        if (part.angle) item.angle = part.angle;
+        if (part.radius && (item.kind === 'slot' || item.kind === 'photo')) item.radius = Math.min(part.radius, core.LAYOUT_LIMITS.radiusMax);
       }
     }
     // Photos from the last design's frame with no frame here become the user's own.
@@ -668,7 +773,8 @@
     const showingBack = collage.side === 'back' && collage.back;
     const card = showingBack ? core.flipSide(collage) : collage;
     const wording = { ...DEFAULT_DETAILS, ...(details || {}) };
-    const parts = isPortrait(card.size) ? design.portrait : design.landscape;
+    // A poster has one arrangement, used for either shape.
+    const parts = isPortrait(card.size) ? design.portrait : (design.landscape || design.portrait);
     const applied = {
       ...card,
       background: { ...design.background },
@@ -685,6 +791,52 @@
     // The fields this design put on the card, both sides, so a missing one is known to be deleted.
     applied.card.placed = placedOn(applied);
     return showingBack ? core.flipSide(applied) : applied;
+  }
+
+  /**
+   * The parts a poster's logo choice moves, moved and nothing else changed (Codex on PR 11): the
+   * design laid out as `previous` was and as `collage` is now; each design part whose place moved
+   * between the two (the heading moving up into a logo's space) moves by as much, from wherever
+   * the user put it. Fonts, colours, the background, deleted parts and locked parts stay as they
+   * are. The logo itself is left to the caller.
+   */
+  function moveForLogo(previous, collage, opts) {
+    const design = collage.card?.design;
+    if (!DESIGNS[design]) return collage;
+    const before = applyDesign(previous, design, detailsOf(previous), opts);
+    const after = applyDesign(collage, design, detailsOf(collage), opts);
+    const keyOf = (item) => (item.field ? `field:${item.field}` : item.role && !/^logo/.test(item.role) ? `role:${item.role}` : null);
+    const placeOf = (items) => new Map(items.filter(keyOf).map((item) => [keyOf(item), item]));
+    const was = placeOf(before.items);
+    const now = placeOf(after.items);
+    return {
+      ...collage,
+      items: collage.items.map((item) => {
+        const key = keyOf(item);
+        const a = key && was.get(key);
+        const b = key && now.get(key);
+        if (!a || !b || item.locked) return item;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        return Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6 ? item : { ...item, x: item.x + dx, y: item.y + dy };
+      })
+    };
+  }
+
+  /**
+   * A poster's logo choice (PR 11): 'later' keeps a place for the logo, 'none' has no logo and the
+   * heading moves up into its space. Only the logo and the parts it moves change.
+   */
+  function setLogoMode(collage, mode, opts) {
+    const details = { ...detailsOf(collage), logoMode: mode };
+    let items = collage.items;
+    if (mode === 'none') items = items.filter((item) => item.role !== 'logo' || item.locked);
+    else if (!items.some((item) => item.role === 'logo')) {
+      const place = roleItem({ ...collage, card: { ...collage.card, details } }, 'logo', opts);
+      if (place) items = [...items, place];
+    }
+    const next = { ...collage, items, card: { ...collage.card, details: { ...collage.card.details, logoMode: mode } } };
+    return moveForLogo(collage, next, opts);
   }
 
   /** The fields that have an item on either side of a card. */
@@ -738,5 +890,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, isBackField });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode });
 });

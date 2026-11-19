@@ -1379,11 +1379,17 @@
     return (items || []).some((other) => other !== item && other.kind === 'photo' && !other.hidden && coveredShare(frame, other) > LOCK_COVER_LIMIT);
   }
 
+  /** Whether a frame is a place for a logo: the front's ('logo', 'logo2') or the back's ('backlogo'). */
+  function isLogoPlace(item) {
+    return /^(logo2?|backlogo)$/.test(item?.role || '');
+  }
+
   function bestSlotFor(items, aspect) {
     let best = null;
     let bestGap = Infinity;
     for (const item of items || []) {
-      if (item.kind !== 'slot' || item.hidden || item.locked || !(item.aspect > 0) || !(aspect > 0)) continue;
+      // A logo's place takes a logo only when it is chosen for one, never a photo by shape.
+      if (item.kind !== 'slot' || item.hidden || item.locked || isLogoPlace(item) || !(item.aspect > 0) || !(aspect > 0)) continue;
       const gap = Math.abs(Math.log(item.aspect / aspect));
       if (gap < bestGap - 1e-9) { best = item; bestGap = gap; }
     }
@@ -2115,6 +2121,7 @@
     reorder,
     duplicateItem,
     bestSlotFor,
+    isLogoPlace,
     autoTitle,
     ALIGN_PLACES,
     alignItem,
