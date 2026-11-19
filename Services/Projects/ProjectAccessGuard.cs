@@ -47,17 +47,35 @@ public static class ProjectAccessGuard
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(principal);
 
-        if (principal.Identity?.IsAuthenticated != true || string.IsNullOrWhiteSpace(userId))
+        return principal.Identity?.IsAuthenticated == true
+            && CanManageProjectContent(
+                project.LeadPoUserId,
+                userId,
+                principal.IsInRole("Admin"),
+                principal.IsInRole("HoD"),
+                principal.IsInRole("Project Officer"));
+    }
+
+    // The same rule from plain values, for code that knows the person's roles but has no signed-in
+    // principal (the briefing deck Studio says where a gap can be fixed by whom).
+    public static bool CanManageProjectContent(
+        string? projectLeadPoUserId,
+        string? userId,
+        bool isAdmin,
+        bool isHod,
+        bool isProjectOfficer)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
         {
             return false;
         }
 
-        if (principal.IsInRole("Admin") || principal.IsInRole("HoD"))
+        if (isAdmin || isHod)
         {
             return true;
         }
 
-        return principal.IsInRole("Project Officer") &&
-               string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
+        return isProjectOfficer &&
+               string.Equals(projectLeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
     }
 }

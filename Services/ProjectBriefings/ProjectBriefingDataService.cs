@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.ProjectBriefings;
@@ -102,7 +103,16 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             return null;
         }
 
-        var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, snapshot.IncludeStageSummary, cancellationToken);
+        // Whether this person may fill each project's gaps in the project itself, by the projects'
+        // own rule (ProjectAccessGuard), so the Studio offers "Fix in project" only where it works.
+        var roles = await _roles.GetRolesAsync(requestingUserId, cancellationToken);
+        bool CanFix(string? leadPoUserId) => ProjectAccessGuard.CanManageProjectContent(
+            leadPoUserId,
+            requestingUserId,
+            roles.Contains(RoleNames.Admin),
+            roles.Contains(RoleNames.HoD),
+            roles.Contains(RoleNames.ProjectOfficer));
+        var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, snapshot.IncludeStageSummary, cancellationToken, CanFix);
         var presentedProjects = projects.Where(project => project.IsPresented).ToArray();
         // The global FFC footprint is only shown in the page's FFC slide editor; in-place saves and
         // preview rebuilds do not need it.
@@ -597,7 +607,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 item.Project.WorkflowVersion,
                 item.Project.Category != null ? item.Project.Category.Name : null,
                 item.Project.TechnicalCategory != null ? item.Project.TechnicalCategory.Name : null,
-                item.Project.CoverPhotoId))
+                item.Project.CoverPhotoId,
+                item.Project.LeadPoUserId))
             .ToListAsync(cancellationToken);
 
         if (itemRows.Count == 0)
@@ -741,7 +752,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 capabilitiesByProject.GetValueOrDefault(item.ProjectId) ?? Array.Empty<string>(),
                 keyPointsByProject.GetValueOrDefault(item.ProjectId) ?? Array.Empty<ProjectBriefingKeyPoint>(),
                 stagesByProject.GetValueOrDefault(item.ProjectId) ?? Array.Empty<StageSnapshot>(),
-                photosByProject.GetValueOrDefault(item.ProjectId) ?? Array.Empty<PhotoSnapshot>()))
+                photosByProject.GetValueOrDefault(item.ProjectId) ?? Array.Empty<PhotoSnapshot>(),
+                item.LeadPoUserId))
             .ToList();
 
         return new DeckSnapshot(
@@ -783,7 +795,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         ProjectBriefingLayout layout,
         ProjectBriefingUpdateSheetOptions updateSheetOptions,
         bool includeStageSummary,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<string?, bool>? canFixContent = null)
     {
         if (items.Count == 0)
         {
@@ -895,7 +908,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     IsDevelopmentPdcRequired = requiresDevelopmentPdc,
                     IsUpdateSheetCoreFactsReady = updateSheetCoreFactsReady,
                     SortOrder = item.SortOrder,
-                    OpenUrl = $"/Projects/Overview/{item.ProjectId}"
+                    OpenUrl = $"/Projects/Overview/{item.ProjectId}",
+                    CanFixContent = canFixContent?.Invoke(item.LeadPoUserId) ?? false
                 };
             });
 
@@ -1485,7 +1499,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         string WorkflowVersion,
         string? ProjectCategory,
         string? TechnicalCategory,
-        int? CoverPhotoId);
+        int? CoverPhotoId,
+        string? LeadPoUserId);
 
     private sealed record DeckSnapshot(
         long Id,
@@ -1562,7 +1577,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         IReadOnlyList<string> CapabilityStatements,
         IReadOnlyList<ProjectBriefingKeyPoint> KeyPoints,
         IReadOnlyList<StageSnapshot> Stages,
-        IReadOnlyList<PhotoSnapshot> Photos);
+        IReadOnlyList<PhotoSnapshot> Photos,
+        string? LeadPoUserId = null);
 
     private sealed record CapabilityDatabaseSnapshot(
         int ProjectId,

@@ -94,7 +94,9 @@
        continue is the first card, tagged, instead of a separate panel. The cards keep the rows'
        data-* hooks, so search, Mine/All and sort (project-briefing-library.js) work unchanged. *@
     <div class="pbd-library__cards" data-pbd-library-rows>
-        @foreach (var deck in Model.Decks)
+        @* The deck to continue is first under the default sort, even when someone else edited
+           another deck since (OrderBy is stable, so the rest keep their order). *@
+        @foreach (var deck in Model.Decks.OrderBy(deck => continueDeck is not null && deck.Id == continueDeck.Id && deck.CanEdit ? 0 : 1))
         {
             var searchText = string.Join(" ", new[] { deck.Name, deck.Description ?? string.Empty }.Concat(deck.ProjectNames)).ToLowerInvariant();
             var isContinue = continueDeck is not null && continueDeck.Id == deck.Id && deck.CanEdit;
@@ -102,6 +104,7 @@
                      data-pbd-library-row
                      data-search="@searchText"
                      data-mine="@(deck.IsMine ? "true" : "false")"
+                     data-continue="@(isContinue ? "true" : "false")"
                      data-name="@deck.Name"
                      data-edited="@deck.UpdatedAtUtc.ToUnixTimeSeconds()"
                      data-generated="@(deck.LastGeneratedAtUtc?.ToUnixTimeSeconds() ?? 0)"

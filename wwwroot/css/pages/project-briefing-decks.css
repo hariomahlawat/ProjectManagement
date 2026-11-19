@@ -5923,6 +5923,12 @@ span.pbd-additional-slide-row__handle {
     white-space: nowrap;
 }
 
+.pbd-inspector__fix-who {
+    display: block;
+    color: var(--pbd-muted);
+    font-weight: 500;
+}
+
 .pbd-inspector__facts .is-missing .btn-outline-primary {
     margin-top: .25rem;
 }

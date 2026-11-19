@@ -2245,7 +2245,7 @@ if (root) {
   const chosenCount = () => {
     if (newSource === 'same') {
       const option = newSameDeck?.selectedOptions?.[0];
-      return option && option.value ? Number(option.textContent.match(/·\s*(\d+)\s+project/)?.[1]) || 1 : 0;
+      return option && option.value ? Number(option.dataset.count) || 1 : 0;
     }
     return picker?.tickedIds().length || 0;
   };
@@ -2253,7 +2253,7 @@ if (root) {
     const count = chosenCount();
     if (newSummary) {
       newSummary.textContent = newSource === 'same'
-        ? (count ? `The projects of “${newSameDeck.selectedOptions[0].textContent.split(' · ')[0]}” (${count}).` : 'Choose the deck to copy the projects of.')
+        ? (count ? `The projects of “${newSameDeck.selectedOptions[0].dataset.name}” (${count}).` : 'Choose the deck to copy the projects of.')
         : (count ? `${count} ${count === 1 ? 'project' : 'projects'} ticked.` : 'No projects chosen yet: the deck opens on Add projects.');
     }
     // Nothing to download without projects.
@@ -2382,9 +2382,20 @@ if (root) {
     submit.type = 'submit';
     download.append(submit);
     document.body.append(download);
-    download.addEventListener('pbd:download-settled', () => {
+    // The library is shown again with the new deck either way; what happened goes with it as a
+    // message the reloaded page shows (project-briefing-library.js), so an error or a declined
+    // download is not lost with the page (cold review, 19 Nov 2026).
+    download.addEventListener('pbd:download-settled', (settled) => {
+      const { outcome, message, slides } = settled.detail || {};
+      if (outcome === 'navigated') return; // the server's own answer is replacing the page
+      const flash = outcome === 'downloaded'
+        ? { tone: 'success', text: `Deck created and PowerPoint downloaded${slides ? ` (${slides} slides)` : ''}.` }
+        : outcome === 'declined'
+          ? { tone: 'info', text: 'Deck created, not downloaded. Open it to fill the gaps, or click Download on its card when ready.' }
+          : { tone: 'danger', text: `Deck created, but the PowerPoint could not be made${message ? `: ${message.replace(/\.$/, '')}` : ''}. Try Download on its card.` };
+      try { window.sessionStorage.setItem('prism.briefingDecks.flash', JSON.stringify(flash)); } catch { /* shown only now */ }
       // A moment for the browser to take the file before the page is replaced.
-      window.setTimeout(() => window.location.assign(window.location.pathname), 600);
+      window.setTimeout(() => window.location.assign(window.location.pathname), outcome === 'downloaded' ? 600 : 0);
     }, { once: true });
     window.bootstrap?.Modal?.getInstance(newDeckModal)?.hide();
     download.requestSubmit();

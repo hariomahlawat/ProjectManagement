@@ -241,7 +241,10 @@ public sealed class IndexModel : PageModel
             // which re-checks access and the retention window (docs/ux/toasts.md).
             TempData.ToastWithAction("success", "Briefing deck moved to Recently deleted.", new ToastAction(
                 "Undo",
-                Url.Page("/Workspace/BriefingDecks/Index", "Restore", new { deckId = (long?)null })!,
+                // No route values: an explicit deckId = null made the link generator return no URL when
+                // the delete was not posted from a /{deckId} address, and the toast then dropped Undo
+                // (cold review, 19 Nov 2026). The deck id goes in the form, which Restore reads.
+                Url.Page(RestorePage, RestoreHandler) ?? string.Empty,
                 new Dictionary<string, string>
                 {
                     ["deckId"] = deckId.ToString(System.Globalization.CultureInfo.InvariantCulture)
@@ -265,6 +268,11 @@ public sealed class IndexModel : PageModel
             return Back();
         }
     }
+
+    // The page and handler the delete toast's Undo posts to (also checked against the real routing
+    // in ProjectBriefingDeckUndoLinkTests).
+    internal const string RestorePage = "/Workspace/BriefingDecks/Index";
+    internal const string RestoreHandler = "Restore";
 
     public async Task<IActionResult> OnPostRestoreAsync(
         long deckId,

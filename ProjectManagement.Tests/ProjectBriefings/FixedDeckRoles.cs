@@ -17,4 +17,10 @@ public sealed class FixedDeckRoles : IProjectBriefingDeckRoleResolver
 
     public Task<bool> IsCommandAsync(string userId, CancellationToken cancellationToken = default)
         => Task.FromResult(_isCommand(userId));
+
+    // A command user here is an HoD; anyone else a Project Officer.
+    public Task<IReadOnlyCollection<string>> GetRolesAsync(string userId, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyCollection<string>>(_isCommand(userId)
+            ? new[] { ProjectManagement.Configuration.RoleNames.HoD }
+            : new[] { ProjectManagement.Configuration.RoleNames.ProjectOfficer });
 }

@@ -235,7 +235,7 @@
                                         <p class="pbd-deck-header__meta">
                                             <span data-pbd-summary-projects>@(deck.Projects.Count == 1 ? "1 project" : $"{deck.Projects.Count} projects")</span>
                                             · <span data-pbd-progress-template>@ProjectBriefingProjectSlideDesigns.DisplayName(deck.ProjectDesign)</span>
-                                            · Updated @IstClock.ToIst(deck.UpdatedAtUtc).ToString("dd MMM yyyy, HH:mm") by @deck.LastModifiedByDisplay
+                                            · Edited @IstClock.ToIst(deck.UpdatedAtUtc).ToString("dd MMM yyyy, HH:mm") by @deck.LastModifiedByDisplay
                                         </p>
                                     </div>
                                 </div>
@@ -1008,7 +1008,8 @@
                                             <option value="">Choose a deck</option>
                                             @foreach (var saved in Model.Decks.Where(saved => saved.ProjectCount > 0))
                                             {
-                                                <option value="@saved.Id">@saved.Name · @saved.ProjectCount @(saved.ProjectCount == 1 ? "project" : "projects")</option>
+                                                @* The owner, so two decks with the same name can be told apart. *@
+                                                <option value="@saved.Id" data-count="@saved.ProjectCount" data-name="@saved.Name">@saved.Name · @saved.ProjectCount @(saved.ProjectCount == 1 ? "project" : "projects") · @(saved.IsMine ? "yours" : saved.CreatedByDisplay)</option>
                                             }
                                         </select>
                                     </label>

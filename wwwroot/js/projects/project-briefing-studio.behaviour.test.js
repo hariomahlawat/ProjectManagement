@@ -655,3 +655,20 @@ test('More options stays as the person left it when moving to another project (f
   assert.equal(more().open, true);
   assert.equal(window.sessionStorage.getItem('prism.briefingStudio.moreOptions'), 'open');
 });
+
+test('a gap the person cannot fix in the project says who can, instead of a dead-end link', async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(payload({
+    projects: PROJECTS.map((item) => (item.projectId === 2 ? { ...item, canFixContent: false } : { ...item }))
+  }));
+  await settle(window);
+  outlineRow(document, 'Bravo trainer').click();
+
+  const row = document.querySelector('.pbd-inspector__facts .is-missing[data-pbd-gap="status"]');
+  assert.equal(row.querySelector('a'), null, 'no Fix in project link');
+  assert.match(row.textContent, /Ask the project’s officer or an HoD to add it\./);
+
+  // Someone who may fix it (or an older payload without the flag) still gets the link.
+  outlineRow(document, 'Alpha simulator').click();
+  assert.equal(document.querySelector('.pbd-inspector__facts .is-missing[data-pbd-gap="status"] a').textContent.trim(), 'Fix in project');
+});

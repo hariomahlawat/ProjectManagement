@@ -76,6 +76,10 @@ public static class ProjectBriefingDeckAccessRules
 public interface IProjectBriefingDeckRoleResolver
 {
     Task<bool> IsCommandAsync(string userId, CancellationToken cancellationToken = default);
+
+    // The person's role names, from the same store, for rules beyond deck access (who may fix a
+    // project's content).
+    Task<IReadOnlyCollection<string>> GetRolesAsync(string userId, CancellationToken cancellationToken = default);
 }
 
 public sealed class ProjectBriefingDeckRoleResolver : IProjectBriefingDeckRoleResolver
@@ -83,7 +87,7 @@ public sealed class ProjectBriefingDeckRoleResolver : IProjectBriefingDeckRoleRe
     private static readonly string[] CommandRoles = { RoleNames.Comdt, RoleNames.HoD };
 
     private readonly ApplicationDbContext _db;
-    private readonly Dictionary<string, bool> _cache = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IReadOnlyCollection<string>> _cache = new(StringComparer.Ordinal);
 
     public ProjectBriefingDeckRoleResolver(ApplicationDbContext db)
     {
@@ -91,10 +95,13 @@ public sealed class ProjectBriefingDeckRoleResolver : IProjectBriefingDeckRoleRe
     }
 
     public async Task<bool> IsCommandAsync(string userId, CancellationToken cancellationToken = default)
+        => (await GetRolesAsync(userId, cancellationToken)).Any(name => CommandRoles.Contains(name));
+
+    public async Task<IReadOnlyCollection<string>> GetRolesAsync(string userId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(userId))
         {
-            return false;
+            return Array.Empty<string>();
         }
 
         if (_cache.TryGetValue(userId, out var cached))
@@ -102,12 +109,14 @@ public sealed class ProjectBriefingDeckRoleResolver : IProjectBriefingDeckRoleRe
             return cached;
         }
 
-        var isCommand = await _db.UserRoles
+        var roles = await _db.UserRoles
             .AsNoTracking()
             .Where(link => link.UserId == userId)
             .Join(_db.Roles, link => link.RoleId, role => role.Id, (link, role) => role.Name)
-            .AnyAsync(name => name != null && CommandRoles.Contains(name), cancellationToken);
-        _cache[userId] = isCommand;
-        return isCommand;
+            .Where(name => name != null)
+            .Select(name => name!)
+            .ToListAsync(cancellationToken);
+        _cache[userId] = roles;
+        return roles;
     }
 }
