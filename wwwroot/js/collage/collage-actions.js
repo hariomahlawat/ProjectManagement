@@ -130,6 +130,9 @@
         case 'replace-cancel': parts.setTarget(null); break;
         case 'save-open': parts.saveAs.open(); break;
         case 'credits': ui.root.querySelector('[data-credits]').showModal(); break;
+        // Every tip, from the one line of help (docs/ux/collage-usability-plan.md, PR 6).
+        case 'help': ui.root.querySelector('[data-help-dialog]').showModal(); break;
+        case 'help-close': ui.root.querySelector('[data-help-dialog]').close(); break;
         case 'drafts-all': change.toggleDraftsExpanded(); screens.renderDrafts(); break;
         case 'keep-draft':
           // Asked again: keeping it may still mean deleting the oldest draft to make room.

@@ -328,6 +328,44 @@
             </div>
         </dialog>
 
+        @* ---------- Tips: every tip, opened from the one line of help (docs/ux/collage-usability-plan.md, PR 6) ---------- *@
+        <dialog class="clg-dialog" data-help-dialog aria-labelledby="clgHelpTitle">
+            <div class="clg-dialog__body">
+                <div class="clg-dialog__head">
+                    <h2 id="clgHelpTitle">Tips</h2>
+                    <button type="button" class="btn-close" data-action="help-close" aria-label="Close"></button>
+                </div>
+                <h3 class="clg-help__heading">Cards and posters</h3>
+                <ul class="clg-tips">
+                    <li>Type the words in Card details. <span class="clg-for-mouse">Double-click</span><span class="clg-for-touch">Tap twice on</span> any words on the card to go to their box there.</li>
+                    <li><span class="clg-for-mouse">Click</span><span class="clg-for-touch">Tap</span> any words or the logo on the card to move, resize or restyle them.</li>
+                </ul>
+                <h3 class="clg-help__heading">Photos and the page</h3>
+                <ul class="clg-tips clg-for-mouse">
+                    <li>Click a photo to change it; drag it to move it.</li>
+                    <li>Drag a corner to resize, or the middle of a side to change the frame's shape. Drag the round handle above it to turn it; it clicks to straight and 45°, and Shift gives 15° steps.</li>
+                    <li>Double-click a photo to move it inside its frame.</li>
+                    <li>Pink lines show when a photo lines up with the page or another photo. Hold Alt to move freely.</li>
+                </ul>
+                <ul class="clg-tips clg-for-touch">
+                    <li>Tap a photo to change it; drag it with one finger to move it.</li>
+                    <li>Drag a corner to resize it, and the round handle above it to turn it.</li>
+                    <li>Tap a photo twice to move it inside its frame.</li>
+                    <li>Two fingers on the page zoom in and out.</li>
+                    <li>The arrows at the top undo and redo.</li>
+                </ul>
+                <h3 class="clg-help__heading clg-for-mouse">Keys</h3>
+                <ul class="clg-tips clg-for-mouse">
+                    <li>Ctrl+Z undoes and Ctrl+Y redoes; Delete removes; Ctrl+D duplicates; the arrow keys nudge.</li>
+                    <li>] brings forward and [ sends backward; Ctrl+S opens Save; Esc ends moving a photo in its frame, and Preview.</li>
+                    <li>Without a mouse, pick an item in Layers, then move it with the arrow keys.</li>
+                </ul>
+                <div class="clg-dialog__foot">
+                    <button type="button" class="btn btn-primary" data-action="help-close">Close</button>
+                </div>
+            </div>
+        </dialog>
+
         @* ---------- From PRISM Photos: pick photos the user can see in /Photos ---------- *@
         @if (Model.LibraryOn)
         {
