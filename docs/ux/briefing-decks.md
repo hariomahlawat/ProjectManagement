@@ -77,7 +77,7 @@ last-updated deck, so nobody edits a deck they did not pick.
 ## Studio
 
 The top of the builder is the Studio: the slide outline, the selected slide and an inspector.
-The server composes the same PowerPoint that **Generate PowerPoint** downloads (without
+The server composes the same PowerPoint that **Download PowerPoint** downloads (without
 recording a generation) and reads it back into positioned HTML: shapes, text, lines, pictures,
 tables and groups, in the composer's own colours. So the slides and their count are exact, not
 estimated. The composer also reports what each slide is (`ProjectBriefingSlideRole`, plus the
@@ -99,9 +99,17 @@ the server; the script inserts only slide HTML and writes all other text as text
   narrower screens; Page Up/Down, Home, End, Escape) and returns to the slide it ended on. Under
   a project slide, each missing item has its fix: write the capability overview for this deck,
   or open the project, its Photos page or its brief.
-- **Inspector** (right): **This slide** shows a project's costs, status remark, capability
-  source and slide numbers, with Open project, Remove from deck and the deck-specific capability
-  overview (saved through the existing editor). Other slides explain what they show and offer
+- **Header** (19 Nov 2026, PR 6): the deck name with its saved chip, one line (project count,
+  design, last change), then **Download PowerPoint** (asking first about gaps, once per deck per
+  session), Focus, Switch deck and the ⋯ menu. The three progress steps, the note under the
+  button and the one-time banner are gone: gaps are counted in the outline and the Gaps tab.
+- **Inspector** (right): **This slide** lists what the project's slides show, each fact once:
+  status remark, costs, capability source, slide numbers, and a fact the project lacks in amber
+  ("Not recorded") with its fix beside it (*Fix in project*, or *This deck only* for capability
+  text), then Open project. **More options**, closed by default and remembered for the session,
+  holds the choices most decks never change: how the project appears (Own slides / Table row
+  only / Leave out), its photograph, speaker notes, this deck's capability text and Remove from
+  deck. Other slides explain what they show and offer
   the Deck tab or, for the SDD profile, Role & Charter and FFC slides, Edit slide content.
   **Gaps** counts, per item, how many projects lack it, and **Show** narrows the outline to them.
   Remove from deck asks for confirmation first.
@@ -124,7 +132,8 @@ the server; the script inserts only slide HTML and writes all other text as text
      (Automatic, Standard, Photo) while key points are off. Changing to or from Fact sheet
      reloads the page, which draws the list for the new layout.
   3. **Sheet rows** (Fact sheet only): the rows on each sheet, ticked and ordered.
-  4. **Look** (theme, insignia, closing) and 5. **Handling** (marking).
+  4. **Appearance**: theme, insignia, closing slide and the optional marking (Look and Handling
+     were one step each until 19 Nov 2026).
   Settings save themselves in place a moment after the last change, one save at a time; leaving
   the page, posting another form or generating waits for a pending save. The deck name and
   description are edited in the header (the pencil beside the name). A save that collides with
@@ -999,6 +1008,13 @@ library, New deck dialog and simplified Studio).
    options**, closed by default and remembered for the session. Look and Handling fold into one
    **Appearance** step beside the marking. Nothing stored changes. Re-measure the visible
    controls at 1366×768 (the review counted about 78) and check 375 px and Dark.
+   Built. Measured at 1366×768 with the browser's own visibility check (closed steps and the closed
+   More options not counted), the same deck and data before and after: cover slide 38 → 34
+   controls, a project slide 49 → 39 (and "gap" on screen 10 → 6 times), Deck tab 41 → 36. The
+   slide starts about 115 px higher. Most of what remains is the outline and the slide's own
+   navigation, which this step left alone. 375 px: no sideways scroll; Dark: checked.
+   Download in the header still asks about gaps and downloads; nothing stored changed, and the
+   field names are the same, so an older page's posts still save.
 7. **Docs and a timed first-deck test.** This file's library and Studio sections rewritten to the
    new flow; the review measure from here is how long a person new to PRISM takes to make and
    download a first deck, not a count of findings.

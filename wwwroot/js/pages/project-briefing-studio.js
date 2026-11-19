@@ -30,7 +30,6 @@ if (root) {
   const panels = Object.fromEntries([...root.querySelectorAll('[data-pbd-inspector-panel]')]
     .map((panel) => [panel.dataset.pbdInspectorPanel, panel]));
   const checksBadge = root.querySelector('[data-pbd-checks-badge]');
-  const placeholderNote = document.querySelector('[data-pbd-placeholder-note]');
   const slideTotal = document.querySelector('[data-pbd-slide-total]');
   const slideBreakdown = document.querySelector('[data-pbd-slide-breakdown]');
   const viewer = document.querySelector('[data-pbd-viewer]');
@@ -777,41 +776,28 @@ if (root) {
     return button;
   };
 
-  // What the project's slides lack, at the top of This slide: the one place each gap shows, with
-  // the fix and where it lands.
-  const gapsSection = (project) => {
-    const missing = project.isPresented ? gapsFor(project.projectId) : [];
-    if (missing.length === 0) {
-      const done = el('p', 'pbd-stage__check is-ready pbd-inspector__ready');
-      done.append(icon('bi-check-circle'), el('span', null, 'No gaps: everything these slides show is recorded.'));
-      return done;
+  // The fix for a gap, beside the fact it leaves empty: write the capability text for this deck,
+  // or open the project where it is recorded.
+  const gapFix = (project, key) => {
+    const gap = GAPS[key] || { label: key, missing: 'Missing', href: (p) => p.openUrl };
+    if (gap.describe && usesCapabilityText()) {
+      const write = describeButton(project, THIS_DECK_ONLY);
+      write.title = 'Write the text for this deck. The project’s own record is unchanged.';
+      write.prepend(icon('bi-pencil'), document.createTextNode(' '));
+      return write;
     }
-    const section = el('section', 'pbd-inspector__gaps');
-    section.setAttribute('aria-label', 'Gaps on these slides');
-    section.append(el('h5', 'pbd-inspector__heading', `Gaps · ${missing.length}`));
-    const list = el('ul');
-    missing.forEach((key) => {
-      const gap = GAPS[key] || { label: key, missing: 'Missing', href: (p) => p.openUrl };
-      const item = el('li');
-      const text = el('span', 'pbd-inspector__gap-text');
-      text.append(el('strong', null, gap.label),
-        el('small', null, key === 'photo' && project.coverPhotoReadinessReason ? project.coverPhotoReadinessReason : gap.missing));
-      item.append(text);
-      if (gap.describe && usesCapabilityText()) {
-        const write = describeButton(project, THIS_DECK_ONLY);
-        write.title = 'Write the text for this deck. The project’s own record is unchanged.';
-        write.prepend(icon('bi-pencil'), document.createTextNode(' '));
-        item.append(write);
-      } else if (gap.href) {
-        const fix = actionLink(FIX_IN_PROJECT, gap.href(project), project.projectId);
-        fix.title = 'Opens the project. The change shows in every deck and page.';
-        fix.append(document.createTextNode(' '), icon('bi-box-arrow-up-right'));
-        item.append(fix);
-      }
-      list.append(item);
-    });
-    section.append(list, el('p', 'pbd-inspector__note', 'Until a gap is filled the slides show a placeholder.'));
-    return section;
+    if (!gap.href) return null;
+    const fix = actionLink(FIX_IN_PROJECT, gap.href(project), project.projectId, 'btn btn-sm btn-link pbd-inspector__fix');
+    fix.title = 'Opens the project. The change shows in every deck and page.';
+    fix.append(document.createTextNode(' '), icon('bi-box-arrow-up-right'));
+    return fix;
+  };
+
+  // "More options" (per-project choices most decks never change) stays open or closed for the
+  // session, so moving between projects does not fold it each time.
+  const moreOptionsKey = 'prism.briefingStudio.moreOptions';
+  const moreOptionsOpen = () => {
+    try { return window.sessionStorage.getItem(moreOptionsKey) === 'open'; } catch { return false; }
   };
 
   const renderSlideInspector = (entry) => {
@@ -835,56 +821,86 @@ if (root) {
       nodes.push(el('h4', 'pbd-inspector__title', project.projectName));
       nodes.push(el('p', 'pbd-inspector__meta', [project.lifecycleDisplay, project.projectCategory, project.technicalCategory].filter(Boolean).join(' · ')));
       const missing = project.isPresented ? gapsFor(project.projectId) : [];
-      if (project.isPresented) nodes.push(gapsSection(project));
+      // One list of what these slides show (Plan: The Studio is optional, PR 6): each fact once,
+      // and a fact the project lacks says so in place, beside its fix, instead of in a separate
+      // gaps box above.
       const facts = el('dl', 'pbd-inspector__facts');
       const fact = (label, value, note) => {
         const row = el('div');
         const dd = el('dd', null, value);
         if (note) dd.append(el('small', null, note));
         row.append(el('dt', null, label), dd);
+        facts.append(row);
         return row;
       };
-      // Each field once: a cost listed under Gaps is not repeated here.
-      if (!missing.includes('costRd')) facts.append(fact('Cost (R&D)', project.costRd?.displayValue || 'Not recorded', project.costRd?.basisDisplay));
+      const gapRow = (key) => {
+        const gap = GAPS[key] || { label: key, missing: 'Missing' };
+        const row = fact(gap.label, key === 'photo' && project.coverPhotoReadinessReason ? project.coverPhotoReadinessReason : gap.missing);
+        row.classList.add('is-missing');
+        row.dataset.pbdGap = key;
+        const fix = gapFix(project, key);
+        if (fix) row.querySelector('dd').append(fix);
+      };
+      const shown = new Set();
+      const show = (key, draw) => {
+        shown.add(key);
+        if (missing.includes(key)) gapRow(key);
+        else draw?.();
+      };
+      show('status', () => {
+        const row = fact('Status remark', project.externalStatus || 'Not recorded');
+        if (project.externalStatus) row.querySelector('dd').classList.add('pbd-inspector__quote');
+      });
+      show('costRd', () => fact('Cost (R&D)', project.costRd?.displayValue || 'Not recorded', project.costRd?.basisDisplay));
       // Whether the proliferation cost shows is the server's resolved rule (an ongoing project's
       // only when recorded); missing from older payloads, it is shown as before.
-      const showsProliferation = project.showsProliferationCost !== false;
-      if (showsProliferation && !missing.includes('proliferationCost')) facts.append(fact('Proliferation', project.proliferationCost?.displayValue || 'Not recorded'));
-      facts.append(entry.indices.length
-        ? fact('Slides', plural(entry.indices.length, 'slide'), entry.indices.map((index) => slides[index]?.number).join(', '))
-        : fact('Slides', 'None', 'Not in the PowerPoint'));
+      if (project.showsProliferationCost !== false || missing.includes('proliferationCost')) {
+        show('proliferationCost', () => fact('Proliferation', project.proliferationCost?.displayValue || 'Not recorded'));
+      }
+      if (usesCapabilityText()) {
+        show('capabilityOverview', () => fact('Capability overview', project.briefDescriptionOverride
+          ? 'Written for this deck'
+          : (project.capabilityStatements?.length ? `From the project: ${plural(project.capabilityStatements.length, 'statement')}` : 'Not recorded in the project')));
+      }
+      // Anything else these slides lack (photograph, brief, key points, update-sheet facts).
+      missing.filter((key) => !shown.has(key)).forEach(gapRow);
+      fact('Slides', entry.indices.length ? plural(entry.indices.length, 'slide') : 'None',
+        entry.indices.length ? entry.indices.map((index) => slides[index]?.number).join(', ') : 'Not in the PowerPoint');
       nodes.push(facts);
-      if (!project.isDeletedOrArchived) nodes.push(presentationControl(project));
-      if (usesPhoto(project)) nodes.push(photoSection(project));
-      if (hasOwnSlides(project)) nodes.push(notesSection(project));
-
-      if (!missing.includes('status')) {
-        nodes.push(el('h5', 'pbd-inspector__heading', 'Present status'));
-        nodes.push(project.externalStatus
-          ? el('blockquote', 'pbd-inspector__quote', project.externalStatus)
-          : el('p', 'pbd-inspector__note', 'No external status remark recorded. The slides show the placeholder.'));
-      }
-
-      if (usesCapabilityText() && !missing.includes('capabilityOverview')) {
-        nodes.push(el('h5', 'pbd-inspector__heading', 'Capability overview'));
-        nodes.push(el('p', 'pbd-inspector__note', project.briefDescriptionOverride
-          ? 'Written for this deck. The project’s own statements are unchanged.'
-          : (project.capabilityStatements?.length ? `From the project: ${plural(project.capabilityStatements.length, 'statement')}.` : 'Not recorded in the project.')));
-        const write = describeButton(project, project.briefDescriptionOverride ? 'Edit the text for this deck' : 'Write for this deck only');
-        write.title = 'Text kept with this deck. The project’s own record is unchanged.';
-        nodes.push(write);
-      }
+      if (missing.length) nodes.push(el('p', 'pbd-inspector__note', 'Until a gap is filled, the slide shows a placeholder for it.'));
 
       const actions = el('div', 'pbd-inspector__actions');
       actions.append(actionLink('Open project', project.openUrl, project.projectId));
+      nodes.push(actions);
+
+      // The choices most decks never change, folded away (PR 6).
+      const more = el('details', 'pbd-inspector__more');
+      more.dataset.pbdMoreOptions = '';
+      more.open = moreOptionsOpen();
+      const summary = el('summary', null, 'More options');
+      summary.dataset.pbdFocusKey = 'more-options';
+      more.append(summary);
+      more.addEventListener('toggle', () => {
+        try { window.sessionStorage.setItem(moreOptionsKey, more.open ? 'open' : 'closed'); } catch { /* not remembered */ }
+      });
+      if (!project.isDeletedOrArchived) more.append(presentationControl(project));
+      if (usesPhoto(project)) more.append(photoSection(project));
+      if (hasOwnSlides(project)) more.append(notesSection(project));
+      if (usesCapabilityText() && !missing.includes('capabilityOverview')) {
+        const write = describeButton(project, project.briefDescriptionOverride ? 'Edit the text for this deck' : 'Write capability text for this deck only');
+        write.title = 'Text kept with this deck. The project’s own record is unchanged.';
+        more.append(write);
+      }
       const remove = el('button', 'btn btn-sm btn-outline-danger', 'Remove from deck');
       remove.type = 'button';
       remove.dataset.pbdFocusKey = 'remove-project';
       remove.dataset.pbdRemoveProject = '';
       remove.dataset.projectId = String(project.projectId);
       remove.dataset.projectName = project.projectName;
-      actions.append(remove);
-      nodes.push(actions);
+      const removeRow = el('div', 'pbd-inspector__actions');
+      removeRow.append(remove);
+      more.append(removeRow);
+      nodes.push(more);
     } else {
       nodes.push(el('span', 'pbd-eyebrow', role.label));
       nodes.push(el('h4', 'pbd-inspector__title', entryTitle(entry)));
@@ -899,23 +915,11 @@ if (root) {
     panel.replaceChildren(...nodes);
   };
 
-  // The progress line in the deck header: projects, gaps, settings (Generate is the button beside it).
-  const progress = document.querySelector('[data-pbd-progress]');
-  const progressStep = (name) => progress?.querySelector(`[data-pbd-progress-step="${name}"]`);
-  const setStepState = (name, state) => {
-    const step = progressStep(name);
-    if (!step) return;
-    step.classList.remove('is-done', 'is-next', 'is-open', 'is-ready');
-    if (state) step.classList.add(state);
-  };
-  const renderProgress = (presented, openChecks) => {
-    if (!progress) return;
-    const projectsValue = progress.querySelector('[data-pbd-progress-projects]');
-    if (projectsValue) projectsValue.textContent = projects.size ? String(projects.size) : 'Add';
-    setStepState('projects', projects.size ? 'is-done' : 'is-next');
-    const checksValue = progress.querySelector('[data-pbd-progress-checks]');
-    if (checksValue) checksValue.textContent = presented === 0 ? '–' : (openChecks ? `${openChecks} to fill` : 'None');
-    setStepState('checks', presented === 0 ? '' : (openChecks ? 'is-open' : 'is-done'));
+  // The header's one line (Plan: The Studio is optional, PR 6; it replaced the progress steps)
+  // keeps the project count current. Gaps are counted in the outline and the Gaps tab.
+  const summaryProjects = document.querySelector('[data-pbd-summary-projects]');
+  const renderProgress = () => {
+    if (summaryProjects) summaryProjects.textContent = plural(projects.size, 'project');
   };
 
   const renderChecksPanel = () => {
@@ -933,7 +937,6 @@ if (root) {
     // The badge counts the checks listed in the tab (what is missing), not projects: a deck where
     // most projects lack one optional item would otherwise sit at "47" for ever.
     const openChecks = Object.keys(GAPS).filter((key) => counts[key]).length;
-    if (placeholderNote) placeholderNote.hidden = openChecks === 0;
     if (checksBadge) {
       checksBadge.hidden = openChecks === 0;
       checksBadge.textContent = String(openChecks);
@@ -1407,12 +1410,6 @@ if (root) {
   nextButton?.addEventListener('click', () => selectIndex(current + 1));
   viewButtons.forEach((button) => button.addEventListener('click', () => setView(button.dataset.pbdStageView)));
   tabs.forEach((tab) => tab.addEventListener('click', () => setTab(tab.dataset.pbdInspectorTab)));
-  progress?.querySelectorAll('[data-pbd-progress-tab]').forEach((button) => button.addEventListener('click', () => {
-    const name = button.dataset.pbdProgressTab;
-    if (name === 'deck') showDeckSettings();
-    else setTab(name, { focus: true });
-    root.querySelector('.pbd-studio__inspector')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }));
   tabs.forEach((tab, index) => tab.addEventListener('keydown', (event) => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
     event.preventDefault();

@@ -24,7 +24,7 @@ public sealed class ProjectBriefingContractTests
         Assert.DoesNotContain("Manage individually", page, StringComparison.Ordinal);
         Assert.DoesNotContain("My projects", page, StringComparison.Ordinal);
         Assert.Contains("R&amp;D cost", page, StringComparison.Ordinal);
-        Assert.Contains("Generate PowerPoint", page, StringComparison.Ordinal);
+        Assert.Contains("Download PowerPoint", page, StringComparison.Ordinal);
         Assert.Contains("<legend class=\"form-label\">Template</legend>", page, StringComparison.Ordinal);
         Assert.Contains("Shared decks", page, StringComparison.Ordinal);
         Assert.Contains("Add projects", page, StringComparison.Ordinal);
@@ -49,7 +49,8 @@ public sealed class ProjectBriefingContractTests
         Assert.DoesNotContain("Manage this deck", page, StringComparison.Ordinal);
         Assert.Contains("data-pbd-studio", page, StringComparison.Ordinal);
         Assert.Contains("id=\"pbd-add-projects-modal\"", page, StringComparison.Ordinal);
-        Assert.Contains("Gaps show as placeholders on the slides.", page, StringComparison.Ordinal);
+        // The note under the button went with Plan: The Studio is optional, PR 6.
+        Assert.DoesNotContain("Gaps show as placeholders on the slides.", page, StringComparison.Ordinal);
         // The landing page is the deck library; the Studio switches decks from its own bar.
         Assert.Contains("<partial name=\"_DeckLibrary\"", page, StringComparison.Ordinal);
         Assert.Contains("Switch deck", page, StringComparison.Ordinal);
@@ -102,9 +103,10 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("event.target.closest('[data-pbd-open-selector]')", script, StringComparison.Ordinal);
         Assert.Contains("@(presentedProjects!.Length == 0 ? null : deck.SlideEstimate.TotalSlides)", page, StringComparison.Ordinal);
 
-        // The placeholder note shows only when something is missing.
-        Assert.Contains("<small data-pbd-placeholder-note hidden>", page, StringComparison.Ordinal);
-        Assert.Contains("placeholderNote.hidden = openChecks === 0;", studio, StringComparison.Ordinal);
+        // No placeholder note under the button (Plan: The Studio is optional, PR 6): the outline
+        // and the Gaps tab say what is missing.
+        Assert.DoesNotContain("data-pbd-placeholder-note", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("placeholderNote", studio, StringComparison.Ordinal);
 
         // Templates are no longer applied from the Deck tab.
         Assert.DoesNotContain("Keep my settings", script, StringComparison.Ordinal);
@@ -126,18 +128,17 @@ public sealed class ProjectBriefingContractTests
         var script = Read("project-briefing-decks.js");
         var studio = Read("project-briefing-studio.js");
 
-        // The progress line: projects, checks, settings, generate, each opening where it is done.
-        Assert.Contains("<nav class=\"pbd-progress\" aria-label=\"Deck progress\" data-pbd-progress>", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-progress-tab=\"checks\"", page, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-progress-tab=\"deck\"", page, StringComparison.Ordinal);
-        // Generate is the button beside the progress line, not a step of it (review PR E).
-        Assert.DoesNotContain("data-pbd-progress-generate", page, StringComparison.Ordinal);
-        Assert.Contains("const renderProgress = (presented, openChecks) =>", studio, StringComparison.Ordinal);
+        // One header line instead of the progress steps (Plan: The Studio is optional, PR 6): the
+        // project count, the design and the last change, kept current.
+        Assert.DoesNotContain("data-pbd-progress-tab", page, StringComparison.Ordinal);
+        Assert.Contains("<span data-pbd-summary-projects>", page, StringComparison.Ordinal);
+        Assert.Contains("if (summaryProjects) summaryProjects.textContent = plural(projects.size, 'project');", studio, StringComparison.Ordinal);
         Assert.Contains("progressDesign.textContent = designLabel", script, StringComparison.Ordinal);
 
         // How the deck behaves, said once, and the save state by the title.
-        Assert.Contains("data-pbd-model-note hidden", page, StringComparison.Ordinal);
-        Assert.Contains("'prism.briefingDecks.modelNoteSeen'", script, StringComparison.Ordinal);
+        // The one-time banner is gone (PR 6): the saved chip says it.
+        Assert.DoesNotContain("data-pbd-model-note", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("modelNoteSeen", script, StringComparison.Ordinal);
         Assert.Contains("<span data-pbd-saved-chip-text>@savedLabel</span>", page, StringComparison.Ordinal);
         Assert.Contains("\"Saved · shared\"", page, StringComparison.Ordinal);
         Assert.Contains("showSaveState('saving');", script, StringComparison.Ordinal);
@@ -288,7 +289,7 @@ public sealed class ProjectBriefingContractTests
         // The progress line sits in the deck header with the last change, not in a row of its own.
         var header = page[page.IndexOf("<header class=\"pbd-deck-header\">", StringComparison.Ordinal)..page.IndexOf("</header>", page.IndexOf("<header class=\"pbd-deck-header\">", StringComparison.Ordinal), StringComparison.Ordinal)];
         Assert.Contains("<div class=\"pbd-deck-header__status\">", header, StringComparison.Ordinal);
-        Assert.Contains("data-pbd-progress", header, StringComparison.Ordinal);
+        Assert.Contains("data-pbd-summary-projects", header, StringComparison.Ordinal);
 
         // Outline titles on two lines.
         Assert.Contains("-webkit-line-clamp: 2;", css, StringComparison.Ordinal);
@@ -307,23 +308,27 @@ public sealed class ProjectBriefingContractTests
         var script = Read("project-briefing-decks.js");
         var studio = Read("project-briefing-studio.js");
 
-        // One word: gaps.
+        // One word: gaps. Since Plan: The Studio is optional, PR 6, they show in two places: the
+        // outline's badges and the Gaps tab; the header's progress step and the note under the
+        // button are gone, and This slide shows a missing fact in place.
         Assert.Contains("data-pbd-inspector-tab=\"checks\" tabindex=\"-1\">Gaps <span", page, StringComparison.Ordinal);
-        Assert.Contains("<span class=\"pbd-progress__label\">Gaps</span>", page, StringComparison.Ordinal);
-        Assert.Contains("`Gaps · ${missing.length}`", studio, StringComparison.Ordinal);
+        Assert.DoesNotContain("pbd-progress__label", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-pbd-placeholder-note", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-pbd-model-note", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("pbd-inspector__gaps", studio, StringComparison.Ordinal);
         Assert.DoesNotContain("items missing", studio, StringComparison.Ordinal);
 
-        // Each field once in This slide.
-        Assert.Contains("if (!missing.includes('costRd')) facts.append(", studio, StringComparison.Ordinal);
+        // Each field once in This slide: a fact the project lacks is shown in its place.
+        Assert.Contains("if (missing.includes(key)) gapRow(key);", studio, StringComparison.Ordinal);
 
-        // Present and Generate say so first (once per deck per session).
+        // Present and Download say so first (once per deck per session).
         Assert.Contains("if (await confirmGaps('Present', presentButton)) {", script, StringComparison.Ordinal);
-        Assert.Contains("if (!(await confirmGaps('Generate', generateButton))) return;", script, StringComparison.Ordinal);
+        Assert.Contains("if (!(await confirmGaps('Download', generateButton))) return;", script, StringComparison.Ordinal);
         Assert.Contains("cancelText: 'Review gaps',", script, StringComparison.Ordinal);
-        // Generate asks only after pending saves settle, so the count matches the deck downloaded.
+        // Download asks only after pending saves settle, so the count matches the deck downloaded.
         var generate = script[script.IndexOf("generateForm?.addEventListener('submit'", StringComparison.Ordinal)..];
-        Assert.True(generate.IndexOf("await deckMutationTail;", StringComparison.Ordinal)
-            < generate.IndexOf("confirmGaps('Generate'", StringComparison.Ordinal));
+        var asks = generate.IndexOf("confirmGaps('Download'", StringComparison.Ordinal);
+        Assert.True(asks > 0 && generate.IndexOf("await deckMutationTail;", StringComparison.Ordinal) < asks);
     }
 
     [Fact]
@@ -530,10 +535,13 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("data-pbd-steps", page, StringComparison.Ordinal);
         // Cost is two chips in Project slides now (blocks plan PR 5).
         Assert.DoesNotContain("data-pbd-step=\"cost\"", page, StringComparison.Ordinal);
-        foreach (var step in new[] { "slides", "project", "sheet", "look", "handling" })
+        foreach (var step in new[] { "slides", "project", "sheet", "look" })
         {
             Assert.Contains($"data-pbd-step=\"{step}\"", page, StringComparison.Ordinal);
         }
+        // Handling is part of Appearance (Plan: The Studio is optional, PR 6).
+        Assert.DoesNotContain("data-pbd-step=\"handling\"", page, StringComparison.Ordinal);
+        Assert.Contains("<strong data-pbd-settings-appearance-title>Appearance</strong>", page, StringComparison.Ordinal);
         // The Extra slides step became the block list in the first step.
         Assert.DoesNotContain("data-pbd-step=\"extra\"", page, StringComparison.Ordinal);
         Assert.Contains("<strong>Slides in this deck</strong>", page, StringComparison.Ordinal);
