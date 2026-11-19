@@ -664,7 +664,7 @@ An independent UI/UX review of the deck library (`/Workspace/BriefingDecks`) at 
    load with a deck.
 
 Outside this module: the shared "What's new" announcement can cover the page's top-right buttons
-on a first visit.
+on a first visit. (Fixed 19 Nov 2026: it waits on these pages, `data-whats-new-wait`.)
 
 
 ## Plan: Blocks, Project Officer decks and focus view (16 Nov 2026)
@@ -927,6 +927,9 @@ library, New deck dialog and simplified Studio).
 1. **What's new never covers the primary action.** The shared What's new card waits on the
    briefing deck pages (as it already waits in focus view), so Generate is never under it.
    Outside this module's code, so its own small PR with a test in `whats-new.test.js`.
+   Built: a page marked `data-whats-new-wait` is "busy" for the card (as an open dialog is), so
+   the card waits for another page without using up one of its three showings; the briefing
+   decks root (library and Studio) carries the mark.
 2. **Download from the library.** The card's Generate becomes **Download**. A new read handler
    (`OnGetGapsAsync(deckId)`, View access) returns how many presented projects have gaps, from
    the same `ProjectBriefingContentGaps` rule the Studio uses; with gaps the card asks as decided;

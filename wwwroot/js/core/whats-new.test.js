@@ -39,8 +39,8 @@ const pageControls = `
   <button id="launcher" data-chat-launcher></button>
   <input id="field" />`;
 
-async function load({ chat = false, stored = {}, storageThrows = false, focusField = false, modalOpen = false, topbar = null, beforeShow } = {}) {
-  const body = `${topbar ? '<header class="pm-topbar">PRISM</header>' : ''}${chat ? chatCard : ''}${themeCard}${pageControls}${modalOpen ? '<div class="modal show"></div>' : ''}`;
+async function load({ chat = false, stored = {}, storageThrows = false, focusField = false, modalOpen = false, topbar = null, waitPage = false, beforeShow } = {}) {
+  const body = `${topbar ? '<header class="pm-topbar">PRISM</header>' : ''}${waitPage ? '<div data-whats-new-wait></div>' : ''}${chat ? chatCard : ''}${themeCard}${pageControls}${modalOpen ? '<div class="modal show"></div>' : ''}`;
   const dom = new JSDOM(`<!doctype html><html><body>${body}</body></html>`, {
     runScripts: 'outside-only',
     url: 'https://prism.local/',
@@ -192,6 +192,18 @@ test('waits while the page hides the top bar (Briefing Studio focus view), and s
 
   page = await load({ topbar: 'shown' });
   assert.equal(page.cardEl.hidden, false);
+});
+
+test('waits on a page marked data-whats-new-wait (the briefing decks), without using up a showing', async () => {
+  const page = await load({ waitPage: true, chat: true });
+  assert.equal(page.chatEl.hidden, true);
+  assert.equal(page.cardEl.hidden, true);
+  assert.equal(page.stored('prism.whatsNew.chat'), null, 'a skipped page does not use up a showing');
+});
+
+test('the briefing decks page asks the card to wait', () => {
+  const view = fs.readFileSync(path.join(__dirname, '../../../Pages/Workspace/BriefingDecks/Index.cshtml'), 'utf8');
+  assert.match(view, /<div class="cw-workspace-content pbd-shell" data-pbd-root data-whats-new-wait/);
 });
 
 test('stays away when the browser cannot remember the answer', async () => {
