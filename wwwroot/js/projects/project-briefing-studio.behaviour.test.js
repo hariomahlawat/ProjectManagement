@@ -53,10 +53,7 @@ const payload = (extra = {}) => ({
 
 const MARKUP = `
 <div data-pbd-root>
-  <nav data-pbd-progress><ol>
-    <li data-pbd-progress-step="projects"><button type="button"><span data-pbd-progress-projects></span></button></li>
-    <li data-pbd-progress-step="checks"><button type="button" data-pbd-progress-tab="checks"><span data-pbd-progress-checks></span></button></li>
-  </ol></nav>
+  <p class="pbd-deck-header__meta"><span data-pbd-summary-projects></span></p>
   <div data-deck-id="7">
     <section data-pbd-studio data-preview-url="/preview" data-has-projects="true" data-speaker-notes-max="4000"
              data-layout="StandardBriefing" data-presentation-mode="Combined">
@@ -342,21 +339,19 @@ test('turning on the technical-category summary shows it, not the project-catego
   assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 3 of 4/);
 });
 
-test('the progress line counts the projects and the checks to review, and opens Checks', async () => {
+test('the header line counts the projects, and the Gaps tab counts the kinds of gap (Plan: The Studio is optional, PR 6)', async () => {
   const { window, document, requests } = startStudio();
   requests[0].answer(payload());
   await settle(window);
 
-  assert.equal(document.querySelector('[data-pbd-progress-projects]').textContent, '4');
-  assert.equal(document.querySelector('[data-pbd-progress-checks]').textContent, '2 to fill');
-  assert.ok(document.querySelector('[data-pbd-progress-step="checks"]').classList.contains('is-open'));
-
-  document.querySelector('[data-pbd-progress-tab="checks"]').click();
-  assert.equal(document.querySelector('[data-pbd-inspector-panel="checks"]').hidden, false);
-  assert.equal(document.querySelector('[data-pbd-inspector-tab="checks"]').getAttribute('aria-selected'), 'true');
+  assert.equal(document.querySelector('[data-pbd-summary-projects]').textContent, '4 projects');
+  const badge = document.querySelector('[data-pbd-checks-badge]');
+  assert.equal(badge.hidden, false);
+  assert.equal(badge.textContent, '2');
+  assert.equal(document.querySelector('[data-pbd-progress-checks]'), null, 'no second count in the header');
 });
 
-test('picking a slide in the outline opens This slide, with each gap listed once and where its fix lands', async () => {
+test('picking a slide in the outline opens This slide, with each missing fact shown once, in place, beside its fix', async () => {
   const { window, document, requests } = startStudio();
   requests[0].answer(payload());
   await settle(window);
@@ -367,14 +362,23 @@ test('picking a slide in the outline opens This slide, with each gap listed once
 
   const panel = document.querySelector('[data-pbd-inspector-panel="slide"]');
   assert.equal(panel.hidden, false);
-  const gaps = [...panel.querySelectorAll('.pbd-inspector__gaps li')];
-  assert.deepEqual(gaps.map((item) => item.querySelector('strong').textContent), ['Status remark', 'Photograph']);
+  // One list of the slides' facts (Plan: The Studio is optional, PR 6): no separate gaps box.
+  assert.equal(panel.querySelector('.pbd-inspector__gaps'), null);
+  const gaps = [...panel.querySelectorAll('.pbd-inspector__facts .is-missing')];
+  assert.deepEqual(gaps.map((item) => item.querySelector('dt').textContent), ['Status remark', 'Photograph']);
   assert.ok(gaps.every((item) => item.querySelector('a').textContent.trim() === 'Fix in project'));
-  // The status gap is not repeated as its own section further down.
+  // Each fact once: the status remark is not repeated further down.
+  const labels = [...panel.querySelectorAll('.pbd-inspector__facts dt')].map((dt) => dt.textContent);
+  assert.equal(labels.filter((label) => label === 'Status remark').length, 1);
   assert.ok(![...panel.querySelectorAll('h5')].some((heading) => heading.textContent === 'Present status'));
+  // The per-project choices are folded under More options.
+  const more = panel.querySelector('details[data-pbd-more-options]');
+  assert.equal(more.querySelector('summary').textContent, 'More options');
+  assert.equal(more.open, false);
+  assert.ok(more.querySelector('[data-pbd-remove-project]'), 'Remove from deck is among them');
 });
 
-test('a project with nothing missing says so in This slide', async () => {
+test('a project with nothing missing shows its facts with no gap or placeholder note', async () => {
   const { window, document, requests } = startStudio();
   requests[0].answer(payload());
   await settle(window);
@@ -382,8 +386,9 @@ test('a project with nothing missing says so in This slide', async () => {
   outlineRow(document, 'Charlie range').click();
 
   const panel = document.querySelector('[data-pbd-inspector-panel="slide"]');
-  assert.equal(panel.querySelector('.pbd-inspector__gaps'), null);
-  assert.match(panel.querySelector('.pbd-inspector__ready').textContent, /No gaps: everything these slides show is recorded/);
+  assert.equal(panel.querySelector('.pbd-inspector__facts .is-missing'), null);
+  assert.ok(panel.querySelector('.pbd-inspector__facts dt'));
+  assert.ok(![...panel.querySelectorAll('.pbd-inspector__note')].some((note) => /placeholder/.test(note.textContent)));
 });
 
 test('Present starts at the slide in view, with notes and the strip on request', async () => {
@@ -471,7 +476,7 @@ test("a missing status remark is fixed in the project's remarks section", async 
   await settle(window);
   outlineRow(document, 'Bravo trainer').click();
 
-  const fix = document.querySelector('.pbd-inspector__gaps a');
+  const fix = document.querySelector('.pbd-inspector__facts .is-missing[data-pbd-gap="status"] a');
   assert.equal(fix.textContent.trim(), 'Fix in project');
   assert.match(fix.getAttribute('href'), /#remarks$/);
 });
@@ -565,7 +570,7 @@ const withDesign = (design, gaps = GAPS) => (window) => {
     JSON.stringify({ projects: PROJECTS, contentGaps: gaps, projectDesign: design });
 };
 const capabilityOffer = (document) => [...document.querySelectorAll('[data-pbd-inspector-panel="slide"] button')]
-  .find((button) => /Write for this deck only|This deck only/.test(button.textContent));
+  .find((button) => /for this deck only|This deck only/.test(button.textContent));
 
 test('the capability offer follows the design, straight after a design change', async () => {
   const { window, document, requests } = startStudio(withDesign('Capability'));
@@ -597,7 +602,7 @@ test('a missing capability overview is written for the deck on Capability, and n
   await settle(window);
   outlineRow(document, 'Charlie range').click();
 
-  const gapAction = () => document.querySelector('.pbd-inspector__gaps li :is(button, a)');
+  const gapAction = () => document.querySelector('.pbd-inspector__facts .is-missing[data-pbd-gap="capabilityOverview"] :is(button, a)');
   assert.equal(gapAction().textContent.trim(), 'This deck only');
 
   // A gap the server still lists when the design shows no capability text (an older payload).
@@ -633,4 +638,20 @@ test('on Key points only a stage, status or cost change shows the project slide'
     await settle(window);
     assert.match(document.querySelector('[data-pbd-stage-meta]').textContent, /^Slide 2 of 4/, change);
   }
+});
+
+test('More options stays as the person left it when moving to another project (for the session)', async () => {
+  const { window, document, requests } = startStudio();
+  requests[0].answer(payload());
+  await settle(window);
+  outlineRow(document, 'Alpha simulator').click();
+  const more = () => document.querySelector('[data-pbd-inspector-panel="slide"] details[data-pbd-more-options]');
+  assert.equal(more().open, false, 'closed at first');
+
+  more().open = true;
+  more().dispatchEvent(new window.Event('toggle'));
+  outlineRow(document, 'Bravo trainer').click();
+
+  assert.equal(more().open, true);
+  assert.equal(window.sessionStorage.getItem('prism.briefingStudio.moreOptions'), 'open');
 });

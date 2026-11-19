@@ -5899,183 +5899,37 @@ span.pbd-additional-slide-row__handle {
     color: var(--pbd-red);
 }
 
-.pbd-progress {
-    margin: 0;
-}
-
-/* Under the deck name: the progress line and the last change, on one line where they fit. */
-.pbd-deck-header__status {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: .35rem .85rem;
-    margin-top: .45rem;
-}
-
-.pbd-deck-header__status .pbd-deck-header__meta {
-    margin-top: 0;
-}
-
-.pbd-progress ol {
-    display: flex;
-    flex-wrap: wrap;
-    gap: .35rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    counter-reset: pbd-progress;
-}
-
-.pbd-progress li {
-    counter-increment: pbd-progress;
-}
-
-.pbd-progress button {
-    display: inline-flex;
-    align-items: center;
-    gap: .4rem;
-    padding: .28rem .7rem .28rem .35rem;
-    border: 1px solid var(--pbd-border);
-    border-radius: 999px;
-    background: var(--pbd-surface);
-    color: var(--pbd-ink);
-    font-size: .76rem;
-    line-height: 1.2;
-}
-
-.pbd-progress button::before {
-    display: grid;
-    width: 1.3rem;
-    height: 1.3rem;
-    place-items: center;
-    border-radius: 50%;
-    background: var(--pbd-canvas);
-    color: var(--pbd-muted);
-    /* No numbers: the Deck tab's settings steps are the numbered ones. A dot until done. */
-    content: "\2022";
-    font-size: .68rem;
-    font-weight: 800;
-}
-
-.pbd-progress button:hover,
-.pbd-progress button:focus-visible {
-    border-color: var(--pbd-blue);
-}
-
-.pbd-progress__label {
-    color: var(--pbd-muted);
-}
-
-.pbd-progress__value {
-    font-weight: 700;
-}
-
-.pbd-progress .is-done button::before {
-    background: color-mix(in srgb, var(--pbd-green) 14%, transparent);
-    color: var(--pbd-green);
-    content: "\2713";
-}
-
-.pbd-progress .is-next button,
-.pbd-progress .is-ready button {
-    border-color: color-mix(in srgb, var(--pbd-blue) 45%, var(--pbd-border));
-}
-
-.pbd-progress .is-next button::before,
-.pbd-progress .is-ready button::before {
-    background: var(--pbd-blue-soft);
-    color: var(--pbd-blue);
-}
-
-.pbd-progress .is-open button::before {
-    background: color-mix(in srgb, var(--pbd-amber) 14%, transparent);
+.pbd-inspector__facts .is-missing dd {
     color: var(--pbd-amber);
 }
 
-.pbd-progress .is-open .pbd-progress__value {
-    color: var(--pbd-amber);
-}
-
-.pbd-model-note {
-    display: flex;
-    align-items: center;
-    gap: .6rem;
-    margin: 0 0 .7rem;
-    padding: .5rem .75rem;
-    border: 1px solid color-mix(in srgb, var(--pbd-blue) 25%, var(--pbd-border));
-    border-radius: .55rem;
-    background: var(--pbd-blue-soft);
-    color: var(--pbd-ink);
+.pbd-inspector__fix {
+    padding: 0 .2rem;
     font-size: .8rem;
-}
-
-.pbd-model-note[hidden] {
-    display: none;
-}
-
-.pbd-model-note > i {
-    color: var(--pbd-blue);
-}
-
-.pbd-model-note p {
-    flex: 1 1 auto;
-    margin: 0;
-}
-
-.pbd-inspector__ready {
-    margin-bottom: .7rem;
-}
-
-.pbd-inspector__gaps {
-    margin: 0 0 .8rem;
-    padding: .55rem .65rem;
-    border: 1px solid color-mix(in srgb, var(--pbd-amber) 35%, var(--pbd-border));
-    border-radius: .55rem;
-    background: color-mix(in srgb, var(--pbd-amber) 6%, var(--pm-card, var(--pbd-surface)));
-}
-
-.pbd-inspector__gaps .pbd-inspector__heading {
-    margin-top: 0;
-    color: var(--pbd-amber);
-}
-
-.pbd-inspector__gaps ul {
-    display: grid;
-    gap: .45rem;
-    margin: 0 0 .4rem;
-    padding: 0;
-    list-style: none;
-}
-
-.pbd-inspector__gaps li {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: .35rem .6rem;
-    font-size: .82rem;
-}
-
-.pbd-inspector__gap-text {
-    flex: 1 1 8rem;
-    min-width: 0;
-}
-
-.pbd-inspector__gap-text strong,
-.pbd-inspector__gap-text small {
-    display: block;
-}
-
-.pbd-inspector__gap-text small {
-    color: var(--pbd-muted);
-}
-
-.pbd-inspector__gaps .btn {
+    font-weight: 600;
     white-space: nowrap;
 }
 
-.pbd-inspector__gaps .pbd-inspector__note {
-    margin: 0;
+.pbd-inspector__facts .is-missing .btn-outline-primary {
+    margin-top: .25rem;
+}
+
+/* This slide's per-project choices, folded away (Plan: The Studio is optional, PR 6). */
+.pbd-inspector__more {
+    margin-top: .9rem;
+    border-top: 1px solid var(--pbd-border);
+    padding-top: .6rem;
+}
+
+.pbd-inspector__more > summary {
+    cursor: pointer;
+    color: var(--pbd-blue);
+    font-size: .85rem;
+    font-weight: 700;
+}
+
+.pbd-inspector__more[open] > summary {
+    margin-bottom: .5rem;
 }
 
 /* Phone (Studio usability PR 5): the slide first, the outline as a sheet under it ("Show
@@ -6393,28 +6247,6 @@ html[data-pbd-focus] .pbd-focus-toggle {
 
     .pbd-saved-chip.is-error {
         border-color: var(--pbd-border);
-    }
-
-    .pbd-progress .is-done button::before {
-        background: transparent;
-    }
-
-    .pbd-progress .is-next button,
-    .pbd-progress .is-ready button {
-        border-color: var(--pbd-border);
-    }
-
-    .pbd-progress .is-open button::before {
-        background: transparent;
-    }
-
-    .pbd-model-note {
-        border: 1px solid var(--pbd-border);
-    }
-
-    .pbd-inspector__gaps {
-        border: 1px solid var(--pbd-border);
-        background: var(--pm-card, var(--pbd-surface));
     }
 }
 /* END GENERATED: color-mix() fallbacks */

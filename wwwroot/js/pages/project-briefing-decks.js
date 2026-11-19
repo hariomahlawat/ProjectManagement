@@ -119,19 +119,6 @@ if (root) {
     return run;
   };
 
-  // How the deck works, said once: dismissed for good on this browser.
-  const modelNote = root.querySelector('[data-pbd-model-note]');
-  const modelNoteKey = 'prism.briefingDecks.modelNoteSeen';
-  if (modelNote) {
-    let seen = false;
-    try { seen = window.localStorage.getItem(modelNoteKey) === '1'; } catch { /* storage refused: show it */ }
-    modelNote.hidden = seen;
-    modelNote.querySelector('[data-pbd-model-note-dismiss]')?.addEventListener('click', () => {
-      try { window.localStorage.setItem(modelNoteKey, '1'); } catch { /* shown again next time */ }
-      modelNote.remove();
-    });
-  }
-
   // Deck settings: the form in the Studio's Deck tab, saved in place as it changes.
   const settingsForm = root.querySelector('[data-pbd-settings-form]');
   const settingsStatus = root.querySelector('[data-pbd-settings-status]');
@@ -970,8 +957,8 @@ if (root) {
       slides: blocksOn().join(' · ') || 'None',
       project: [settingsValueLabel('ProjectDesign'), ...project].filter(Boolean).join(' · '),
       sheet: `${rows} ${rows === 1 ? 'row' : 'rows'}${settingsChecked('HideEmptyUpdateSheetValues') ? ' · empty rows hidden' : ''}`,
-      look: [settingsValueLabel('PresentationTheme'), insignia, settingsValueLabel('ClosingSlideType')].filter(Boolean).join(' · '),
-      handling: marking ? `Marked ${marking}` : 'No marking'
+      // Appearance (PR 6: Look and Handling in one step): the look, then the marking.
+      look: [settingsValueLabel('PresentationTheme'), insignia, settingsValueLabel('ClosingSlideType'), marking ? `marked ${marking}` : 'no marking'].filter(Boolean).join(' · ')
     };
   };
   const refreshSettingsSummary = () => {
@@ -2163,24 +2150,24 @@ if (root) {
     event.preventDefault();
     // Generate from saved settings: finish a pending save first.
     if (settingsPending() && !(await saveSettingsNow())) {
-      setState(generateStatus, 'Save the deck settings before generating the PowerPoint.', 'error');
+      setState(generateStatus, 'Save the deck settings before downloading the PowerPoint.', 'error');
       return;
     }
     // In-place changes still saving (speaker notes saved on leaving the box, a photo, how a
     // project appears) finish first, so the PowerPoint reads them.
     await deckMutationTail;
     if (document.querySelector('[data-pbd-studio][data-unsaved-notes="true"]')) {
-      setState(generateStatus, 'Save the speaker notes before generating the PowerPoint.', 'error');
+      setState(generateStatus, 'Save the speaker notes before downloading the PowerPoint.', 'error');
       return;
     }
     // Asked only now: each save above applies the deck's new gaps to the Gaps count, so the
     // warning describes the deck actually being downloaded (Codex review on #2938).
-    if (!(await confirmGaps('Generate', generateButton))) return;
+    if (!(await confirmGaps('Download', generateButton))) return;
     if (!generateButton || generateButton.disabled) return;
     generateButton.disabled = true;
     generateLabel?.classList.add('d-none');
     generateProgress?.classList.remove('d-none');
-    setState(generateStatus, 'Building editable PowerPoint slides from current project data…');
+    setState(generateStatus, 'Preparing the PowerPoint from current project data…');
     try {
       const response = await fetch(generateForm.action, {
         method: 'POST',
@@ -2208,7 +2195,7 @@ if (root) {
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1500);
       const slideCount = response.headers.get('X-Project-Briefing-Slides');
-      setState(generateStatus, slideCount ? `PowerPoint generated successfully — ${slideCount} slides.` : 'PowerPoint generated successfully.', 'success');
+      setState(generateStatus, slideCount ? `PowerPoint downloaded — ${slideCount} slides.` : 'PowerPoint downloaded.', 'success');
     } catch (error) {
       setState(generateStatus, error.message || 'The PowerPoint deck could not be generated.', 'error');
     } finally {

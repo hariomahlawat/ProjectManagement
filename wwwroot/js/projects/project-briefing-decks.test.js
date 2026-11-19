@@ -48,13 +48,13 @@ test('PowerPoint generation downloads the returned pptx and reports slide count'
   assert.match(source, /application\/vnd\.openxmlformats-officedocument\.presentationml\.presentation/);
   assert.match(source, /URL\.createObjectURL/);
   assert.match(source, /X-Project-Briefing-Slides/);
-  assert.match(source, /PowerPoint generated successfully/);
+  assert.match(source, /PowerPoint downloaded/);
 });
 
 test('PowerPoint generation prevents duplicate submission and restores the button', () => {
   assert.match(source, /generateButton\.disabled = true/);
   assert.match(source, /generateButton\.disabled = false/);
-  assert.match(source, /Generating…|Building editable PowerPoint slides/);
+  assert.match(source, /Preparing the PowerPoint from current project data/);
 });
 
 test('briefing deck client updates optimistic concurrency after inline mutations', () => {
@@ -130,7 +130,7 @@ test('pending settings saves finish before navigation, posts and generation', ()
   assert.match(source, /const settleNotesBeforeLeaving = async \(\) => \{[\s\S]*?await deckMutationTail;\s*if \(!notesUnsaved\(\)\) return true;\s*const discard = await prismConfirm\(/);
   assert.match(source, /document\.addEventListener\('click'[\s\S]*?if \(!\(await settleSettingsBeforeLeaving\(\)\)\) return;/);
   assert.match(source, /document\.addEventListener\('submit'[\s\S]*?if \(!\(await settleSettingsBeforeLeaving\(\)\)\) return;/);
-  assert.match(source, /if \(settingsPending\(\) && !\(await saveSettingsNow\(\)\)\) \{\s*setState\(generateStatus, 'Save the deck settings before generating the PowerPoint\.', 'error'\);/);
+  assert.match(source, /if \(settingsPending\(\) && !\(await saveSettingsNow\(\)\)\) \{\s*setState\(generateStatus, 'Save the deck settings before downloading the PowerPoint\.', 'error'\);/);
 });
 
 test('the content editors save in place, after a pending settings save (review 2 fixes, PR 4)', () => {
@@ -535,7 +535,8 @@ test('a refused presentation change puts back the saved choice before rebuilding
 test('the Studio chooses the photograph a deck shows, saved through the deck queue', () => {
   // Only projects shown with their own slides in a format that uses photos get the picker.
   assert.match(studioSource, /const usesPhoto = \(project\) => !project\.isDeletedOrArchived\s*&& \(project\.presentation \|\| 'Slides'\) === 'Slides'/);
-  assert.match(studioSource, /if \(usesPhoto\(project\)\) nodes\.push\(photoSection\(project\)\);/);
+  // Under This slide's More options (Plan: The Studio is optional, PR 6).
+  assert.match(studioSource, /if \(usesPhoto\(project\)\) more\.append\(photoSection\(project\)\);/);
   // The cover is stored as no choice, so the deck follows the project's cover.
   assert.match(studioSource, /const photoId = photo\.isDefault \? null : photo\.photoId;/);
   assert.match(studioSource, /url\.searchParams\.set\('projectId', String\(project\.projectId\)\);/);
@@ -545,7 +546,7 @@ test('the Studio chooses the photograph a deck shows, saved through the deck que
 });
 
 test('speaker notes are edited in the inspector and saved through the deck queue', () => {
-  assert.match(studioSource, /if \(hasOwnSlides\(project\)\) nodes\.push\(notesSection\(project\)\);/);
+  assert.match(studioSource, /if \(hasOwnSlides\(project\)\) more\.append\(notesSection\(project\)\);/);
   // Saving on blur refreshes the notes box in place, so a click on the next control is not lost.
   assert.match(studioSource, /field\.addEventListener\('blur', \(\) => saveNotes\(project, refresh\)\);/);
   assert.match(studioSource, /new CustomEvent\('pbd:set-project-notes', \{ detail: \{ projectId: project\.projectId, notes: text \} \}\)/);
@@ -560,7 +561,7 @@ test('speaker notes are edited in the inspector and saved through the deck queue
 
 test('generating waits for in-place saves and refuses unsaved speaker notes', () => {
   const generate = source.slice(source.indexOf("generateForm?.addEventListener('submit'"));
-  assert.match(generate, /await deckMutationTail;\s*if \(document\.querySelector\('\[data-pbd-studio\]\[data-unsaved-notes="true"\]'\)\) \{\s*setState\(generateStatus, 'Save the speaker notes before generating the PowerPoint\.', 'error'\);/);
+  assert.match(generate, /await deckMutationTail;\s*if \(document\.querySelector\('\[data-pbd-studio\]\[data-unsaved-notes="true"\]'\)\) \{\s*setState\(generateStatus, 'Save the speaker notes before downloading the PowerPoint\.', 'error'\);/);
   assert.match(studioSource, /root\.dataset\.unsavedNotes = String\(unsaved\);/);
   assert.match(studioSource, /notesDrafts\.set\(project\.projectId, \{ text: field\.value, saving: false, error: '' \}\);\s*markUnsavedNotes\(\);/);
 });
