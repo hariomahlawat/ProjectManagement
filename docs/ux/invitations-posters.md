@@ -269,6 +269,15 @@ comes with tests that fail without it.
   lines; guest lists from spreadsheets (rank and name joined, headings, pasted columns); A4 edge
   to edge; posters asking first; Save's print rules as tested pure functions and a test reading
   sheet PDFs back; damaged drafts read safely. Then review 3.
+- **Cold review 7, folded cards (M1, M2):** a folded card gave every design one plain layout in
+  the design's colours, and its back cover was one stray line with no frame. Each design now
+  folds in its own look (`FOLDED` in `collage-designs.js`, one entry per card design, placed on
+  the panels by `onPanel`): Regimental's bands in the unit's colours and the roundel on the
+  cover, Modern's bar and left-set words, Ceremonial's photo frame and logo box, Bilingual's
+  Hindi host on the cover and Hindi inside, Classic and Navy's double borders. Every panel has a
+  frame; the back cover's note sits in the middle between two short lines. Card details says
+  which half of the sheet is which. "at the" moved to the inside's left panel, under the guest
+  line. `partsFor` still decides each field's side, so nothing else changes.
 
 | PR | What | Done when |
 | --- | --- | --- |

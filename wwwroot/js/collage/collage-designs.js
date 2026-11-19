@@ -944,44 +944,242 @@
   /** Whether a size is a folded card: a flat sheet, outside and inside, folded down the middle. */
   const isFolded = (sizeKey) => core.sizeOf(sizeKey).group === 'folded';
 
-  /**
-   * A folded card's sides in a design's colours (PR 9c): the outside has the back cover on the
-   * left and the front cover on the right; the inside has the invitation on the left and the
-   * details on the right. Each panel is half the sheet.
-   */
+  // Folded cards (PR 9c; cold review 7). A folded sheet is landscape and each of its four panels
+  // is half of it: the outside has the back cover on the left and the front cover on the right,
+  // the inside the invitation on the left and the occasion and details on the right. Each design
+  // gives its folded card its own look: its borders, bands, bars, photo, fonts and Hindi.
+  //
+  // onPanel() places a part on a panel: its x and w are given as fractions of the panel, not of
+  // the sheet; y and h stay fractions of the sheet's height. Logos and roundels keep their size by
+  // the card's scale.
+  const PANEL_AT = Object.freeze({ back: 0, cover: 0.5, left: 0, right: 0.5 });
+  // A panel's width over the sheet's height (a folded sheet is A5 or A4 on its side: 1 to 1.41),
+  // so a frame can be inset by the same distance at its sides and at its top and bottom.
+  const PANEL_SHAPE = 0.708;
+  function onPanel(panel, part) {
+    const out = { ...part, x: PANEL_AT[panel] + part.x * 0.5 };
+    const byPanel = part.kind === 'text' || part.kind === 'slot' || (part.kind === 'shape' && part.scaled === undefined);
+    if (byPanel && part.w !== undefined) out.w = part.w * 0.5;
+    return out;
+  }
+  const onAll = (panel, parts) => parts.map((part) => onPanel(panel, part));
+  // A frame round a panel, `inset` of the panel's width in from its edges; `top` moves its top
+  // edge down (as a share of the sheet's height) to clear a band above it.
+  function panelFrame(panel, role, inset, stroke, strokeWidth, top) {
+    const y0 = top ?? inset * PANEL_SHAPE;
+    const y1 = 1 - inset * PANEL_SHAPE;
+    return block(role, PANEL_AT[panel] + 0.25, (y0 + y1) / 2, (1 - 2 * inset) * 0.5, y1 - y0, { stroke, strokeWidth, fill: '' });
+  }
+  // The back cover: framed like every other panel, with the note in its middle between two short
+  // rules, so it reads as a finished panel rather than a stray line (cold review 7).
+  const backCover = (frames, noteLook, accent) => [
+    ...frames,
+    ...onAll('back', [
+      rule('backcoverrule', 0.5, 0.45, 0.14, accent, 1.2),
+      words('note', 0.5, 0.5, 0.72, 18, noteLook, { lines: 2 }),
+      rule('backcoverrule2', 0.5, 0.55, 0.14, accent, 1.2)
+    ])
+  ];
+
+  /** Classic ivory and Navy and gold: a double border on every panel, engraved host, formal script. */
+  function formalFold(c) {
+    const frames = (panel, role) => [panelFrame(panel, role, 0.05, c.line, c.outer), panelFrame(panel, `${role}b`, 0.075, c.line, c.inner)];
+    return {
+      outside: [
+        ...backCover(frames('back', 'backcover'), { font: 'elegant', color: c.ink, bold: false, italic: true }, c.accent),
+        ...frames('cover', 'coverborder'),
+        ...onAll('cover', [
+          logo(0.5, 0.29, 0.12),
+          words('host', 0.5, 0.55, 0.76, 24, c.host, { lines: 3 }),
+          rule('coverrule', 0.5, 0.67, 0.2, c.accent, 2)
+        ])
+      ],
+      inside: [
+        ...frames('left', 'innerborder'),
+        ...frames('right', 'innerborder2'),
+        ...onAll('left', [
+          words('invite', 0.5, 0.33, 0.76, 30, { font: 'formal', color: c.invite, bold: false }, { lines: 2 }),
+          rule('guestline', 0.5, 0.51, 0.66, c.ink, 1.5),
+          words('guest', 0.5, 0.49, 0.66, 28, { font: 'script', color: c.ink, bold: false }, { lines: 1 }),
+          words('at', 0.5, 0.62, 0.5, 19, { font: 'elegant', color: c.ink, bold: false, italic: true }, { lines: 1 })
+        ]),
+        ...onAll('right', [
+          words('occasion', 0.5, 0.25, 0.78, 34, { font: 'elegant', color: c.title, bold: true }, { lines: 2 }),
+          rule('innerrule', 0.5, 0.36, 0.2, c.accent, 2),
+          words('when', 0.5, 0.45, 0.78, 21, { font: 'clean', color: c.ink, bold: true }, { lines: 2 }),
+          words('venue', 0.5, 0.54, 0.78, 20, { font: 'clean', color: c.ink, bold: false }, { lines: 2 }),
+          words('dress', 0.5, 0.625, 0.78, 19, { font: 'clean', color: c.accent, bold: true }, { lines: 1 }),
+          words('rsvp', 0.5, 0.8, 0.78, 17, { font: 'clean', color: c.ink, bold: false }, { lines: 2 })
+        ])
+      ]
+    };
+  }
+
+  /** Regimental: the three bands in the unit's colours across the cover, the roundel behind the logo. */
+  function regimentalFold() {
+    const frame = (panel, role, top) => panelFrame(panel, role, 0.05, 'band2', 1.2, top);
+    return {
+      outside: [
+        ...backCover([frame('back', 'backcover')], { font: 'elegant', color: INK, bold: false, italic: true }, 'band2'),
+        ...onAll('cover', [
+          block('band1', 0.5, 0.017, 1, 0.034, { fill: 'band1', stroke: '' }),
+          block('band2', 0.5, 0.051, 1, 0.034, { fill: 'band2', stroke: '' }),
+          block('band3', 0.5, 0.085, 1, 0.034, { fill: 'band3', stroke: '' })
+        ]),
+        frame('cover', 'coverborder', 0.137),
+        ...onAll('cover', [
+          roundel('roundel', 'ellipse', 0.5, 0.35, 0.19, 0.72, { fill: '#ffffff', stroke: 'band2', strokeWidth: 3 }),
+          logo(0.5, 0.35, 0.11),
+          words('host', 0.5, 0.61, 0.78, 24, { font: 'engraved', color: 'band1', bold: true, spacing: 8 }, { lines: 3 }),
+          rule('coverrule', 0.5, 0.73, 0.5, 'band2', 3)
+        ])
+      ],
+      inside: [
+        frame('left', 'innerborder'),
+        frame('right', 'innerborder2'),
+        ...onAll('left', [
+          words('invite', 0.5, 0.33, 0.76, 30, { font: 'formal', color: INK, bold: false }, { lines: 2 }),
+          rule('guestline', 0.5, 0.51, 0.66, INK, 1.5),
+          words('guest', 0.5, 0.49, 0.66, 28, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+          words('at', 0.5, 0.62, 0.5, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 })
+        ]),
+        ...onAll('right', [
+          words('occasion', 0.5, 0.25, 0.8, 34, { font: 'elegant', color: 'band3', bold: true }, { lines: 2 }),
+          words('when', 0.5, 0.42, 0.78, 21, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
+          words('venue', 0.5, 0.51, 0.78, 20, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
+          words('dress', 0.5, 0.595, 0.78, 19, { font: 'clean', color: 'band1', bold: true }, { lines: 1 }),
+          rule('innerrule', 0.5, 0.7, 0.7, 'band2', 3),
+          words('rsvp', 0.5, 0.8, 0.78, 17, { font: 'clean', color: INK, bold: false }, { lines: 2 })
+        ])
+      ]
+    };
+  }
+
+  /** Ceremonial photo: the user's photo at the top of the cover, the logo in its white box, set on the left. */
+  function ceremonialFold() {
+    const frame = (panel, role) => panelFrame(panel, role, 0.05, MAROON, 1);
+    const left = (field, x, y, w, size, look, lines) => words(field, x, y, w, size, { ...look, align: 'left' }, { anchor: 'left', lines });
+    return {
+      outside: [
+        ...backCover([frame('back', 'backcover')], { font: 'elegant', color: INK, bold: false, italic: true }, MAROON),
+        frame('cover', 'coverborder'),
+        ...onAll('cover', [
+          photo(0.5, 0.285, 0.84, 0.44),
+          block('logobox', 0.22, 0.505, 0.22, 0.155, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }),
+          logo(0.22, 0.505, 0.1),
+          vline('coveraccent', 0.11, 0.72, 0.13, MAROON, 3),
+          left('host', 0.15, 0.72, 0.76, 22, { font: 'clean', color: INK, bold: true }, 3)
+        ])
+      ],
+      inside: [
+        frame('left', 'innerborder'),
+        frame('right', 'innerborder2'),
+        ...onAll('left', [
+          left('invite', 0.14, 0.33, 0.76, 22, { font: 'elegant', color: INK, bold: false, italic: true }, 2),
+          rule('guestline', 0.52, 0.51, 0.76, INK, 1.5),
+          left('guest', 0.14, 0.49, 0.76, 28, { font: 'script', color: INK, bold: false }, 1),
+          left('at', 0.14, 0.62, 0.5, 19, { font: 'elegant', color: INK, bold: false, italic: true }, 1)
+        ]),
+        ...onAll('right', [
+          left('occasion', 0.14, 0.25, 0.78, 34, { font: 'elegant', color: MAROON, bold: true }, 2),
+          vline('accent', 0.11, 0.5, 0.17, MAROON, 3),
+          left('when', 0.15, 0.44, 0.76, 21, { font: 'clean', color: INK, bold: true }, 2),
+          left('venue', 0.15, 0.515, 0.76, 20, { font: 'clean', color: INK, bold: false }, 2),
+          left('dress', 0.15, 0.585, 0.76, 19, { font: 'clean', color: MAROON, bold: true }, 1),
+          left('rsvp', 0.14, 0.8, 0.78, 17, { font: 'clean', color: INK, bold: false }, 2)
+        ])
+      ]
+    };
+  }
+
+  /** Bilingual: Hindi above English on every panel, the host in both on the cover. */
+  function bilingualFold() {
+    const frame = (panel, role) => panelFrame(panel, role, 0.05, GOLD, 1.5);
+    return {
+      outside: [
+        ...backCover([frame('back', 'backcover')], { font: 'elegant', color: INK, bold: false, italic: true }, GOLD),
+        frame('cover', 'coverborder'),
+        ...onAll('cover', [
+          logo(0.5, 0.22, 0.1),
+          words('hostHi', 0.5, 0.45, 0.8, 24, { font: 'hindiFormal', color: INK, bold: false }, { lines: 3 }),
+          rule('coverrule', 0.5, 0.545, 0.14, GOLD, 1.2),
+          words('host', 0.5, 0.63, 0.8, 21, { font: 'elegant', color: INK, bold: true }, { lines: 3 })
+        ])
+      ],
+      inside: [
+        frame('left', 'innerborder'),
+        frame('right', 'innerborder2'),
+        ...onAll('left', [
+          words('inviteHi', 0.5, 0.27, 0.8, 23, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
+          words('invite', 0.5, 0.36, 0.8, 21, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
+          rule('guestline', 0.5, 0.51, 0.66, INK, 1.5),
+          words('guest', 0.5, 0.49, 0.66, 28, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+          words('at', 0.5, 0.62, 0.5, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 })
+        ]),
+        ...onAll('right', [
+          words('occasionHi', 0.5, 0.21, 0.82, 28, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
+          words('occasion', 0.5, 0.315, 0.82, 28, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+          rule('innerrule', 0.5, 0.405, 0.16, GOLD, 1.2),
+          words('when', 0.5, 0.48, 0.78, 21, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
+          words('venue', 0.5, 0.56, 0.78, 20, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
+          words('dress', 0.5, 0.64, 0.78, 19, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
+          words('rsvp', 0.5, 0.8, 0.78, 17, { font: 'clean', color: INK, bold: false }, { lines: 2 })
+        ])
+      ]
+    };
+  }
+
+  /** Modern: the navy bar down the spine of the cover and the inside's outer edge, set on the left. */
+  function modernFold() {
+    const frame = (panel, role) => panelFrame(panel, role, 0.07, '#d5dae3', 1);
+    const left = (field, x, y, w, size, look, lines) => words(field, x, y, w, size, { ...look, align: 'left' }, { anchor: 'left', lines });
+    return {
+      outside: [
+        ...backCover([frame('back', 'backcover')], { font: 'clean', color: GREY, bold: false, italic: true }, NAVY),
+        onPanel('cover', block('bar', 0.014, 0.5, 0.028, 1, { fill: NAVY, stroke: '' })),
+        frame('cover', 'coverborder'),
+        ...onAll('cover', [
+          logo(0.8, 0.18, 0.08),
+          rule('coverrule', 0.25, 0.6, 0.22, NAVY, 4),
+          left('host', 0.14, 0.71, 0.74, 24, { font: 'clean', color: NAVY, bold: true, spacing: 4 }, 3)
+        ])
+      ],
+      inside: [
+        onPanel('left', block('bar', 0.014, 0.5, 0.028, 1, { fill: NAVY, stroke: '' })),
+        frame('left', 'innerborder'),
+        frame('right', 'innerborder2'),
+        ...onAll('left', [
+          left('invite', 0.16, 0.33, 0.72, 21, { font: 'clean', color: GREY, bold: false }, 2),
+          rule('guestline', 0.52, 0.51, 0.72, INK, 1.5),
+          left('guest', 0.16, 0.49, 0.72, 26, { font: 'clean', color: INK, bold: true }, 1),
+          left('at', 0.16, 0.6, 0.5, 19, { font: 'clean', color: GREY, bold: false, italic: true }, 1)
+        ]),
+        ...onAll('right', [
+          left('occasion', 0.14, 0.25, 0.76, 40, { font: 'clean', color: NAVY, bold: true }, 2),
+          rule('innerrule', 0.25, 0.365, 0.22, NAVY, 4),
+          left('when', 0.14, 0.45, 0.76, 21, { font: 'clean', color: INK, bold: true }, 2),
+          left('venue', 0.14, 0.53, 0.76, 20, { font: 'clean', color: INK, bold: false }, 2),
+          left('dress', 0.14, 0.61, 0.76, 19, { font: 'clean', color: NAVY, bold: true }, 1),
+          left('rsvp', 0.14, 0.8, 0.76, 17, { font: 'clean', color: GREY, bold: false }, 2)
+        ])
+      ]
+    };
+  }
+
+  /** Each card design's folded sides, made once. A design with none of its own folds as Classic ivory. */
+  const FOLDED = lookupTable({
+    classic: formalFold({ line: GOLD, outer: 3, inner: 1.2, host: { font: 'engraved', color: INK, bold: true, spacing: 6 }, invite: GOLD, ink: INK, title: MAROON, accent: GOLD }),
+    navy: formalFold({ line: PALE_GOLD, outer: 1.5, inner: 0.8, host: { font: 'engraved', color: PALE_GOLD, bold: false, spacing: 10 }, invite: IVORY, ink: IVORY, title: PALE_GOLD, accent: PALE_GOLD }),
+    regimental: regimentalFold(),
+    ceremonial: ceremonialFold(),
+    bilingual: bilingualFold(),
+    modern: modernFold()
+  });
+
+  /** A folded card's parts for one side ('outside' or 'inside') in a design. */
   function foldedParts(designKey, side) {
-    const look = BACK_LOOKS[designKey] || BACK_LOOKS.classic;
-    // The formal designs set the host in engraved capitals and the invitation in formal script.
-    const formal = FORMAL_DESIGNS.includes(designKey);
-    const panelBorder = (role, cx) => ({ role, kind: 'shape', form: 'rect', x: cx, y: 0.5, w: 0.44, h: 0.88, look: { stroke: look.accent, strokeWidth: 1.2, fill: '' } });
-    if (side === 'outside') {
-      return [
-        panelBorder('coverborder', 0.75),
-        logo(0.75, 0.26, 0.13),
-        words('host', 0.75, 0.52, 0.38, 24, { font: formal ? 'engraved' : 'elegant', color: look.title, bold: true, spacing: 6 }, { lines: 3 }),
-        rule('coverrule', 0.75, 0.64, 0.12, look.accent, 2),
-        words('note', 0.25, 0.82, 0.36, 18, { font: 'elegant', color: look.ink, bold: false, italic: true }, { lines: 2 })
-      ];
-    }
-    // The Bilingual design keeps its Hindi inside: the invitation and the occasion in Hindi too.
-    const hindi = designKey === 'bilingual' ? [
-      words('inviteHi', 0.25, 0.44, 0.38, 22, { font: 'hindiFormal', color: look.accent, bold: false }, { lines: 2 }),
-      words('occasionHi', 0.75, 0.405, 0.38, 24, { font: 'hindiFormal', color: look.title, bold: true }, { lines: 1 })
-    ] : [];
-    return [
-      panelBorder('innerborder', 0.25),
-      panelBorder('innerborder2', 0.75),
-      words('invite', 0.25, 0.36, 0.38, formal ? 30 : 26, { font: formal ? 'formal' : 'script', color: look.accent, bold: false }, { lines: 2 }),
-      rule('guestline', 0.25, 0.53, 0.32, look.ink, 1.5),
-      words('guest', 0.25, 0.51, 0.32, 28, { font: 'script', color: look.ink, bold: false }, { lines: 1 }),
-      words('at', 0.75, 0.2, 0.3, 19, { font: 'elegant', color: look.ink, bold: false, italic: true }, { lines: 1 }),
-      words('occasion', 0.75, 0.32, 0.38, 34, { font: 'elegant', color: look.title, bold: true }, { lines: 2 }),
-      words('when', 0.75, 0.47, 0.38, 21, { font: 'clean', color: look.ink, bold: true }, { lines: 2 }),
-      words('venue', 0.75, 0.57, 0.38, 20, { font: 'clean', color: look.ink, bold: false }, { lines: 2 }),
-      words('dress', 0.75, 0.66, 0.38, 19, { font: 'clean', color: look.accent, bold: true }, { lines: 1 }),
-      words('rsvp', 0.75, 0.77, 0.38, 17, { font: 'clean', color: look.ink, bold: false }, { lines: 2 }),
-      ...hindi
-    ];
+    const fold = FOLDED[designKey] || FOLDED.classic;
+    return side === 'outside' ? fold.outside : fold.inside;
   }
 
   /**

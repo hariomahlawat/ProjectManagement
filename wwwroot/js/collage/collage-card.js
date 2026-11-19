@@ -759,7 +759,7 @@
             <button type="button" class="btn btn-sm ${back ? 'btn-outline-secondary' : 'btn-primary'}" data-card-side="front" aria-pressed="${!back}">${front}</button>
             <button type="button" class="btn btn-sm ${back ? 'btn-primary' : 'btn-outline-secondary'}" data-card-side="back" aria-pressed="${back}">${rear}</button>
           </div>
-          ${folded ? '<p class="clg-hint">Print both sides, flipping on the short edge, then fold down the middle.</p>' : '<button type="button" class="btn btn-link btn-sm text-danger p-0 mt-1" data-card-side="delete">Delete the back</button>'}</div>`;
+          ${folded ? `<p class="clg-hint" data-card-halves>${back ? 'Inside: the invitation is the left half; the occasion and details are the right half.' : 'Outside: the right half is the front cover; the left half is the back cover.'}</p><p class="clg-hint">Print both sides, flipping on the short edge, then fold down the middle.</p>` : '<button type="button" class="btn btn-link btn-sm text-danger p-0 mt-1" data-card-side="delete">Delete the back</button>'}</div>`;
     }
 
     /** One Undo step that changes the card's sides, then draws the page and the panel again. */
@@ -879,7 +879,8 @@
 
     /** For each unit colour, the parts other than the bands that follow it, in plain words. */
     function colourUses(collage) {
-      const names = { roundel: 'the ring round the logo', rule: 'the line at the bottom', backrule: 'the line on the back', coverrule: 'the line on the cover' };
+      const frames = 'the frames round the panels';
+      const names = { roundel: 'the ring round the logo', rule: 'the line at the bottom', backrule: 'the line on the back', coverrule: 'the line on the cover', innerrule: 'the line inside', backcoverrule: 'the lines on the back cover', backcoverrule2: 'the lines on the back cover', coverborder: frames, backcover: frames, innerborder: frames, innerborder2: frames };
       const labels = Object.fromEntries(FORM.map(([field, label]) => [field, label.toLowerCase().replace(/^back: /, 'back ')]));
       const uses = [[], [], []];
       for (const item of [...(collage?.items || []), ...(collage?.back?.items || [])]) {

@@ -555,6 +555,11 @@ test('a folded card shows Outside and Inside, a fold line on the page only, and 
   await expect(page.locator('[data-card-side="front"]')).toHaveText('Outside');
   await expect(page.locator('[data-card-side="back"]')).toHaveText('Inside');
   await expect(page.locator('[data-card-side="delete"]')).toHaveCount(0);
+  // Card details says which half of the sheet is which (cold review 7, M2).
+  await expect(page.locator('[data-card-halves]')).toHaveText(/right half is the front cover; the left half is the back cover/);
+  await page.locator('[data-card-side="back"]').click();
+  await expect(page.locator('[data-card-halves]')).toHaveText(/invitation is the left half; the occasion and details are the right half/);
+  await page.locator('[data-card-side="front"]').click();
   expect(await page.evaluate(() => window.Konva.stages[0].findOne('.fold').visible())).toBe(true);
   await page.getByRole('button', { name: 'Preview' }).click();
   expect(await page.evaluate(() => window.Konva.stages[0].findOne('.fold').visible())).toBe(false);
