@@ -22,9 +22,9 @@
    */
   function createSettingsHtml({ core, draw, stickers, stickerSource, escapeHtml, photos, FRAME_WIDTHS, TEXT_COLOURS, LABEL_COLOURS, isOpen = () => false, cardField = () => null }) {
     /** A group used less often, folded away until opened; it stays open once opened. */
-    function fold(key, title, inner) {
+    function fold(key, title, inner, { open = false } = {}) {
       return `
-        <details class="clg-section clg-fold" data-fold="${key}"${isOpen(key) ? ' open' : ''}>
+        <details class="clg-section clg-fold" data-fold="${key}"${open || isOpen(key) ? ' open' : ''}>
           <summary class="clg-fold__title">${escapeHtml(title)}</summary>
           <div class="clg-fold__body">${inner}</div>
         </details>`;
@@ -33,16 +33,16 @@
     function arrangeSections(item) {
       const framed = item.kind === 'photo' || item.kind === 'slot';
       const [low, high] = FRAME_WIDTHS;
-      const size = !framed ? '' : `
-        <div class="clg-section">
+      // Folded too: dragging a corner on the page is the usual way (docs/ux/collage-usability-plan.md, PR 7).
+      const size = !framed ? '' : fold('size', 'Size', `
           <label class="clg-field"><span class="clg-field__label">Size<output data-out="width">${core.sliderText('width', item.width)}</output></span>
-            <input type="range" min="${low}" max="${high}" step="1" value="${Math.round(Math.min(high, Math.max(low, item.width)))}" data-prop="width" aria-label="Width of the ${item.kind === 'slot' ? 'frame' : 'photo'}, in page units"></label>
-        </div>`;
+            <input type="range" min="${low}" max="${high}" step="1" value="${Math.round(Math.min(high, Math.max(low, item.width)))}" data-prop="width" aria-label="Width of the ${item.kind === 'slot' ? 'frame' : 'photo'}, in page units"></label>`);
       // A line or an oval has no corners to round.
       const corners = item.kind === 'text' || item.kind === 'sticker' || (item.kind === 'shape' && item.form !== 'rect') ? '' : `
           <label class="clg-field"><span class="clg-field__label">Rounded corners<output data-out="radius">${core.sliderText('radius', item.radius || 0)}</output></span>
             <input type="range" min="0" max="${core.LAYOUT_LIMITS.radiusMax}" step="1" value="${item.radius || 0}" data-prop="radius" aria-label="Rounded corners, in page units"></label>`;
-      // Size, and lock, hide, duplicate and delete, are always in view; the rest fold away.
+      // Lock, hide, duplicate and delete are always in view; the rest fold away. Order stays here,
+      // folded: "To the front" and "To the back" are on no toolbar.
       return `${size}
         ${fold('angle', 'Angle', `
           <label class="clg-field"><span class="clg-field__label">Turn<output data-out="angle">${Math.round(item.angle)}°</output></span>
@@ -198,11 +198,11 @@
           <div class="clg-choices">${choiceButtons('frame', Object.entries(core.FRAMES).map(([k, v]) => [k, v.label]), square ? frame : 'none', (v) => !square && v !== 'none')}</div>
           ${switchRow('shadow', 'Shadow', item.shadow)}
         </div>
-        <div class="clg-section">
-          <p class="clg-section__title">Shape</p>
+        ${fold('shape', `Shape: ${core.SHAPES[shape] || 'Square'}`, `
           <div class="clg-choices">${choiceButtons('shape', Object.entries(core.SHAPES), shape)}</div>
-          ${square ? '' : `<p class="clg-hint" data-frame-note>A frame goes with the Square shape only${frame !== 'none' && core.FRAMES[frame] ? `; the ${escapeHtml(core.FRAMES[frame].label)} frame comes back if you choose Square` : ''}.</p>`}
-        </div>
+          ${square ? '' : `<p class="clg-hint" data-frame-note>A frame goes with the Square shape only${frame !== 'none' && core.FRAMES[frame] ? `; the ${escapeHtml(core.FRAMES[frame].label)} frame comes back if you choose Square` : ''}.</p>`}`,
+        // Folded (PR 7), but open while a shape other than Square turns the frames off, so the reason shows.
+        { open: !square })}
         <div class="clg-section">
           <p class="clg-section__title">Look</p>
           ${filterOk ? '' : '<p class="clg-hint">This browser cannot show looks; use Edge or Chrome to change them.</p>'}

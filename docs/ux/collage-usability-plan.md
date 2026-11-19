@@ -197,4 +197,11 @@ same way. Each can be reverted on its own.
   2026.
 - PR 6: help that fits the page. The "How to" list became one line (`helpLine()` in
   `collage-panels.js`) with a **Tips** button opening a dialog (`data-help-dialog`) that keeps
-  every tip, grouped, with the keys.
+  every tip, grouped, with the keys. #3471.
+- PR 7: a shorter photo panel. Shape (titled with the photo's shape, and open by itself while
+  a shape other than Square turns the frames off) and Size join the folded groups. A selected
+  photo now shows 23 controls before a fold is opened (tabs and fold headings not counted; about
+  30 before), so the aim of about 20 is not quite met: the eight Look tiles are the largest group
+  left, and Look is one of the essentials. The Order fold stays, against this plan's first draft:
+  its "To the front" and "To the back" are on no toolbar, and the plan keeps everything that
+  existed.
