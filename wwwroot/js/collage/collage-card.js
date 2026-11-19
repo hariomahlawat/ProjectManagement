@@ -83,6 +83,10 @@
     const startSize = ui.$('[data-card-size]');
     const posterGrid = ui.$('[data-start-posters]');
     const posterSize = ui.$('[data-poster-size]');
+    const pocketList = ui.$('[data-start-pockets]');
+    // The pocket designs on the start screen (UX review 8, M6), each with the pocket size it opens
+    // on: the car pass on the visiting card, the RSVP card on its own size, the others on A7.
+    const POCKET_STARTS = Object.freeze([['pass', 'passl', 'bi-car-front'], ['reply', 'in355p', 'bi-envelope-check'], ['programmecard', 'a7p', 'bi-list-ol'], ['pocketinvite', 'a7p', 'bi-envelope-paper']]);
     const isPoster = () => Boolean(designs.DESIGNS[state.collage?.card?.design]?.poster);
     const options = () => ({ measure: surface.measureText, newId: doc.newItemId });
     // A field's words may be on the side not showing (the back's programme while the front shows).
@@ -119,9 +123,26 @@
         startSize.value = DEFAULT_CARD_SIZE;
       }
       const size = core.isSize(startSize.value) ? startSize.value : DEFAULT_CARD_SIZE;
-      // Where the pocket designs are, said while a full-size card is chosen.
+      // The pocket designs, offered beside the cards while a full-size card is chosen (with a
+      // pocket size chosen they are the designs themselves).
       const pocketHint = ui.$('[data-card-pocket-hint]');
       if (pocketHint) pocketHint.hidden = core.sizeOf(size).group === 'pocket';
+      if (pocketList && !pocketList.children.length) {
+        for (const [key, sizeKey, icon] of POCKET_STARTS) {
+          const design = designs.DESIGNS[key];
+          if (!design) continue;
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'clg-pocket-card';
+          button.dataset.startPocket = key;
+          button.dataset.pocketSize = sizeKey;
+          button.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i><span><b></b><small></small></span>`;
+          button.querySelector('b').textContent = design.label;
+          button.querySelector('small').textContent = core.sizeOf(sizeKey).note;
+          button.setAttribute('aria-label', `${design.label}, ${core.sizeOf(sizeKey).label}`);
+          pocketList.appendChild(button);
+        }
+      }
       const round = ++thumbs;
       if (posterGrid && posterSize) renderPosters(round);
       startGrid.textContent = '';
@@ -285,6 +306,10 @@
       const button = event.target.closest('[data-start-poster]');
       if (button) screens.startCollage(posterSize.value || 'a3p', null, button.dataset.startPoster);
     });
+    pocketList?.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-start-pocket]');
+      if (button) screens.startCollage(button.dataset.pocketSize, null, button.dataset.startPocket);
+    });
     startGrid?.addEventListener('click', (event) => {
       const button = event.target.closest('[data-start-design]');
       if (button) screens.startCollage(core.isSize(startSize.value) ? startSize.value : DEFAULT_CARD_SIZE, null, button.dataset.startDesign);
@@ -441,6 +466,12 @@
     const logoOf = (collage) => collage.items.find((item) => item.role === 'logo') || null;
     // The logo the choices and Your own logo… change: 'logo', or 'logo2' when the second is chosen.
     let logoTarget = 'logo';
+    // Add a second logo with the SDD logo first (UX review 8, M4): the second is chosen from the
+    // crests or the user's own, never a copy of the first. Holds the card it was asked on.
+    let choosingSecond = null;
+    const isSdd = (item) => item?.kind === 'sticker' && item.sticker === 'logo:sdd';
+    const choosing = () => choosingSecond !== null && choosingSecond === state.collageSession
+      && Boolean(logoOf(state.collage)) && logoOf(state.collage).kind !== 'slot' && !state.collage.items.some((item) => item.role === 'logo2');
     const targetRole = () => (logoTarget === 'logo2' && state.collage.items.some((item) => item.role === 'logo2') ? 'logo2' : 'logo');
 
     /** What the card's logo is, in words. */
@@ -535,22 +566,31 @@
       const second = Boolean(secondItem);
       const role = targetRole();
       const current = role === 'logo2' ? state.collage.items.find((item) => item.role === 'logo2') : first;
+      const picking = choosing();
+      // The other logo on the card: the one the choices may not copy (never two the same).
+      const other = picking ? first : second ? (role === 'logo2' ? first : secondItem) : null;
       // With two logos, which one the choices below change.
       const which = second ? `<div class="btn-group btn-group-sm w-100 mb-2 clg-card-logo__which" role="group" aria-label="Which logo to change">
             <button type="button" class="btn btn-outline-secondary${role === 'logo' ? ' active' : ''}" data-card-logo-target="logo" aria-pressed="${role === 'logo'}">First logo</button>
             <button type="button" class="btn btn-outline-secondary${role === 'logo2' ? ' active' : ''}" data-card-logo-target="logo2" aria-pressed="${role === 'logo2'}">Second logo</button></div>` : '';
       const choices = (stickers.groups()[0]?.items || []).map((entry) => {
-        const on = current?.sticker === entry.id;
-        return `<button type="button" class="clg-sticker clg-sticker--named${on ? ' is-on' : ''}" data-card-logo-use="${escapeHtml(entry.id)}" aria-pressed="${on}" title="${escapeHtml(entry.label)}" aria-label="Use ${escapeHtml(entry.label)}"><img src="${escapeHtml(surface.stickerSource({ sticker: entry.id, colour: '' }) || '')}" alt=""><span class="clg-sticker__name">${escapeHtml(entry.label)}</span></button>`;
+        const on = !picking && current?.sticker === entry.id;
+        const taken = other?.kind === 'sticker' && other.sticker === entry.id;
+        const name = taken ? `${entry.label} is already the ${role === 'logo2' || picking ? 'first' : 'second'} logo` : `Use ${entry.label}`;
+        return `<button type="button" class="clg-sticker clg-sticker--named${on ? ' is-on' : ''}" data-card-logo-use="${escapeHtml(entry.id)}" aria-pressed="${on}"${taken ? ' disabled' : ''} title="${escapeHtml(taken ? name : entry.label)}" aria-label="${escapeHtml(name)}"><img src="${escapeHtml(surface.stickerSource({ sticker: entry.id, colour: '' }) || '')}" alt=""><span class="clg-sticker__name">${escapeHtml(entry.label)}</span></button>`;
       }).join('');
+      const prompt = picking
+        ? `<p class="clg-hint clg-card-logo__pick" data-card-logo-pick role="status">Choose the second logo: a crest below, or Your own logo…</p>`
+        : `<p class="clg-hint" data-card-logo-name>${escapeHtml(logoName(current))}</p>`;
       return `<div class="clg-section clg-card-logo">
           <p class="clg-section__title">Logo</p>${which}
-          <p class="clg-hint" data-card-logo-name>${escapeHtml(logoName(current))}</p>
+          ${prompt}
           <div class="clg-stickers clg-card-logo__choices">${choices}</div>
           <div class="clg-stack">
             <button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="own"><i class="bi bi-upload" aria-hidden="true"></i> Your own logo…</button>
-            ${first && !second ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="second"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add a second logo</button>' : ''}
-            ${current ? `<button type="button" class="btn btn-outline-danger btn-sm" data-card-logo="remove"><i class="bi bi-x-lg" aria-hidden="true"></i> ${!second ? 'Remove logo' : role === 'logo2' ? 'Remove second logo' : 'Remove first logo'}</button>` : ''}
+            ${first && !second && !picking ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="second"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add a second logo</button>' : ''}
+            ${picking ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="cancel-second">Cancel the second logo</button>' : ''}
+            ${current && !picking ? `<button type="button" class="btn btn-outline-danger btn-sm" data-card-logo="remove"><i class="bi bi-x-lg" aria-hidden="true"></i> ${!second ? 'Remove logo' : role === 'logo2' ? 'Remove second logo' : 'Remove first logo'}</button>` : ''}
             ${isPoster() && !first && mode !== 'none' && !asking ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="none">No logo</button>' : ''}
           </div>
           ${secondItem ? `<p class="clg-hint clg-card-logo__second" data-card-logo2-name>Second logo: ${escapeHtml(logoName(secondItem))}. Pick First logo or Second logo above to change or remove one; choose it on the page to move or resize it.</p>` : ''}
@@ -607,6 +647,8 @@
     function fitRoundel(hadLogo = true) {
       const base = designs.roleItem(state.collage, 'roundel', options());
       doc.edit((draft) => designs.fitRoundel(draft.items, base, { hadLogo }), 'none');
+      // The light tile behind a crest on a dark design (UX review 8, M3) follows the logos too.
+      doc.edit((draft) => { draft.items = designs.logoTileItems(draft, options()); }, 'none');
     }
 
     /**
@@ -620,7 +662,17 @@
     function useLogoSticker(id) {
       const entry = stickers.find(id);
       if (!entry) return;
-      setLogo((place) => core.stickerItem(doc.newItemId(), id, { ...place, aspect: entry.aspect || 1 }), `Logo: ${entry.label}.`);
+      const make = (place) => core.stickerItem(doc.newItemId(), id, { ...place, aspect: entry.aspect || 1 });
+      if (choosing()) {
+        if (logoOf(state.collage).sticker === id) { messages.announce(`${entry.label} is already the first logo. Choose another for the second.`); return; }
+        placeSecondLogo(make, `Second logo: ${entry.label}. The choices below now change it; First logo goes back to the first.`);
+        return;
+      }
+      // Never two logos the same: the other logo's picture is not offered for this one.
+      const role = targetRole();
+      const other = state.collage.items.find((item) => item.role === (role === 'logo2' ? 'logo' : 'logo2'));
+      if (other?.kind === 'sticker' && other.sticker === id) { messages.announce(`${entry.label} is already on the card as the other logo.`); return; }
+      setLogo(make, `Logo: ${entry.label}.`);
     }
 
     // The user's own logo: PNG, JPEG or WEBP, read like a photo and kept with the draft.
@@ -636,8 +688,8 @@
       if (!file) return;
       // A card left (or another opened) while the picture is read gets nothing from it.
       const forCollage = state.collageSession;
-      // The logo it was chosen for, kept while the picture is read.
-      const role = targetRole();
+      // The logo it was chosen for, kept while the picture is read: the second, while it is being chosen.
+      const role = choosing() ? 'second' : targetRole();
       // In turn with photo imports and other logo reads, so the photo count and the pixel budget
       // are checked with every read before it finished.
       parts.afterImports(() => readLogo(file, forCollage, role));
@@ -678,6 +730,12 @@
         messages.showAlert('The card was turned over while your logo was read. It is in the photo tray: turn to the front and choose Your own logo again.');
         return;
       }
+      const make = (place) => core.photoItem(doc.newItemId(), photo.id, photo.aspect, place);
+      // Chosen as the second logo: it goes beside the first, if the card still has one and no second.
+      if (role === 'second' && logoOf(state.collage) && logoOf(state.collage).kind !== 'slot' && !state.collage.items.some((item) => item.role === 'logo2')) {
+        placeSecondLogo(make, 'Your own logo is the second logo. The choices below now change it; First logo goes back to the first.');
+        return;
+      }
       // The second logo it was chosen for may have been removed meanwhile: then it is the logo.
       const into = role === 'logo2' && state.collage.items.some((item) => item.role === 'logo2') ? 'logo2' : 'logo';
       setLogo((place) => core.photoItem(doc.newItemId(), photo.id, photo.aspect, place), into === 'logo2' ? 'Your own logo is the second logo.' : 'Your own logo is on the card.', into);
@@ -687,23 +745,46 @@
     // panel's logo choices are drawn again with them.
     ui.root.addEventListener('collage:stickers-loaded', () => refresh());
 
-    /** A second logo beside the first: the two side by side when the first is in the middle. */
+    /**
+     * Add a second logo (UX review 8, M4: it used to copy the first). Beside a crest or the user's
+     * own logo, the SDD logo; with the SDD logo first, the choice opens for a crest or the user's
+     * own, and the second goes on the card when one is picked.
+     */
     function addSecondLogo() {
       const current = logoOf(state.collage);
+      if (!current || current.kind === 'slot') return;
+      if (!isSdd(current)) {
+        placeSecondLogo((place) => core.stickerItem(doc.newItemId(), 'logo:sdd', { ...place, aspect: designs.SDD_ASPECT }), 'The SDD logo is the second logo. The choices below now change it; First logo goes back to the first.');
+        return;
+      }
+      choosingSecond = state.collageSession;
+      renderPanel();
+      form.querySelector('.clg-card-logo__choices button:not([disabled]), [data-card-logo="own"]')?.focus();
+      messages.announce('Choose the second logo: a crest from the choices, or Your own logo.');
+    }
+
+    /** The second logo, `make(place)`, as tall as the first and beside it: the two share the middle when the first is there. */
+    function placeSecondLogo(make, said) {
+      const current = logoOf(state.collage);
       if (!current) return;
+      choosingSecond = null;
       const middle = Math.abs(current.x - core.PAGE_WIDTH / 2) < core.PAGE_WIDTH * 0.05;
-      const step = current.width * 0.75;
       selection.select(null);
       doc.edit((draft) => {
         const first = draft.items.find((item) => item.role === 'logo');
-        const second = { ...first, id: doc.newItemId(), role: 'logo2', locked: false };
-        // A locked first logo stays where it is; the second goes beside it.
+        const made = make({ x: first.x, y: first.y, width: first.width });
+        // As tall as the first, in its own shape.
+        const width = core.itemHeight(first) * (made.width / core.itemHeight(made));
+        const second = { ...made, role: 'logo2', y: first.y, width, angle: 0, locked: false };
+        const gap = first.width * 0.35;
+        // A locked first logo stays where it is; the second goes beside it, on the right if it fits.
         if (first.locked) {
-          second.x = Math.min(core.PAGE_WIDTH - first.width / 2, first.x + first.width * 1.3);
-          if (second.x - first.x < first.width) second.x = Math.max(first.width / 2, first.x - first.width * 1.3);
+          const right = first.x + first.width / 2 + gap + width / 2;
+          second.x = right + width / 2 <= core.PAGE_WIDTH ? right : Math.max(width / 2, first.x - first.width / 2 - gap - width / 2);
         } else if (middle) {
-          first.x = core.PAGE_WIDTH / 2 - step;
-          second.x = core.PAGE_WIDTH / 2 + step;
+          const left = core.PAGE_WIDTH / 2 - (first.width + gap + width) / 2;
+          first.x = left + first.width / 2;
+          second.x = left + first.width + gap + width / 2;
         } else {
           second.x = core.PAGE_WIDTH - first.x;
         }
@@ -714,7 +795,7 @@
       surface.syncAll();
       logoTarget = 'logo2';
       renderPanel();
-      messages.announce('A second logo is on the card. The choices below now change it; First logo goes back to the first.');
+      messages.announce(said);
     }
 
     /** A poster's logo choice that is not a picture: none (the design closes the gap) or later. */
@@ -821,7 +902,7 @@
             <button type="button" class="btn btn-sm ${back ? 'btn-outline-secondary' : 'btn-primary'}" data-card-side="front" aria-pressed="${!back}">${front}</button>
             <button type="button" class="btn btn-sm ${back ? 'btn-primary' : 'btn-outline-secondary'}" data-card-side="back" aria-pressed="${back}">${rear}</button>
           </div>
-          ${folded ? `<p class="clg-hint" data-card-halves>${back ? 'Inside: the invitation is the left half; the occasion and details are the right half.' : 'Outside: the right half is the front cover; the left half is the back cover.'}</p><p class="clg-hint">Print both sides, flipping on the short edge, then fold down the middle.</p>` : '<button type="button" class="btn btn-link btn-sm text-danger p-0 mt-1" data-card-side="delete">Delete the back</button>'}</div>`;
+          ${folded ? `<p class="clg-hint" data-card-halves>${back ? 'Inside: the invitation is the left half (host, invitation line and guest); the details are the right half.' : 'Outside: the right half is the front cover, with the logo and the occasion; the left half is the back cover.'}</p><p class="clg-hint">Print both sides, flipping on the short edge, then fold down the middle.</p>` : '<button type="button" class="btn btn-link btn-sm text-danger p-0 mt-1" data-card-side="delete">Delete the back</button>'}</div>`;
     }
 
     /** One Undo step that changes the card's sides, then draws the page and the panel again. */
@@ -943,7 +1024,7 @@
     /** For each unit colour, the parts other than the bands that follow it, in plain words. */
     function colourUses(collage) {
       const frames = 'the frames round the panels';
-      const names = { roundel: 'the ring round the logo', rule: 'the line at the bottom', backrule: 'the line on the back', coverrule: 'the line on the cover', innerrule: 'the line inside', backcoverrule: 'the lines on the back cover', backcoverrule2: 'the lines on the back cover', coverborder: frames, backcover: frames, innerborder: frames, innerborder2: frames };
+      const names = { roundel: 'the ring round the logo', logotile: 'the tile behind the logo', backlogotile: 'the tile behind the logo', rule: 'the line at the bottom', backrule: 'the line on the back', coverrule: 'the line on the cover', innerrule: 'the line inside', backcoverrule: 'the lines on the back cover', backcoverrule2: 'the lines on the back cover', coverborder: frames, backcover: frames, innerborder: frames, innerborder2: frames };
       const labels = Object.fromEntries(FORM.map(([field, label]) => [field, label.toLowerCase().replace(/^back: /, 'back ')]));
       const uses = [[], [], []];
       for (const item of [...(collage?.items || []), ...(collage?.back?.items || [])]) {
@@ -1127,6 +1208,12 @@
       if (logo) {
         if (logo.dataset.cardLogo === 'own') logoFile.click();
         if (logo.dataset.cardLogo === 'second') addSecondLogo();
+        if (logo.dataset.cardLogo === 'cancel-second') {
+          choosingSecond = null;
+          renderPanel();
+          form.querySelector('[data-card-logo="second"]')?.focus();
+          messages.announce('No second logo.');
+        }
         if (logo.dataset.cardLogo === 'remove') removeLogo();
         if (logo.dataset.cardLogo === 'none') setLogoMode('none');
         if (logo.dataset.cardLogo === 'later') setLogoMode('later');

@@ -105,8 +105,11 @@ its npm package by hand; the libman entry records the version.
   - **Guest list** only on a design with a place for the guest's name (not on a car pass, RSVP
     or programme card); it shows the first three names as they will print. A list's Honours
     column follows each name after a comma. A visiting-card size does not offer the pocket
-    invitation, which would be too small to read. The start screen says the pocket designs come
-    with a pocket size. A custom size smaller than A6 offers the pocket designs first, then the
+    invitation, which would be too small to read. While a full-size card is chosen the start
+    screen shows a **Pocket cards** row (UX review 8, M6) of four small buttons: Entry card or
+    car pass (opens on the visiting-card size), RSVP card (on the RSVP card size), Programme
+    card and Pocket invitation (on A7). With a pocket size chosen, the designs are the pocket
+    cards and the row goes. A custom size smaller than A6 offers the pocket designs first, then the
     others. Changing a card to a size its design does not suit (a full invitation to a pocket
     card) moves it to the nearest design offered (the pocket invitation, or the car pass where
     that does not fit; a pocket card to Classic ivory), says so, and offers Undo.
@@ -193,20 +196,24 @@ its npm package by hand; the libman entry records the version.
     **Folded cards** (PR 9c): **Folded A6 card** (an A5 sheet) and **Folded A5 card** (an A4
     sheet) are in the size menus' **Folded cards** group. A folded card is always two-sided:
     - its **outside** has the back cover on the left (the note, in the middle of the panel
-      between two short lines) and the front cover on the right (the logo and the host, who
-      sends it);
-    - its **inside** has the invitation on the left (the invitation line, the guest line and
-      "at the") and the occasion and details on the right (the occasion, when, where, dress,
-      R.S.V.P.).
+      between two short lines) and the front cover on the right (the logo and the occasion, the
+      card's title);
+    - its **inside** has the invitation on the left (the host, the invitation line and the
+      guest's line, so the opened card reads "The Commandant and Officers request the pleasure
+      of the company of ____") and the details on the right (when, where, dress, R.S.V.P.).
 
-    Each field is on one side only, so the host is on the cover, not inside again.
+    Each field is on one side only. A folded card has no "at the": with the occasion on the
+    cover it would end the left page dangling (UX review 8, M2; before, the cover had the host
+    and the inside started "request the pleasure of…", with the left page half empty). Both
+    inside pages are centred at about the same height. Folded drafts made before keep their
+    words where they are; the new arrangement comes with the next design or size change.
 
     Every panel has a frame, and each card design keeps its own look when folded (cold review 7):
     Classic ivory and Navy and gold a double border, the host in Engraved and the invitation in
     Formal script; Regimental its three bands in the unit's colours across the top of the cover
     and the ring round the logo; Ceremonial photo a frame for your photo at the top of the cover,
-    the logo in its white box, and words set on the left; Bilingual the host in Hindi and English
-    on the cover and the Hindi invitation and occasion inside; Modern its navy bar down the
+    the logo in its white box, and words set on the left; Bilingual the occasion in Hindi and
+    English on the cover and the Hindi host and invitation inside; Modern its navy bar down the
     cover's spine and the inside's outer edge, and words set on the left. Card details calls the
     sides **Outside** and **Inside**, says which half of the sheet is which, and has no Delete. Inside fields are typed whichever side shows. A
     dashed fold line shows on the page, never in Preview or Save. Saved as a PDF it's two pages
@@ -218,13 +225,25 @@ its npm package by hand; the libman entry records the version.
     - Crests and logos (the SDD logo and any uploaded crests) to pick from;
     - **Your own logo…**: a PNG, JPG or WEBP read in this browser like a photo, kept with the
       draft, never sent to PRISM; a PNG keeps its clear background in the PNG and PDF;
-    - **Add a second logo**: beside the first, or the two side by side when the first is in the
-      middle. The second logo is named under the choices and has its own **Remove second logo**;
+    - **Add a second logo**: beside the first, as tall as it, or the two side by side when the
+      first is in the middle. It is never a copy of the first (UX review 8, M4): beside a crest
+      or your own logo it is the SDD logo; with the SDD logo first the panel asks **Choose the
+      second logo** (a crest, or Your own logo…, with **Cancel the second logo**), and the
+      second goes on the card when one is picked. The logo already on the card is greyed out in
+      the choices for the other. The second logo is named under the choices and has its own
+      **Remove second logo**;
     - **Remove logo**, with Undo. With two logos it is **Remove first logo**, and the second
       becomes the card's logo in the logo's place.
 
     The Regimental design's roundel behind the logo follows it: hidden with no logo, as wide as
     both logos when there are two.
+
+    On the dark designs (Navy and gold, flat, folded and its back, and the Event poster) a light
+    rounded **tile** goes behind any logo but the SDD logo (UX review 8, M3: a navy crest
+    vanished on navy). It is the design part `role: "logotile"` (`backlogotile` behind the back's
+    small logo), sized round the logos with a margin; with no logo or only the SDD logo it is
+    hidden and marked `autoHidden`, as the roundel is, and Save does not count it as a hidden
+    item. An older navy draft gets the tile when a crest is first chosen for it.
 
     The logo is the item with `role: "logo"`. Changing the design keeps it (placed and sized by
     the new design), a removed logo stays removed, and a second logo (`role: "logo2"`) stays
@@ -245,8 +264,9 @@ its npm package by hand; the libman entry records the version.
   the posters With a photo and Talk or seminar) shows a short **Photo** prompt in Card or Poster
   details while the frame is empty: **Add a photo…** or **No photo**. It never blocks anything.
   With No photo the frame goes and the design closes the gap: Ceremonial gets a maroon band in
-  the photo's place (a band down the left in landscape) with the logo's box on its edge and the
-  words moved up or across and a little larger; With a photo sets the heading larger between
+  the photo's place (a band down the left in landscape) with the logo's box on its edge, the
+  occasion under the box and the words moved up and a little larger, all on one left edge with
+  even gaps (UX review 8, M5: the occasion used to sit beside the box, off that edge); With a photo sets the heading larger between
   two gold rules; Talk or seminar sets the points across the page beside a navy line. **Add a
   photo…** afterwards brings the frame back and the parts back round it. Only the frame and the
   parts it moves change: the user's fonts, colours, places, deleted and locked parts stay. A

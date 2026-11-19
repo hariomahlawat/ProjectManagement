@@ -101,6 +101,12 @@
   // Colours the Regimental band sets: 'band1' to 'band3' in a look stand for the unit's colours.
   const NAVY = '#1d2c55';
   const GREY = '#55607a';
+  // A light tile behind the logo on a dark design (UX review 8, M3): a dark crest (a navy shield)
+  // vanished on the navy card and the Event poster. fitLogoTile() sizes it round the logo, and
+  // hides it with no logo or with the SDD logo, whose gold reads on navy as it is.
+  const NAVY_TILE = Object.freeze({ fill: '#fbf7ee', stroke: PALE_GOLD, strokeWidth: 1.2, radius: 10 });
+  const EVENT_TILE = Object.freeze({ fill: '#ffffff', stroke: '', radius: 10 });
+  const logoTile = (x, y, w, look, role = 'logotile') => ({ ...block(role, x, y, w, 0.08, look), tile: true });
 
   // The designs set in engraved capitals and formal script (Cinzel and Pinyon Script, #3447).
   const FORMAL_DESIGNS = Object.freeze(['classic', 'navy', 'regimental']);
@@ -154,6 +160,7 @@
       portrait: [
         border('border', 0.04, PALE_GOLD, 1.5),
         border('border2', 0.055, PALE_GOLD, 0.8),
+        logoTile(0.5, 0.14, 0.115, NAVY_TILE),
         logo(0.5, 0.14, 0.115),
         words('host', 0.5, 0.3, 0.76, 26, { font: 'engraved', color: PALE_GOLD, bold: false, spacing: 10 }, { lines: 3 }),
         words('invite', 0.5, 0.395, 0.8, 39, { font: 'formal', color: IVORY, bold: false }),
@@ -171,6 +178,7 @@
       landscape: [
         border('border', 0.04, PALE_GOLD, 1.5),
         border('border2', 0.055, PALE_GOLD, 0.8),
+        logoTile(0.16, 0.5, 0.14, NAVY_TILE),
         logo(0.16, 0.5, 0.14),
         words('host', 0.6, 0.17, 0.58, 24, { font: 'engraved', color: PALE_GOLD, bold: false, spacing: 10 }, { lines: 2 }),
         words('invite', 0.6, 0.29, 0.6, 37, { font: 'formal', color: IVORY, bold: false }),
@@ -240,17 +248,17 @@
       portrait: [
         photo(0.5, 0.2, 1, 0.4),
         { ...block('photoband', 0.5, 0.07, 1, 0.14, { fill: MAROON, stroke: '' }), onlyNoPhoto: true },
-        { ...block('logobox', 0.15, 0.4, 0.17, 0.135, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }), noPhoto: { y: 0.14 } },
-        { ...logo(0.15, 0.4, 0.1), noPhoto: { y: 0.14 } },
-        words('occasion', 0.27, 0.465, 0.66, 46, { font: 'elegant', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { y: 0.225, size: 54 } }),
-        words('host', 0.08, 0.565, 0.84, 22, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { y: 0.355, size: 25 } }),
-        words('invite', 0.08, 0.63, 0.84, 22, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left', noPhoto: { y: 0.435, size: 25 } }),
-        { ...rule('guestline', 0.4, 0.695, 0.64, INK, 1.5), noPhoto: { y: 0.53 } },
-        words('guest', 0.08, 0.68, 0.64, 30, { font: 'script', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { y: 0.512, size: 34 } }),
-        { ...vline('accent', 0.075, 0.8, 0.11, MAROON, 3), noPhoto: { y: 0.695, len: 0.14 } },
-        words('when', 0.1, 0.76, 0.8, 23, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { y: 0.645, size: 26 } }),
-        words('venue', 0.1, 0.8, 0.8, 22, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { y: 0.695, size: 25 } }),
-        words('dress', 0.1, 0.84, 0.8, 21, { font: 'clean', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { y: 0.745, size: 24 } }),
+        { ...block('logobox', 0.15, 0.4, 0.17, 0.135, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }), noPhoto: { x: 0.165, y: 0.14 } },
+        { ...logo(0.15, 0.4, 0.1), noPhoto: { x: 0.165, y: 0.14 } },
+        words('occasion', 0.27, 0.465, 0.66, 46, { font: 'elegant', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { x: 0.08, y: 0.3, w: 0.84, size: 54 } }),
+        words('host', 0.08, 0.565, 0.84, 22, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { y: 0.4, size: 25 } }),
+        words('invite', 0.08, 0.63, 0.84, 22, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left', noPhoto: { y: 0.485, size: 25 } }),
+        { ...rule('guestline', 0.4, 0.695, 0.64, INK, 1.5), noPhoto: { y: 0.585 } },
+        words('guest', 0.08, 0.68, 0.64, 30, { font: 'script', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { y: 0.567, size: 34 } }),
+        { ...vline('accent', 0.075, 0.8, 0.11, MAROON, 3), noPhoto: { x: 0.08, y: 0.725, len: 0.14 } },
+        words('when', 0.1, 0.76, 0.8, 23, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.105, y: 0.675, size: 26 } }),
+        words('venue', 0.1, 0.8, 0.8, 22, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.105, y: 0.725, size: 25 } }),
+        words('dress', 0.1, 0.84, 0.8, 21, { font: 'clean', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.105, y: 0.775, size: 24 } }),
         { ...rule('photofoot', 0.5, 0.875, 0.84, '#d9d4c7', 1.2), onlyNoPhoto: true },
         words('rsvp', 0.08, 0.92, 0.44, 18, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 2 }),
         words('note', 0.92, 0.92, 0.38, 18, { font: 'elegant', color: INK, bold: false, italic: true, align: 'right' }, { anchor: 'right', lines: 2 })
@@ -258,17 +266,17 @@
       landscape: [
         photo(0.25, 0.5, 0.5, 1),
         { ...block('photoband', 0.035, 0.5, 0.07, 1, { fill: MAROON, stroke: '' }), onlyNoPhoto: true },
-        { ...block('logobox', 0.58, 0.16, 0.12, 0.2, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }), noPhoto: { x: 0.19, y: 0.19 } },
-        { ...logo(0.58, 0.16, 0.1), noPhoto: { x: 0.19, y: 0.19 } },
-        words('occasion', 0.66, 0.16, 0.3, 36, { font: 'elegant', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { x: 0.28, w: 0.64, size: 44 } }),
-        words('host', 0.54, 0.36, 0.42, 20, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { x: 0.13, y: 0.4, w: 0.79, size: 21 } }),
-        words('invite', 0.54, 0.46, 0.42, 20, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left', noPhoto: { x: 0.13, y: 0.495, w: 0.79, size: 21 } }),
-        { ...rule('guestline', 0.75, 0.55, 0.42, INK, 1.5), noPhoto: { x: 0.405, y: 0.595, w: 0.55 } },
-        words('guest', 0.54, 0.53, 0.42, 26, { font: 'script', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.13, y: 0.575, w: 0.55, size: 28 } }),
-        { ...vline('accent', 0.535, 0.7, 0.18, MAROON, 3), noPhoto: { x: 0.125, y: 0.745, len: 0.17 } },
-        words('when', 0.555, 0.64, 0.4, 20, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.145, y: 0.69, w: 0.77 } }),
-        words('venue', 0.555, 0.7, 0.4, 19, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.145, y: 0.745, w: 0.77 } }),
-        words('dress', 0.555, 0.76, 0.4, 18, { font: 'clean', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.145, y: 0.8, w: 0.77 } }),
+        { ...block('logobox', 0.58, 0.16, 0.12, 0.2, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }), noPhoto: { x: 0.19, y: 0.17 } },
+        { ...logo(0.58, 0.16, 0.1), noPhoto: { x: 0.19, y: 0.17 } },
+        words('occasion', 0.66, 0.16, 0.3, 36, { font: 'elegant', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { x: 0.13, y: 0.355, w: 0.79, size: 40 } }),
+        words('host', 0.54, 0.36, 0.42, 20, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2, noPhoto: { x: 0.13, y: 0.465, w: 0.79, size: 21 } }),
+        words('invite', 0.54, 0.46, 0.42, 20, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left', noPhoto: { x: 0.13, y: 0.545, w: 0.79, size: 21 } }),
+        { ...rule('guestline', 0.75, 0.55, 0.42, INK, 1.5), noPhoto: { x: 0.405, y: 0.635, w: 0.55 } },
+        words('guest', 0.54, 0.53, 0.42, 26, { font: 'script', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.13, y: 0.617, w: 0.55, size: 28 } }),
+        { ...vline('accent', 0.535, 0.7, 0.18, MAROON, 3), noPhoto: { x: 0.13, y: 0.77, len: 0.15 } },
+        words('when', 0.555, 0.64, 0.4, 20, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.15, y: 0.72, w: 0.77 } }),
+        words('venue', 0.555, 0.7, 0.4, 19, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.15, y: 0.77, w: 0.77 } }),
+        words('dress', 0.555, 0.76, 0.4, 18, { font: 'clean', color: MAROON, bold: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.15, y: 0.82, w: 0.77 } }),
         words('rsvp', 0.54, 0.9, 0.42, 16, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.13, y: 0.915, w: 0.44 } }),
         words('note', 0.54, 0.945, 0.42, 16, { font: 'elegant', color: INK, bold: false, italic: true, align: 'left' }, { anchor: 'left', lines: 1, noPhoto: { x: 0.62, y: 0.915, w: 0.3 } })
       ]
@@ -328,6 +336,7 @@
       poster: true,
       background: { type: 'color', value: '#0f2c5c' },
       portrait: [
+        logoTile(0.88, 0.09, 0.13, EVENT_TILE),
         logoPlace(0.88, 0.09, 0.13, 0.6),
         words('subtitle', 0.08, 0.07, 0.7, 26, { font: 'clean', color: '#e8b020', bold: true, spacing: 14, align: 'left' }, { anchor: 'left', lines: 1, yNoLogo: 0.06 }),
         words('title', 0.08, 0.34, 0.86, 140, { font: 'poster', color: '#ffffff', bold: false, align: 'left' }, { anchor: 'left', lines: 3, yNoLogo: 0.29 }),
@@ -762,6 +771,9 @@
     const lockedByRole = new Map((items || []).filter((item) => item.role && item.locked).map((item) => [item.role, item]));
     const placedLocked = new Set();
     const hiddenRoles = new Set((items || []).filter((item) => item.role && item.hidden).map((item) => item.role));
+    // Hidden by the design for want of a logo (the roundel, the tile behind a crest), not by the
+    // user: it stays marked so, to come back with a logo.
+    const autoHiddenRoles = new Set((items || []).filter((item) => item.role && item.hidden && item.autoHidden).map((item) => item.role));
     const made = [];
     // A poster with "No logo" (or a logo place it has no logo for) moves parts up into the space.
     const chosenLogo = (items || []).find((item) => item.role === 'logo' && item.kind !== 'slot');
@@ -868,6 +880,7 @@
       if (made.length > before) {
         const item = made[made.length - 1];
         if (hiddenRoles.has(part.role)) item.hidden = true;
+        if (autoHiddenRoles.has(part.role)) item.autoHidden = true;
         if (part.angle) item.angle = part.angle;
         if (part.radius && (item.kind === 'slot' || item.kind === 'photo')) item.radius = Math.min(part.radius, core.LAYOUT_LIMITS.radiusMax);
       }
@@ -939,13 +952,89 @@
     const own = (items || []).filter((item) => !item.role || (item.locked && !placedLocked.has(item.id))).map((item) => seconds.find((second) => second.id === item.id) || item);
     // The second logo, placed beside the design's logo, with the user's own items.
     for (const second of seconds) if (!own.some((item) => item.id === second.id)) own.push(second);
-    return [...made, ...own, ...leftOver];
+    return fitLogoTile([...made, ...own, ...leftOver], { width, height });
+  }
+
+  // The logos each tile goes behind.
+  const TILE_LOGOS = Object.freeze({ logotile: Object.freeze(['logo', 'logo2']), backlogotile: Object.freeze(['backlogo']) });
+  const isSddLogo = (item) => item.kind === 'sticker' && item.sticker === 'logo:sdd';
+
+  /**
+   * The light tile behind the logo on a dark design (M3), fitted round the logos it goes behind
+   * with a margin of 14% of their height. Where the page's edge is too near for that margin (a
+   * poster's logo sits close to its corner), the logos are made smaller about their middle so the
+   * tile keeps clear of the edge. Hidden (marked autoHidden, as the roundel is) when there is no
+   * logo or only the SDD logo; one the user hid or locked stays as it is. Returns the items with
+   * the tile (and any logo made smaller) replaced, never changing the items given.
+   */
+  function fitLogoTile(items, { width, height }) {
+    let out = items;
+    for (const [role, logoRoles] of Object.entries(TILE_LOGOS)) {
+      const tile = out.find((item) => item.role === role);
+      if (!tile || tile.locked || tile.kind !== 'shape') continue;
+      const logos = out.filter((item) => logoRoles.includes(item.role) && item.kind !== 'slot' && !item.hidden);
+      const wanted = logos.some((item) => !isSddLogo(item));
+      const next = { ...tile };
+      let resized = new Map();
+      if (logos.length) {
+        let boxes = logos.map(itemBox);
+        const bounds = () => ({ left: Math.min(...boxes.map((b) => b.left)), right: Math.max(...boxes.map((b) => b.right)), top: Math.min(...boxes.map((b) => b.top)), bottom: Math.max(...boxes.map((b) => b.bottom)) });
+        let b = bounds();
+        const margin = Math.min(width, height) * 0.04;
+        if (wanted && !logos.some((item) => item.locked)) {
+          // How much smaller the logos must be for the tile's margin to clear the page's edges.
+          const cx = (b.left + b.right) / 2;
+          const cy = (b.top + b.bottom) / 2;
+          const halfW = (b.right - b.left) / 2;
+          const halfH = (b.bottom - b.top) / 2;
+          const pad = halfH * 2 * 0.14;
+          const roomX = Math.min(cx, width - cx) - margin;
+          const roomY = Math.min(cy, height - cy) - margin;
+          const scale = Math.max(0.5, Math.min(1, roomX / (halfW + pad), roomY / (halfH + pad)));
+          if (scale < 0.999) {
+            resized = new Map(logos.map((item) => [item.id, { ...item, x: cx + (item.x - cx) * scale, y: cy + (item.y - cy) * scale, width: item.width * scale }]));
+            boxes = [...resized.values()].map(itemBox);
+            b = bounds();
+          }
+        }
+        const room = Math.min(b.left, width - b.right, b.top, height - b.bottom) - 2;
+        const pad = Math.max(0, Math.min((b.bottom - b.top) * 0.14, room));
+        const w = b.right - b.left + pad * 2;
+        const h = b.bottom - b.top + pad * 2;
+        Object.assign(next, { x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2, width: w, aspect: w / h, radius: Math.min(pad * 0.9, w / 2, h / 2) });
+      }
+      if (!wanted) {
+        if (!next.hidden) { next.hidden = true; next.autoHidden = true; }
+      } else if (next.autoHidden) {
+        delete next.hidden;
+        delete next.autoHidden;
+      }
+      out = out.map((item) => (item === tile ? next : resized.get(item.id) || item));
+    }
+    return out;
+  }
+
+  /**
+   * The front's items with the logo tile fitted after a logo change (Card details). A card made
+   * before the tile (an older draft of a dark design) gets one behind its logo when a logo that
+   * needs it is chosen; nothing else changes.
+   */
+  function logoTileItems(collage, opts) {
+    let items = collage.items || [];
+    const logoAt = items.findIndex((item) => item.role === 'logo' && item.kind !== 'slot');
+    const needs = items.some((item) => /^logo2?$/.test(item.role) && item.kind !== 'slot' && !isSddLogo(item));
+    const hasTile = (partsFor(collage.card?.design, collage.size).front || []).some((part) => part.role === 'logotile');
+    if (needs && hasTile && logoAt >= 0 && !items.some((item) => item.role === 'logotile')) {
+      const base = roleItem(collage, 'logotile', opts);
+      if (base) items = [...items.slice(0, logoAt), { ...base, id: opts.newId() }, ...items.slice(logoAt)];
+    }
+    return fitLogoTile(items, { width: core.PAGE_WIDTH, height: core.pageHeight(collage.size) });
   }
 
   /** The look of a design's back: its background and the colours of the title, rule and words. */
   const BACK_LOOKS = lookupTable({
     classic: { background: { type: 'color', value: '#fbf7ee' }, title: MAROON, accent: GOLD, ink: INK },
-    navy: { background: { type: 'gradient', key: 'navy' }, title: PALE_GOLD, accent: PALE_GOLD, ink: IVORY },
+    navy: { background: { type: 'gradient', key: 'navy' }, title: PALE_GOLD, accent: PALE_GOLD, ink: IVORY, tile: NAVY_TILE },
     regimental: { background: { type: 'color', value: '#ffffff' }, title: 'band1', accent: 'band2', ink: INK },
     ceremonial: { background: { type: 'color', value: '#ffffff' }, title: MAROON, accent: MAROON, ink: INK },
     bilingual: { background: { type: 'color', value: '#fffdf7' }, title: MAROON, accent: GOLD, ink: INK },
@@ -965,6 +1054,7 @@
         rule('backrule', 0.5, 0.19, 0.2, look.accent, 2),
         words('programme', 0.5, 0.46, 0.8, 32, { font: 'clean', color: look.ink, bold: false, align: 'left' }, { lines: 12 }),
         words('backNote', 0.5, 0.82, 0.8, 20, { font: 'clean', color: look.ink, bold: false, italic: true }, { lines: 2 }),
+        ...(look.tile ? [logoTile(0.5, 0.91, 0.045, look.tile, 'backlogotile')] : []),
         { ...logo(0.5, 0.91, 0.045), role: 'backlogo' }
       ]
       : [
@@ -1016,6 +1106,13 @@
     ])
   ];
 
+  // What each panel carries (UX review 8, M2). The front cover: the logo and the occasion, the
+  // card's title. The inside left: the host, the invitation line and the guest's line, so the
+  // opened card reads "The Commandant and Officers request the pleasure of the company of ____".
+  // The inside right: the date, venue, dress and R.S.V.P. Each field is on one side only, and
+  // "at the" is left out: with the occasion on the cover it would end the left page dangling.
+  // Both inside pages are centred at about the same height, so neither is left half empty.
+
   /** Classic ivory and Navy and gold: a double border on every panel, engraved host, formal script. */
   function formalFold(c) {
     const frames = (panel, role) => [panelFrame(panel, role, 0.05, c.line, c.outer), panelFrame(panel, `${role}b`, 0.075, c.line, c.inner)];
@@ -1024,27 +1121,28 @@
         ...backCover(frames('back', 'backcover'), { font: 'elegant', color: c.ink, bold: false, italic: true }, c.accent),
         ...frames('cover', 'coverborder'),
         ...onAll('cover', [
+          // A light tile behind a dark crest on a dark design (M3); hidden for the SDD logo.
+          ...(c.tile ? [logoTile(0.5, 0.29, 0.12, c.tile)] : []),
           logo(0.5, 0.29, 0.12),
-          words('host', 0.5, 0.55, 0.76, 24, c.host, { lines: 3 }),
-          rule('coverrule', 0.5, 0.67, 0.2, c.accent, 2)
+          words('occasion', 0.5, 0.54, 0.76, 40, { font: 'elegant', color: c.title, bold: true }, { lines: 3 }),
+          rule('coverrule', 0.5, 0.68, 0.2, c.accent, 2)
         ])
       ],
       inside: [
         ...frames('left', 'innerborder'),
         ...frames('right', 'innerborder2'),
         ...onAll('left', [
-          words('invite', 0.5, 0.33, 0.76, 30, { font: 'formal', color: c.invite, bold: false }, { lines: 2 }),
-          rule('guestline', 0.5, 0.51, 0.66, c.ink, 1.5),
-          words('guest', 0.5, 0.49, 0.66, 28, { font: 'script', color: c.ink, bold: false }, { lines: 1 }),
-          words('at', 0.5, 0.62, 0.5, 19, { font: 'elegant', color: c.ink, bold: false, italic: true }, { lines: 1 })
+          words('host', 0.5, 0.32, 0.76, 22, c.host, { lines: 3 }),
+          words('invite', 0.5, 0.48, 0.76, 30, { font: 'formal', color: c.invite, bold: false }, { lines: 2 }),
+          rule('guestline', 0.5, 0.665, 0.66, c.ink, 1.5),
+          words('guest', 0.5, 0.645, 0.66, 28, { font: 'script', color: c.ink, bold: false }, { lines: 1 })
         ]),
         ...onAll('right', [
-          words('occasion', 0.5, 0.25, 0.78, 34, { font: 'elegant', color: c.title, bold: true }, { lines: 2 }),
-          rule('innerrule', 0.5, 0.36, 0.2, c.accent, 2),
-          words('when', 0.5, 0.45, 0.78, 21, { font: 'clean', color: c.ink, bold: true }, { lines: 2 }),
-          words('venue', 0.5, 0.54, 0.78, 20, { font: 'clean', color: c.ink, bold: false }, { lines: 2 }),
-          words('dress', 0.5, 0.625, 0.78, 19, { font: 'clean', color: c.accent, bold: true }, { lines: 1 }),
-          words('rsvp', 0.5, 0.8, 0.78, 17, { font: 'clean', color: c.ink, bold: false }, { lines: 2 })
+          words('when', 0.5, 0.34, 0.78, 22, { font: 'clean', color: c.ink, bold: true }, { lines: 2 }),
+          words('venue', 0.5, 0.43, 0.78, 21, { font: 'clean', color: c.ink, bold: false }, { lines: 2 }),
+          words('dress', 0.5, 0.515, 0.78, 20, { font: 'clean', color: c.accent, bold: true }, { lines: 1 }),
+          rule('innerrule', 0.5, 0.6, 0.2, c.accent, 2),
+          words('rsvp', 0.5, 0.69, 0.78, 17, { font: 'clean', color: c.ink, bold: false }, { lines: 2 })
         ])
       ]
     };
@@ -1065,26 +1163,25 @@
         ...onAll('cover', [
           roundel('roundel', 'ellipse', 0.5, 0.35, 0.19, 0.72, { fill: '#ffffff', stroke: 'band2', strokeWidth: 3 }),
           logo(0.5, 0.35, 0.11),
-          words('host', 0.5, 0.61, 0.78, 24, { font: 'engraved', color: 'band1', bold: true, spacing: 8 }, { lines: 3 }),
-          rule('coverrule', 0.5, 0.73, 0.5, 'band2', 3)
+          words('occasion', 0.5, 0.6, 0.78, 38, { font: 'elegant', color: 'band3', bold: true }, { lines: 3 }),
+          rule('coverrule', 0.5, 0.74, 0.5, 'band2', 3)
         ])
       ],
       inside: [
         frame('left', 'innerborder'),
         frame('right', 'innerborder2'),
         ...onAll('left', [
-          words('invite', 0.5, 0.33, 0.76, 30, { font: 'formal', color: INK, bold: false }, { lines: 2 }),
-          rule('guestline', 0.5, 0.51, 0.66, INK, 1.5),
-          words('guest', 0.5, 0.49, 0.66, 28, { font: 'script', color: INK, bold: false }, { lines: 1 }),
-          words('at', 0.5, 0.62, 0.5, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 })
+          words('host', 0.5, 0.32, 0.78, 22, { font: 'engraved', color: 'band1', bold: true, spacing: 8 }, { lines: 3 }),
+          words('invite', 0.5, 0.48, 0.76, 30, { font: 'formal', color: INK, bold: false }, { lines: 2 }),
+          rule('guestline', 0.5, 0.665, 0.66, INK, 1.5),
+          words('guest', 0.5, 0.645, 0.66, 28, { font: 'script', color: INK, bold: false }, { lines: 1 })
         ]),
         ...onAll('right', [
-          words('occasion', 0.5, 0.25, 0.8, 34, { font: 'elegant', color: 'band3', bold: true }, { lines: 2 }),
-          words('when', 0.5, 0.42, 0.78, 21, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
-          words('venue', 0.5, 0.51, 0.78, 20, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
-          words('dress', 0.5, 0.595, 0.78, 19, { font: 'clean', color: 'band1', bold: true }, { lines: 1 }),
-          rule('innerrule', 0.5, 0.7, 0.7, 'band2', 3),
-          words('rsvp', 0.5, 0.8, 0.78, 17, { font: 'clean', color: INK, bold: false }, { lines: 2 })
+          words('when', 0.5, 0.34, 0.78, 22, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
+          words('venue', 0.5, 0.43, 0.78, 21, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
+          words('dress', 0.5, 0.515, 0.78, 20, { font: 'clean', color: 'band1', bold: true }, { lines: 1 }),
+          rule('innerrule', 0.5, 0.6, 0.7, 'band2', 3),
+          words('rsvp', 0.5, 0.69, 0.78, 17, { font: 'clean', color: INK, bold: false }, { lines: 2 })
         ])
       ]
     };
@@ -1093,7 +1190,9 @@
   /** Ceremonial photo: the user's photo at the top of the cover, the logo in its white box, set on the left. */
   function ceremonialFold() {
     const frame = (panel, role) => panelFrame(panel, role, 0.05, MAROON, 1);
-    const left = (field, x, y, w, size, look, lines) => words(field, x, y, w, size, { ...look, align: 'left' }, { anchor: 'left', lines });
+    const left = (field, x, y, w, size, look, lines, extra = {}) => words(field, x, y, w, size, { ...look, align: 'left' }, { anchor: 'left', lines, ...extra });
+    // Every left-set line starts at 0.14 of the panel, the logo's box and the accent's line too
+    // (M5): one left edge.
     return {
       outside: [
         ...backCover([frame('back', 'backcover')], { font: 'elegant', color: INK, bold: false, italic: true }, MAROON),
@@ -1101,36 +1200,35 @@
         ...onAll('cover', [
           photo(0.5, 0.285, 0.84, 0.44),
           // With "No photo" (UX review 8) a maroon band takes the photo's place and the logo's
-          // box sits on its edge, as it sat on the photo's; the host moves up under it.
+          // box sits on its edge, as it sat on the photo's; the occasion moves up under it.
           { ...block('photoband', 0.5, 0.225, 0.84, 0.32, { fill: MAROON, stroke: '' }), onlyNoPhoto: true },
-          { ...block('logobox', 0.22, 0.505, 0.22, 0.155, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }), noPhoto: { y: 0.385 } },
-          { ...logo(0.22, 0.505, 0.1), noPhoto: { y: 0.385 } },
-          { ...vline('coveraccent', 0.11, 0.72, 0.13, MAROON, 3), noPhoto: { y: 0.64 } },
-          { ...left('host', 0.15, 0.72, 0.76, 22, { font: 'clean', color: INK, bold: true }, 3), noPhoto: { y: 0.64 } }
+          { ...block('logobox', 0.25, 0.505, 0.22, 0.155, { fill: '#ffffff', stroke: '#d9d4c7', strokeWidth: 1.5, radius: 10 }), noPhoto: { y: 0.385 } },
+          { ...logo(0.25, 0.505, 0.1), noPhoto: { y: 0.385 } },
+          { ...vline('coveraccent', 0.14, 0.715, 0.12, MAROON, 3), noPhoto: { y: 0.6 } },
+          left('occasion', 0.18, 0.715, 0.72, 34, { font: 'elegant', color: MAROON, bold: true }, 3, { noPhoto: { y: 0.6 } })
         ])
       ],
       inside: [
         frame('left', 'innerborder'),
         frame('right', 'innerborder2'),
         ...onAll('left', [
-          left('invite', 0.14, 0.33, 0.76, 22, { font: 'elegant', color: INK, bold: false, italic: true }, 2),
-          rule('guestline', 0.52, 0.51, 0.76, INK, 1.5),
-          left('guest', 0.14, 0.49, 0.76, 28, { font: 'script', color: INK, bold: false }, 1),
-          left('at', 0.14, 0.62, 0.5, 19, { font: 'elegant', color: INK, bold: false, italic: true }, 1)
+          left('host', 0.14, 0.32, 0.76, 22, { font: 'clean', color: INK, bold: true }, 3),
+          left('invite', 0.14, 0.47, 0.76, 22, { font: 'elegant', color: INK, bold: false, italic: true }, 2),
+          rule('guestline', 0.52, 0.645, 0.76, INK, 1.5),
+          left('guest', 0.14, 0.625, 0.76, 28, { font: 'script', color: INK, bold: false }, 1)
         ]),
         ...onAll('right', [
-          left('occasion', 0.14, 0.25, 0.78, 34, { font: 'elegant', color: MAROON, bold: true }, 2),
-          vline('accent', 0.11, 0.5, 0.17, MAROON, 3),
-          left('when', 0.15, 0.44, 0.76, 21, { font: 'clean', color: INK, bold: true }, 2),
-          left('venue', 0.15, 0.515, 0.76, 20, { font: 'clean', color: INK, bold: false }, 2),
-          left('dress', 0.15, 0.585, 0.76, 19, { font: 'clean', color: MAROON, bold: true }, 1),
-          left('rsvp', 0.14, 0.8, 0.78, 17, { font: 'clean', color: INK, bold: false }, 2)
+          vline('accent', 0.14, 0.43, 0.2, MAROON, 3),
+          left('when', 0.18, 0.355, 0.72, 22, { font: 'clean', color: INK, bold: true }, 2),
+          left('venue', 0.18, 0.43, 0.72, 21, { font: 'clean', color: INK, bold: false }, 2),
+          left('dress', 0.18, 0.505, 0.72, 20, { font: 'clean', color: MAROON, bold: true }, 1),
+          left('rsvp', 0.14, 0.69, 0.76, 17, { font: 'clean', color: INK, bold: false }, 2)
         ])
       ]
     };
   }
 
-  /** Bilingual: Hindi above English on every panel, the host in both on the cover. */
+  /** Bilingual: Hindi above English on every panel, the occasion in both on the cover. */
   function bilingualFold() {
     const frame = (panel, role) => panelFrame(panel, role, 0.05, GOLD, 1.5);
     return {
@@ -1138,29 +1236,30 @@
         ...backCover([frame('back', 'backcover')], { font: 'elegant', color: INK, bold: false, italic: true }, GOLD),
         frame('cover', 'coverborder'),
         ...onAll('cover', [
-          logo(0.5, 0.22, 0.1),
-          words('hostHi', 0.5, 0.45, 0.8, 24, { font: 'hindiFormal', color: INK, bold: true }, { lines: 3 }),
-          rule('coverrule', 0.5, 0.545, 0.14, GOLD, 1.2),
-          words('host', 0.5, 0.63, 0.8, 21, { font: 'elegant', color: INK, bold: true }, { lines: 3 })
+          logo(0.5, 0.24, 0.1),
+          words('occasionHi', 0.5, 0.46, 0.8, 32, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
+          rule('coverrule', 0.5, 0.555, 0.14, GOLD, 1.2),
+          words('occasion', 0.5, 0.64, 0.8, 30, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 })
         ])
       ],
       inside: [
         frame('left', 'innerborder'),
         frame('right', 'innerborder2'),
         ...onAll('left', [
-          words('inviteHi', 0.5, 0.27, 0.8, 23, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
-          words('invite', 0.5, 0.36, 0.8, 21, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
-          rule('guestline', 0.5, 0.51, 0.66, INK, 1.5),
-          words('guest', 0.5, 0.49, 0.66, 28, { font: 'script', color: INK, bold: false }, { lines: 1 })
+          words('hostHi', 0.5, 0.22, 0.8, 21, { font: 'hindiFormal', color: INK, bold: true }, { lines: 3 }),
+          words('host', 0.5, 0.33, 0.8, 19, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
+          rule('innerrule', 0.5, 0.41, 0.14, GOLD, 1.2),
+          words('inviteHi', 0.5, 0.47, 0.8, 21, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
+          words('invite', 0.5, 0.55, 0.8, 20, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
+          rule('guestline', 0.5, 0.695, 0.66, INK, 1.5),
+          words('guest', 0.5, 0.675, 0.66, 28, { font: 'script', color: INK, bold: false }, { lines: 1 })
         ]),
         ...onAll('right', [
-          words('occasionHi', 0.5, 0.21, 0.82, 28, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
-          words('occasion', 0.5, 0.315, 0.82, 28, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
-          rule('innerrule', 0.5, 0.405, 0.16, GOLD, 1.2),
-          words('when', 0.5, 0.48, 0.78, 21, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
-          words('venue', 0.5, 0.56, 0.78, 20, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
-          words('dress', 0.5, 0.64, 0.78, 19, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
-          words('rsvp', 0.5, 0.8, 0.78, 17, { font: 'clean', color: INK, bold: false }, { lines: 2 })
+          words('when', 0.5, 0.33, 0.78, 22, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
+          words('venue', 0.5, 0.42, 0.78, 21, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
+          words('dress', 0.5, 0.505, 0.78, 20, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
+          rule('innerrule2', 0.5, 0.59, 0.16, GOLD, 1.2),
+          words('rsvp', 0.5, 0.68, 0.78, 17, { font: 'clean', color: INK, bold: false }, { lines: 2 })
         ])
       ]
     };
@@ -1177,8 +1276,8 @@
         frame('cover', 'coverborder'),
         ...onAll('cover', [
           logo(0.8, 0.18, 0.08),
-          rule('coverrule', 0.25, 0.6, 0.22, NAVY, 4),
-          left('host', 0.14, 0.71, 0.74, 24, { font: 'clean', color: NAVY, bold: true, spacing: 4 }, 3)
+          rule('coverrule', 0.25, 0.58, 0.22, NAVY, 4),
+          left('occasion', 0.14, 0.7, 0.74, 40, { font: 'clean', color: NAVY, bold: true }, 3)
         ])
       ],
       inside: [
@@ -1186,18 +1285,17 @@
         frame('left', 'innerborder'),
         frame('right', 'innerborder2'),
         ...onAll('left', [
-          left('invite', 0.16, 0.33, 0.72, 21, { font: 'clean', color: GREY, bold: false }, 2),
-          rule('guestline', 0.52, 0.51, 0.72, INK, 1.5),
-          left('guest', 0.16, 0.49, 0.72, 26, { font: 'clean', color: INK, bold: true }, 1),
-          left('at', 0.16, 0.6, 0.5, 19, { font: 'clean', color: GREY, bold: false, italic: true }, 1)
+          left('host', 0.16, 0.32, 0.72, 20, { font: 'clean', color: GREY, bold: true, spacing: 4 }, 3),
+          left('invite', 0.16, 0.47, 0.72, 21, { font: 'clean', color: GREY, bold: false }, 2),
+          rule('guestline', 0.52, 0.645, 0.72, INK, 1.5),
+          left('guest', 0.16, 0.625, 0.72, 26, { font: 'clean', color: INK, bold: true }, 1)
         ]),
         ...onAll('right', [
-          left('occasion', 0.14, 0.25, 0.76, 40, { font: 'clean', color: NAVY, bold: true }, 2),
-          rule('innerrule', 0.25, 0.365, 0.22, NAVY, 4),
-          left('when', 0.14, 0.45, 0.76, 21, { font: 'clean', color: INK, bold: true }, 2),
-          left('venue', 0.14, 0.53, 0.76, 20, { font: 'clean', color: INK, bold: false }, 2),
-          left('dress', 0.14, 0.61, 0.76, 19, { font: 'clean', color: NAVY, bold: true }, 1),
-          left('rsvp', 0.14, 0.8, 0.76, 17, { font: 'clean', color: GREY, bold: false }, 2)
+          left('when', 0.14, 0.34, 0.76, 22, { font: 'clean', color: INK, bold: true }, 2),
+          left('venue', 0.14, 0.43, 0.76, 21, { font: 'clean', color: INK, bold: false }, 2),
+          left('dress', 0.14, 0.515, 0.76, 20, { font: 'clean', color: NAVY, bold: true }, 1),
+          rule('innerrule', 0.25, 0.6, 0.22, NAVY, 4),
+          left('rsvp', 0.14, 0.69, 0.76, 17, { font: 'clean', color: GREY, bold: false }, 2)
         ])
       ]
     };
@@ -1206,7 +1304,7 @@
   /** Each card design's folded sides, made once. A design with none of its own folds as Classic ivory. */
   const FOLDED = lookupTable({
     classic: formalFold({ line: GOLD, outer: 3, inner: 1.2, host: { font: 'engraved', color: INK, bold: true, spacing: 6 }, invite: GOLD, ink: INK, title: MAROON, accent: GOLD }),
-    navy: formalFold({ line: PALE_GOLD, outer: 1.5, inner: 0.8, host: { font: 'engraved', color: PALE_GOLD, bold: false, spacing: 10 }, invite: IVORY, ink: IVORY, title: PALE_GOLD, accent: PALE_GOLD }),
+    navy: formalFold({ line: PALE_GOLD, outer: 1.5, inner: 0.8, host: { font: 'engraved', color: PALE_GOLD, bold: false, spacing: 10 }, invite: IVORY, ink: IVORY, title: PALE_GOLD, accent: PALE_GOLD, tile: NAVY_TILE }),
     regimental: regimentalFold(),
     ceremonial: ceremonialFold(),
     bilingual: bilingualFold(),
@@ -1308,7 +1406,7 @@
       if (front) made.splice(at, 1, backLogoFrom(front, made[at]));
       else if (!made[at].locked) made.splice(at, 1);
     }
-    return { background: { ...look.background }, items: made };
+    return { background: { ...look.background }, items: fitLogoTile(made, { width: core.PAGE_WIDTH, height: core.pageHeight(collage.size) }) };
   }
 
   /**
@@ -1426,7 +1524,9 @@
       if (place) items = [...items, place];
     }
     const next = { ...collage, items, card: { ...collage.card, details: { ...collage.card.details, logoMode: mode } } };
-    return moveForLogo(collage, next, opts);
+    const moved = moveForLogo(collage, next, opts);
+    // The light tile behind a crest goes with the logo (M3).
+    return { ...moved, items: fitLogoTile(moved.items, { width: core.PAGE_WIDTH, height: core.pageHeight(collage.size) }) };
   }
 
   /** Whether the card's design has a photo frame on its front (Ceremonial photo, a photo poster). */
@@ -1535,7 +1635,7 @@
       const small = backLogoFrom(logo, old || { ...place, id: opts.newId(), hidden: false, locked: false });
       next = old ? items.map((item, i) => (i === at ? small : item)) : [...items, small];
     }
-    const out = { ...front, back: { ...front.back, items: next } };
+    const out = { ...front, back: { ...front.back, items: fitLogoTile(next, { width: core.PAGE_WIDTH, height: core.pageHeight(front.size) }) } };
     return asShown(collage, out);
   }
 
@@ -1595,5 +1695,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, followLogo, roleItemOn, designOnSize, hindiInStep });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, followLogo, roleItemOn, designOnSize, hindiInStep });
 });

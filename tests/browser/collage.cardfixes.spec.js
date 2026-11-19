@@ -8,6 +8,21 @@ const { openFresh, newestDraft } = require('./helpers');
 
 const roles = async (page) => ((await newestDraft(page))?.model?.items || []).filter((item) => item.role).map((item) => ({ id: item.id, role: item.role, hidden: Boolean(item.hidden), x: item.x, width: item.width, sticker: item.sticker }));
 
+/**
+ * Your own logo… with a picture the SDD logo's shape (UX review 8, M4: with the SDD logo first,
+ * Add a second logo opens the choice of second rather than copying the first).
+ */
+async function ownLogo(page, name = 'crest.png') {
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 173;
+    canvas.height = 294;
+    canvas.getContext('2d').fillRect(0, 0, 173, 294);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  await page.locator('[data-card-logo-file]').setInputFiles({ name, mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+}
+
 /** A word typed, so the draft is saved and the model can be read from it. */
 async function touch(page) {
   const venue = page.locator('[data-card-field="venue"]');
@@ -25,6 +40,10 @@ test('two logos: removing the first leaves the second as the logo; the roundel w
   const single = await roundelOf();
 
   await page.locator('[data-card-logo="second"]').click();
+  // The SDD logo is first: the choice of second opens, and no copy of the first is made.
+  await expect(page.locator('[data-card-logo-pick]')).toBeVisible();
+  expect((await roles(page)).some((item) => item.role === 'logo2')).toBe(false);
+  await ownLogo(page);
   await expect(page.locator('[data-card-logo2-name]')).toContainText('Second logo');
   await expect.poll(async () => (await roles(page)).some((item) => item.role === 'logo2')).toBe(true);
   // The roundel is as wide as both logos.
@@ -62,6 +81,7 @@ test('the second logo picked is the one Remove takes; the first goes back to the
   await expect.poll(async () => (await roles(page)).find((item) => item.role === 'logo')?.x).toBeGreaterThan(0);
   const middle = (await roles(page)).find((item) => item.role === 'logo').x;
   await page.locator('[data-card-logo="second"]').click();
+  await ownLogo(page);
   await expect.poll(async () => (await roles(page)).find((item) => item.role === 'logo').x).toBeLessThan(middle - 1);
   // Adding a second logo picks it: Remove takes the second.
   await expect(page.locator('[data-card-logo-target="logo2"]')).toHaveAttribute('aria-pressed', 'true');

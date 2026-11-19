@@ -276,8 +276,10 @@ test('a second logo can be changed: the choices change the logo picked above the
   const errors = await openFresh(page);
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-logo="second"]').click();
-  // Straight after adding it, the choices change the second logo.
-  await expect(page.locator('[data-card-logo-target="logo2"]')).toHaveAttribute('aria-pressed', 'true');
+  // With the SDD logo first, the choice of second opens (UX review 8, M4: it used to copy the
+  // first); the SDD logo cannot be picked again for it.
+  await expect(page.locator('[data-card-logo-pick]')).toBeVisible();
+  await expect(page.locator('[data-card-logo-use="logo:sdd"]')).toBeDisabled();
   const png = await page.evaluate(() => {
     const canvas = document.createElement('canvas');
     canvas.width = 120;
@@ -286,6 +288,8 @@ test('a second logo can be changed: the choices change the logo picked above the
     return canvas.toDataURL('image/png').split(',')[1];
   });
   await page.locator('[data-card-logo-file]').setInputFiles({ name: 'second.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  // Once it is on the card, the choices change the second logo.
+  await expect(page.locator('[data-card-logo-target="logo2"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('[data-card-logo-name]')).toHaveText('Your own logo (second.png)');
   await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'logo2')?.kind).toBe('photo');
   const items = (await newestDraft(page)).model.items;
@@ -556,9 +560,9 @@ test('a folded card shows Outside and Inside, a fold line on the page only, and 
   await expect(page.locator('[data-card-side="back"]')).toHaveText('Inside');
   await expect(page.locator('[data-card-side="delete"]')).toHaveCount(0);
   // Card details says which half of the sheet is which (cold review 7, M2).
-  await expect(page.locator('[data-card-halves]')).toHaveText(/right half is the front cover; the left half is the back cover/);
+  await expect(page.locator('[data-card-halves]')).toHaveText(/right half is the front cover, with the logo and the occasion; the left half is the back cover/);
   await page.locator('[data-card-side="back"]').click();
-  await expect(page.locator('[data-card-halves]')).toHaveText(/invitation is the left half; the occasion and details are the right half/);
+  await expect(page.locator('[data-card-halves]')).toHaveText(/invitation is the left half \(host, invitation line and guest\); the details are the right half/);
   await page.locator('[data-card-side="front"]').click();
   expect(await page.evaluate(() => window.Konva.stages[0].findOne('.fold').visible())).toBe(true);
   await page.getByRole('button', { name: 'Preview' }).click();

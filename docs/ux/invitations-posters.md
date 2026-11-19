@@ -142,6 +142,19 @@ Cards and posters are drafts like any collage. They're listed under Drafts with 
   blank). The frame goes and the design closes the gap; **Add a photo…** brings it back. Only
   the frame and the parts it moves change. Kept in the card's `photoMode` detail.
 
+#### UX review 8 fixes (19 Nov)
+
+- **M2, folded cards**: the cover carries the logo and the occasion; inside left the host, the
+  invitation line and the guest's line; inside right the date, venue, dress and R.S.V.P. No
+  "at the" on a folded card. Both inside pages are balanced, in every design's own look.
+- **M3, dark designs**: a light tile behind a crest or your own logo on Navy and gold and the
+  Event poster (`logotile`), hidden for the SDD logo.
+- **M4, second logo**: never a copy of the first. Beside a crest or your own, the SDD logo;
+  with the SDD logo first, the choice opens for a crest or your own.
+- **M5, Ceremonial with No photo**: the occasion under the logo's box, one left edge, even gaps.
+- **M6, pocket cards**: a **Pocket cards** row on the start screen opens each pocket design on
+  its own pocket size.
+
 ### Save
 
 - Save asks first what it's for, as now. For a card, **Printing** adds:

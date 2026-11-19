@@ -264,7 +264,7 @@
       const sides = [...getCollage().items, ...(getCollage().back?.items || [])];
       // A poster's empty logo place is not a photo frame: its own question says it is left out.
       const empty = sides.filter((item) => item.kind === 'slot' && item.role !== 'logo').length;
-      const hidden = sides.filter((item) => item.kind !== 'slot' && item.hidden && item.role !== 'roundel').length;
+      const hidden = sides.filter((item) => item.kind !== 'slot' && item.hidden && !['roundel', 'logotile', 'backlogotile'].includes(item.role)).length;
       // A design's own photo frame (Ceremonial photo, a photo poster) has No photo in the details.
       const designFrames = getCollage().card ? sides.filter((item) => item.kind === 'slot' && item.role === 'photo').length : 0;
       const word = designs?.DESIGNS?.[getCollage().card?.design]?.poster ? 'Poster' : 'Card';

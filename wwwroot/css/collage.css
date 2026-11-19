@@ -194,9 +194,73 @@
 }
 
 /* Notes on the start screen keep their distance from the design cards under them. */
-.clg-card-pocket-hint,
 .clg-card-small {
     margin: 0 0 0.7rem;
+}
+
+/* Pocket cards on the start screen (UX review 8, M6): one quiet row of small buttons above the
+   invitation designs, each opening its design on its own pocket size. */
+.clg-pocket-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin: 0 0 0.9rem;
+}
+
+.clg-pocket-row[hidden] {
+    display: none;
+}
+
+.clg-pocket-row__title {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.clg-pocket-row__title small {
+    color: var(--pdft-muted);
+    font-weight: 400;
+}
+
+.clg-pocket-row__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.clg-pocket-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.4rem 0.75rem 0.4rem 0.6rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 10px;
+    background: var(--pdft-surface);
+    color: var(--bs-body-color);
+    text-align: left;
+    line-height: 1.2;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.clg-pocket-card:hover,
+.clg-pocket-card:focus-visible {
+    border-color: var(--clg-accent);
+    box-shadow: var(--pdft-shadow);
+}
+
+.clg-pocket-card .bi {
+    color: var(--clg-accent);
+    font-size: 1.05rem;
+}
+
+.clg-pocket-card b {
+    display: block;
+    font-size: 0.82rem;
+}
+
+.clg-pocket-card small {
+    color: var(--pdft-muted);
+    font-size: 0.74rem;
 }
 
 /* The Card details intro keeps its distance from the designs under it. */

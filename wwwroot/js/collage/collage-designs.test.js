@@ -454,9 +454,10 @@ test('a folded card has an outside and an inside in every design, each panel wit
     for (const size of ['fold6', 'fold5']) {
       const card = designs.applyDesign(core.newCollage(size), key, {}, { measure, newId });
       assert.ok(card.back, `${key} ${size}: both sides`);
-      const host = card.items.find((item) => item.field === 'host');
-      assert.ok(host.x > core.PAGE_WIDTH / 2, `${key}: the host on the front cover, the right panel`);
-      assert.ok(card.back.items.some((item) => item.field === 'occasion'), `${key}: the occasion inside, after "at the"`);
+      // UX review 8, M2: the occasion is the cover's title; the host opens the inside.
+      const occasion = card.items.find((item) => item.field === 'occasion');
+      assert.ok(occasion.x > core.PAGE_WIDTH / 2, `${key}: the occasion on the front cover, the right panel`);
+      assert.ok(card.back.items.some((item) => item.field === 'host'), `${key}: the host inside`);
       assert.ok(card.back.items.some((item) => item.field === 'when'), `${key}: the details inside`);
       // No words cross the fold.
       for (const item of [...card.items, ...card.back.items].filter((i) => i.kind === 'text')) {
@@ -481,8 +482,8 @@ test('a field\'s side comes from the design: a programme card\'s programme is on
   assert.equal(designs.fieldItem(card, 'programme', { ...designs.detailsOf(card), programme: '1900 h · Arrival' }, { measure, newId }).text, '1900 h · Arrival');
   const folded = designs.applyDesign(core.newCollage('fold6'), 'classic', {}, { measure, newId });
   assert.equal(designs.sideOf(folded, 'guest'), 'back');
-  assert.equal(designs.sideOf(folded, 'occasion'), 'back');
-  assert.equal(designs.sideOf(folded, 'host'), 'front');
+  assert.equal(designs.sideOf(folded, 'occasion'), 'front');
+  assert.equal(designs.sideOf(folded, 'host'), 'back');
   assert.ok(designs.fieldsOnCard(folded).includes('when'));
   const flat = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
   assert.equal(designs.sideOf(flat, 'programme'), 'back');
@@ -595,9 +596,11 @@ test('folded cards: the cover is the outside sheet\'s right half, and inside rea
       const outside = card.items;
       const inside = card.back.items;
       for (const role of ['logo']) assert.ok(outside.find((item) => item.role === role).x > half, `${key} ${size}: the ${role} on the cover`);
-      assert.ok(outside.find((item) => item.field === 'host').x > half, `${key} ${size}: the host on the cover`);
-      assert.ok(inside.find((item) => item.field === 'invite').x < half, `${key} ${size}: the invitation on the left panel`);
-      for (const field of ['occasion', 'when', 'venue']) assert.ok(inside.find((item) => item.field === field).x > half, `${key} ${size}: ${field} on the right panel`);
+      assert.ok(outside.find((item) => item.field === 'occasion').x > half, `${key} ${size}: the occasion on the cover`);
+      for (const field of ['host', 'invite']) assert.ok(inside.find((item) => item.field === field).x < half, `${key} ${size}: ${field} on the left panel`);
+      assert.ok(inside.find((item) => item.role === 'guestline').x < half, `${key} ${size}: the guest's line on the left panel`);
+      assert.ok(!inside.some((item) => item.field === 'at') && !outside.some((item) => item.field === 'at'), `${key} ${size}: no dangling "at the"`);
+      for (const field of ['when', 'venue', 'dress', 'rsvp']) assert.ok(inside.find((item) => item.field === field).x > half, `${key} ${size}: ${field} on the right panel`);
       for (const item of [...outside, ...inside].filter((each) => each.kind === 'text')) {
         const b = box(item);
         assert.ok(b.right <= half + 0.5 || b.left >= half - 0.5, `${key} ${size}: ${item.field} crosses the fold`);
@@ -1015,39 +1018,40 @@ test('a folded card\'s front cover carries its design: bands, bar, photo frame, 
     const roundelAt = regimental.items.findIndex((item) => item.role === 'roundel');
     const logoAt = regimental.items.findIndex((item) => item.role === 'logo');
     assert.ok(roundelAt >= 0 && roundelAt < logoAt && onCover(regimental.items[roundelAt]), `${size}: the roundel behind the logo on the cover`);
-    assert.equal(regimental.items.find((item) => item.field === 'host').color, '#112233', 'the host in the first unit colour');
+    assert.equal(regimental.back.items.find((item) => item.field === 'host').color, '#112233', 'the host in the first unit colour');
     // Modern: the navy bar down the spine of the cover and the inside's outer edge, words set left.
     const modern = make('modern');
     const bar = modern.items.find((item) => item.role === 'bar');
     assert.ok(bar && box(bar).left >= half - 0.5 && box(bar).right <= half + 20, `${size}: Modern's bar along the cover's spine`);
-    assert.equal(modern.items.find((item) => item.field === 'host').align, 'left');
+    assert.equal(modern.items.find((item) => item.field === 'occasion').align, 'left');
     assert.ok(box(modern.back.items.find((item) => item.role === 'bar')).left <= 0.5, `${size}: Modern's bar on the inside's outer edge`);
-    for (const field of ['invite', 'occasion', 'when']) assert.equal(modern.back.items.find((item) => item.field === field).align, 'left', `${size}: Modern's ${field} set left`);
+    for (const field of ['host', 'invite', 'when']) assert.equal(modern.back.items.find((item) => item.field === field).align, 'left', `${size}: Modern's ${field} set left`);
     // Ceremonial: a frame for the user's photo on the cover, the logo in its white box.
     const ceremonial = make('ceremonial');
     const frame = ceremonial.items.find((item) => item.role === 'photo');
     assert.ok(frame && frame.kind === 'slot' && onCover(frame), `${size}: Ceremonial's photo frame on the cover`);
     assert.ok(ceremonial.items.some((item) => item.role === 'logobox' && onCover(item)));
-    // Bilingual: the host in Hindi with the host on the cover; the Hindi invitation and occasion inside.
+    // Bilingual: the occasion in Hindi with the occasion on the cover; the Hindi host and invitation inside on the left.
     const bilingual = make('bilingual');
-    const hostHi = bilingual.items.find((item) => item.field === 'hostHi');
-    assert.ok(hostHi && onCover(hostHi) && hostHi.font === 'hindiFormal', `${size}: Bilingual's Hindi host on the cover`);
-    assert.ok(box(bilingual.back.items.find((item) => item.field === 'inviteHi')).right <= half + 0.5, 'the Hindi invitation on the left');
-    assert.ok(box(bilingual.back.items.find((item) => item.field === 'occasionHi')).left >= half - 0.5, 'the Hindi occasion on the right');
-    assert.equal(designs.sideOf(bilingual, 'hostHi'), 'front');
+    const occasionHi = bilingual.items.find((item) => item.field === 'occasionHi');
+    assert.ok(occasionHi && onCover(occasionHi) && occasionHi.font === 'hindiFormal', `${size}: Bilingual's Hindi occasion on the cover`);
+    for (const field of ['hostHi', 'inviteHi']) assert.ok(box(bilingual.back.items.find((item) => item.field === field)).right <= half + 0.5, `the Hindi ${field} on the left`);
+    assert.equal(designs.sideOf(bilingual, 'occasionHi'), 'front');
+    assert.equal(designs.sideOf(bilingual, 'hostHi'), 'back');
     // Classic and Navy: a double border round the cover, the host engraved, the invitation in formal script.
     for (const key of ['classic', 'navy']) {
       const card = make(key);
       assert.ok(['coverborder', 'coverborderb'].every((role) => card.items.some((item) => item.role === role && onCover(item))), `${size}: ${key}'s double border`);
-      assert.equal(card.items.find((item) => item.field === 'host').font, 'engraved');
+      assert.equal(card.back.items.find((item) => item.field === 'host').font, 'engraved');
       assert.equal(card.back.items.find((item) => item.field === 'invite').font, 'formal');
     }
     // Regimental's invitation in formal script too.
     assert.equal(regimental.back.items.find((item) => item.field === 'invite').font, 'formal');
     // Each design's cover is its own: no two designs make the same set of parts.
     const looks = designs.designsFor(size).map((design) => make(design.key).items.map((item) => `${item.role}:${item.kind}`).sort().join());
-    // Only Classic ivory and Navy and gold share an arrangement (they differ in colours and lines).
-    assert.equal(new Set(looks).size, looks.length - 1, `${size}: each design's cover is its own`);
+    // Each its own: Navy and gold differs from Classic ivory in its colours and lines, and in the
+    // light tile it keeps for a dark crest (UX review 8, M3).
+    assert.equal(new Set(looks).size, looks.length, `${size}: each design's cover is its own`);
   }
 });
 
@@ -1220,4 +1224,134 @@ test('a field made for a page that still has its frame follows the photo arrange
   const occasion = designs.fieldItem(framedButNone, 'occasion', designs.detailsOf(framedButNone), opts);
   const frame = card.items.find((item) => item.role === 'photo');
   assert.ok(occasion.y - core.itemHeight(occasion) / 2 >= frame.y + core.itemHeight(frame) / 2 - 1, 'the occasion below the frame, not in it');
+});
+
+// UX review 8, M2: an opened folded card reads as an invitation. The cover carries the logo and
+// the occasion; the inside left the host, the invitation line and the guest's line; the inside
+// right the details. Each field is on one side only, and both inside pages are balanced.
+test('folded cards: the cover has the occasion, the inside reads host, invitation, guest, then the details, both pages balanced', () => {
+  const half = core.PAGE_WIDTH / 2;
+  for (const size of ['fold6', 'fold5']) {
+    const height = core.pageHeight(size);
+    for (const design of designs.designsFor(size)) {
+      const key = design.key;
+      const card = designs.applyDesign(core.newCollage(size), key, { ...designs.startDetails(key), guest: 'Brig P. Singh, SM and Mrs Singh' }, { measure, newId });
+      const parts = designs.partsFor(key, size);
+      const front = new Set(parts.front.filter((part) => part.kind === 'text').map((part) => part.field));
+      const back = parts.back.filter((part) => part.kind === 'text').map((part) => part.field);
+      assert.deepEqual(back.filter((field) => front.has(field)), [], `${key} ${size}: a field on both sides`);
+      const cover = card.items.filter((item) => item.kind === 'text' && box(item).left >= half - 0.5);
+      assert.ok(cover.some((item) => item.field === 'occasion'), `${key} ${size}: the occasion on the cover`);
+      assert.ok(!cover.some((item) => ['host', 'invite', 'guest', 'when'].includes(item.field)), `${key} ${size}: only the title on the cover`);
+      const texts = card.back.items.filter((item) => item.kind === 'text' && !item.hidden);
+      const leftPage = texts.filter((item) => box(item).right <= half + 0.5);
+      const rightPage = texts.filter((item) => box(item).left >= half - 0.5);
+      // The left page reads in order: host, invitation, guest; then the right page's details.
+      const y = (field) => texts.find((item) => item.field === field).y;
+      assert.ok(y('host') < y('invite') && y('invite') < y('guest'), `${key} ${size}: host, invitation, guest in order`);
+      assert.deepEqual(leftPage.map((item) => item.field).filter((field) => ['host', 'invite', 'guest'].includes(field)).sort(), ['guest', 'host', 'invite']);
+      for (const field of ['when', 'venue', 'dress', 'rsvp']) assert.ok(rightPage.some((item) => item.field === field), `${key} ${size}: ${field} on the right`);
+      // Balanced: each page's words fill at least a third of its height, and their middles are
+      // within 8% of the page's height of each other; no page is half empty at the bottom.
+      const span = (list) => {
+        const boxes = list.map(box);
+        return { top: Math.min(...boxes.map((b) => b.top)), bottom: Math.max(...boxes.map((b) => b.bottom)) };
+      };
+      const l = span(leftPage);
+      const r = span(rightPage);
+      for (const [name, s] of [['left', l], ['right', r]]) {
+        assert.ok(s.bottom - s.top >= height / 3, `${key} ${size}: the ${name} page's words fill a third of it`);
+        assert.ok(s.bottom >= height * 0.6, `${key} ${size}: the ${name} page is not empty below ${Math.round((s.bottom / height) * 100)}%`);
+      }
+      assert.ok(Math.abs((l.top + l.bottom) / 2 - (r.top + r.bottom) / 2) <= height * 0.08, `${key} ${size}: the two inside pages are balanced`);
+    }
+  }
+});
+
+// UX review 8, M3: a dark crest disappeared on the navy card and the Event poster. A light tile
+// goes behind any logo but the SDD logo on those designs.
+test('a light tile goes behind a crest on dark designs, and stays hidden for the SDD logo', () => {
+  const opts = { measure, newId };
+  const crest = (place) => core.stickerItem(newId(), 'unit:7', { ...place, aspect: 0.8 }, { role: 'logo' });
+  const cases = [['navy', 'a5p'], ['navy', 'a5l'], ['navy', 'fold6'], ['event', 'a3p'], ['event', 'a4p']];
+  for (const [key, size] of cases) {
+    const sdd = designs.applyDesign(core.newCollage(size), key, designs.startDetails(key), opts);
+    const tileOf = (card) => card.items.find((item) => item.role === 'logotile');
+    // With the SDD logo (or no logo yet on a poster) the tile is there but hidden.
+    assert.ok(tileOf(sdd) && tileOf(sdd).hidden === true && tileOf(sdd).autoHidden === true, `${key} ${size}: the tile hidden for the SDD logo`);
+    // A crest: the design applied again keeps it, with the tile shown behind it.
+    const place = sdd.items.find((item) => item.role === 'logo');
+    const withCrest = { ...sdd, items: sdd.items.map((item) => (item.role === 'logo' ? crest({ x: place.x, y: place.y, width: place.width }) : item)) };
+    const again = designs.applyDesign(withCrest, key, designs.detailsOf(withCrest), opts);
+    const tile = tileOf(again);
+    const logo = again.items.find((item) => item.role === 'logo');
+    assert.ok(tile && !tile.hidden, `${key} ${size}: the tile shows behind a crest`);
+    assert.ok(again.items.indexOf(tile) < again.items.indexOf(logo), `${key} ${size}: the tile is behind the logo`);
+    const t = box(tile);
+    const b = box(logo);
+    assert.ok(t.left < b.left && t.right > b.right && t.top < b.top && t.bottom > b.bottom, `${key} ${size}: the tile round the logo`);
+    assert.ok(t.top >= 0 && t.left >= 0 && t.right <= core.PAGE_WIDTH, `${key} ${size}: the tile on the page`);
+    assert.ok(/^#f|^#ffffff$/i.test(tile.fill), `${key} ${size}: a light tile`);
+    // Card details changing the logo: logoTileItems fits the tile; the SDD logo hides it again.
+    const backToSdd = { ...again, items: again.items.map((item) => (item.role === 'logo' ? { ...item, kind: 'sticker', sticker: 'logo:sdd' } : item)) };
+    assert.equal(designs.logoTileItems(backToSdd, opts).find((item) => item.role === 'logotile').hidden, true);
+    assert.equal(designs.logoTileItems(again, opts).find((item) => item.role === 'logotile').hidden, undefined);
+  }
+  // A light design has no tile.
+  const classic = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, opts);
+  assert.ok(!classic.items.some((item) => item.role === 'logotile'));
+  // A navy card made before the tile (an older draft) gets one when a crest is chosen, and keeps
+  // opening as it was until then.
+  const navy = designs.applyDesign(core.newCollage('a5p'), 'navy', {}, opts);
+  const older = { ...navy, items: navy.items.filter((item) => item.role !== 'logotile') };
+  assert.equal(designs.logoTileItems(older, opts).length, older.items.length, 'nothing added for the SDD logo');
+  const olderCrest = { ...older, items: older.items.map((item) => (item.role === 'logo' ? crest({ x: item.x, y: item.y, width: item.width }) : item)) };
+  const fitted = designs.logoTileItems(olderCrest, opts);
+  const added = fitted.find((item) => item.role === 'logotile');
+  assert.ok(added && !added.hidden && fitted.indexOf(added) === fitted.findIndex((item) => item.role === 'logo') - 1, 'a tile added just behind the crest');
+  // The navy back's small logo gets its own tile, following the front's logo.
+  const withBack = designs.addBack(olderCrest, opts);
+  const backTile = withBack.back.items.find((item) => item.role === 'backlogotile');
+  assert.ok(backTile && !backTile.hidden, 'the back\'s small crest has its tile');
+  // A poster's No logo hides the tile with the logo.
+  const poster = designs.applyDesign(core.newCollage('a3p'), 'event', designs.startDetails('event'), opts);
+  const posterCrest = { ...poster, items: designs.logoTileItems({ ...poster, items: poster.items.map((item) => (item.role === 'logo' ? crest({ x: item.x, y: item.y, width: item.width }) : item)) }, opts) };
+  assert.equal(posterCrest.items.find((item) => item.role === 'logotile').hidden, undefined);
+  assert.equal(designs.setLogoMode(posterCrest, 'none', opts).items.find((item) => item.role === 'logotile').hidden, true);
+});
+
+// UX review 8, M5: Ceremonial photo with No photo: the logo's box, the occasion and the words
+// share one left edge, and the gaps between the occasion, host, invitation and guest's line are even.
+test('No photo on Ceremonial: one left edge and an even rhythm, portrait, landscape and folded', () => {
+  const opts = { measure, newId };
+  for (const size of ['a5p', 'a6p', 'a5l', 'a6l', 'in57p', 'fold6', 'fold5']) {
+    const card = designs.applyDesign(core.newCollage(size), 'ceremonial', { ...designs.startDetails('ceremonial'), guest: 'Brig P. Singh, SM and Mrs Singh', photoMode: 'none' }, opts);
+    const find = (items, test) => items.find(test);
+    if (designs.isFolded(size)) {
+      // The cover: the logo's box and the accent beside the occasion share the panel's left edge.
+      const logoBox = box(find(card.items, (item) => item.role === 'logobox'));
+      const accent = find(card.items, (item) => item.role === 'coveraccent');
+      assert.ok(Math.abs(logoBox.left - accent.x) < 1.5, `${size}: the logo's box and the accent line up`);
+      assert.ok(box(find(card.items, (item) => item.field === 'occasion')).top > logoBox.bottom, `${size}: the occasion under the logo's box`);
+      const inside = card.back.items;
+      const lefts = ['host', 'invite', 'guest'].map((field) => box(find(inside, (item) => item.field === field)).left);
+      assert.ok(Math.max(...lefts) - Math.min(...lefts) < 1.5, `${size}: the inside left page shares one left edge`);
+      continue;
+    }
+    const items = card.items;
+    const logoBox = box(find(items, (item) => item.role === 'logobox'));
+    const occasion = box(find(items, (item) => item.field === 'occasion'));
+    const host = box(find(items, (item) => item.field === 'host'));
+    const invite = box(find(items, (item) => item.field === 'invite'));
+    const line = box(find(items, (item) => item.role === 'guestline'));
+    // One left edge: the logo's box, the occasion (under the box, not beside it) and the words.
+    for (const [name, b] of [['occasion', occasion], ['host', host], ['invite', invite], ['guest line', line]]) {
+      assert.ok(Math.abs(b.left - logoBox.left) < 1.5, `${size}: the ${name} starts at the logo box's left edge (${b.left.toFixed(1)} and ${logoBox.left.toFixed(1)})`);
+    }
+    assert.ok(occasion.top > logoBox.bottom, `${size}: the occasion under the logo's box`);
+    // An even rhythm: the gaps between them differ by at most half the smallest.
+    const gaps = [occasion.top - logoBox.bottom, host.top - occasion.bottom, invite.top - host.bottom, line.top - invite.bottom];
+    assert.ok(Math.min(...gaps) > 0, `${size}: nothing touches (${gaps.map((g) => g.toFixed(0))})`);
+    assert.ok(Math.max(...gaps) <= Math.min(...gaps) * 1.8, `${size}: even gaps (${gaps.map((g) => g.toFixed(0))})`);
+  }
 });
