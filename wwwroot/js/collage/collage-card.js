@@ -529,7 +529,7 @@
       }, 'none');
       // The heading moves back down to make room; nothing else changes.
       if (wasNone) doc.edit((draft) => designs.moveForLogo(before, draft, options()), 'none');
-      fitRoundel();
+      fitRoundel(before.items.some((item) => item.role === 'logo' && item.kind !== 'slot'));
       followLogoOnBack();
       history.commit();
       surface.syncAll();
@@ -541,9 +541,10 @@
      * The design's roundel behind the logo (Regimental) follows the logos: hidden with none, as
      * wide as both when there are two, back to its design size with one. Inside the same change.
      */
-    function fitRoundel() {
+    /** The roundel follows the logos; `hadLogo` says whether the card had a logo before the change. */
+    function fitRoundel(hadLogo = true) {
       const base = designs.roleItem(state.collage, 'roundel', options());
-      doc.edit((draft) => designs.fitRoundel(draft.items, base), 'none');
+      doc.edit((draft) => designs.fitRoundel(draft.items, base, { hadLogo }), 'none');
     }
 
     /**

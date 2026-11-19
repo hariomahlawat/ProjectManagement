@@ -895,7 +895,7 @@
     });
     // The roundel behind the logo follows it: hidden with none, wide enough for a wide logo or two.
     const roundel = made.find((item) => item.role === 'roundel');
-    if (roundel) fitRoundel([...made, ...seconds], { width: roundel.width, aspect: roundel.aspect });
+    if (roundel) fitRoundel([...made, ...seconds], { width: roundel.width, aspect: roundel.aspect }, { hadLogo: (items || []).some((item) => item.role === 'logo' && item.kind !== 'slot') });
     // Photos from the last design's frame with no frame here become the user's own.
     const leftOver = framed.map(({ role, ...item }) => item);
     // The user's own items, and a second logo they added, stay where they are.
@@ -1006,12 +1006,18 @@
    * hidden with no logo; around one logo, at least the design's size (`base`) and wide enough for
    * a wide logo; around two side by side. A locked roundel stays as it is.
    */
-  function fitRoundel(items, base) {
+  function fitRoundel(items, base, { hadLogo = true } = {}) {
     const roundel = items.find((item) => item.role === 'roundel' && !item.locked);
     if (!roundel || !base) return;
     const logos = items.filter((item) => (item.role === 'logo' && item.kind !== 'slot') || item.role === 'logo2');
-    if (!logos.some((item) => item.role === 'logo')) { roundel.hidden = true; return; }
-    delete roundel.hidden;
+    // Hidden for want of a logo is marked so (autoHidden), and only that comes back with a logo:
+    // a roundel the user hid stays hidden (Codex on #3453). One hidden while the card had no
+    // logo (as an earlier PRISM hid it) counts as hidden for want of a logo.
+    if (!logos.some((item) => item.role === 'logo')) {
+      if (!roundel.hidden) { roundel.hidden = true; roundel.autoHidden = true; }
+      return;
+    }
+    if (roundel.autoHidden || !hadLogo) { delete roundel.hidden; delete roundel.autoHidden; }
     const left = Math.min(...logos.map((item) => item.x - item.width / 2));
     const right = Math.max(...logos.map((item) => item.x + item.width / 2));
     const height = base.width / base.aspect;

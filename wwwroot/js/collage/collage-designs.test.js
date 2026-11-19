@@ -952,3 +952,26 @@ test('Hindi the user typed stays through unrelated edits; a stock Hindi follows 
   const stock = { ...designs.DEFAULT_DETAILS, occasion: 'Regimental Dinner' };
   assert.equal(designs.hindiInStep(stock, picks).occasionHi, 'रेजिमेंटल रात्रिभोज');
 });
+
+// Codex on #3453: a roundel the user hid stays hidden through a size or design change; one hidden
+// for want of a logo comes back with a logo.
+test('a roundel the user hid stays hidden; one hidden for want of a logo comes back with one', () => {
+  const opts = { measure, newId };
+  const card = designs.applyDesign(core.newCollage('a5p'), 'regimental', {}, opts);
+  const hid = { ...card, items: card.items.map((item) => (item.role === 'roundel' ? { ...item, hidden: true } : item)) };
+  const turned = designs.applyDesign({ ...hid, size: 'a5l' }, 'regimental', designs.detailsOf(hid), opts);
+  assert.equal(turned.items.find((item) => item.role === 'roundel').hidden, true, 'the user\'s hiding is kept');
+  // No logo: hidden for want of one; a logo put back brings it back.
+  const noLogo = { ...card, items: card.items.filter((item) => item.role !== 'logo') };
+  const bare = designs.applyDesign(noLogo, 'regimental', designs.detailsOf(noLogo), opts);
+  const roundel = bare.items.find((item) => item.role === 'roundel');
+  assert.equal(roundel.hidden, true);
+  const logo = card.items.find((item) => item.role === 'logo');
+  const items = [...bare.items.map((item) => ({ ...item })), { ...logo }];
+  designs.fitRoundel(items, { width: roundel.width, aspect: roundel.aspect }, { hadLogo: false });
+  assert.ok(!items.find((item) => item.role === 'roundel').hidden);
+  // An earlier PRISM's roundel, hidden without the mark while there was no logo, comes back too.
+  const old = [{ ...roundel, autoHidden: undefined, hidden: true }, { ...logo }];
+  designs.fitRoundel(old, { width: roundel.width, aspect: roundel.aspect }, { hadLogo: false });
+  assert.ok(!old[0].hidden);
+});
