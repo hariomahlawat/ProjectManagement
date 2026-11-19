@@ -34,13 +34,15 @@ public interface IProjectBriefingDeckService
         string requestingUserId,
         CancellationToken cancellationToken = default);
 
-    // Creates a deck; with a preset, the new deck starts from that template.
+    // Creates a deck; with a preset, the new deck starts from that template. With projects (ticked,
+    // or the list of a deck the person may see), they are saved with the deck in the same save.
     Task<long> CreateAsync(
         string requestingUserId,
         string name,
         string? description,
         CancellationToken cancellationToken = default,
-        ProjectBriefingDeckPreset? preset = null);
+        ProjectBriefingDeckPreset? preset = null,
+        ProjectBriefingNewDeckProjects? projects = null);
 
     Task<long> DuplicateAsync(
         long sourceDeckId,
@@ -385,7 +387,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         string name,
         string? description,
         CancellationToken cancellationToken = default,
-        ProjectBriefingDeckPreset? preset = null)
+        ProjectBriefingDeckPreset? preset = null,
+        ProjectBriefingNewDeckProjects? projects = null)
     {
         if (preset is { } requested && !ProjectBriefingDeckPresets.IsTemplate(requested))
         {
@@ -396,6 +399,10 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         var scope = ProjectBriefingDeckAccessRules.ScopeForNewDeck(await _roles.IsCommandAsync(userId, cancellationToken));
         var normalizedName = NormalizeName(name);
         await EnsureUniqueNameAsync(normalizedName, scope, userId, excludedDeckId: null, cancellationToken);
+        // Resolved before anything is added, so a refused list leaves no empty deck behind.
+        var projectIds = projects is null
+            ? Array.Empty<int>()
+            : await ResolveNewDeckProjectsAsync(projects, userId, cancellationToken);
 
         var now = _clock.UtcNow.ToUniversalTime();
         var deck = new ProjectBriefingDeck
@@ -427,6 +434,20 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             SetFromPreset(deck, template);
         }
 
+        // The deck and its projects in one save: there is never a new deck without the projects
+        // chosen for it, nor projects without their deck.
+        var sortOrder = 10;
+        foreach (var projectId in projectIds)
+        {
+            deck.Items.Add(new ProjectBriefingDeckItem
+            {
+                ProjectId = projectId,
+                SortOrder = sortOrder,
+                AddedAtUtc = now
+            });
+            sortOrder += 10;
+        }
+
         _db.Add(deck);
         await _db.SaveChangesAsync(cancellationToken);
         await AuditAsync(
@@ -436,8 +457,68 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             preset is { } chosen
                 ? $"Project briefing deck created from the {ProjectBriefingDeckPresets.Get(chosen).Title} template."
                 : "Project briefing deck created.");
+        if (projectIds.Count > 0)
+        {
+            await AuditAsync(
+                "ProjectBriefing.ProjectsAdded",
+                userId,
+                deck,
+                projects?.SameAsDeckId is { } sourceId
+                    ? $"{projectIds.Count} project(s) added to the new briefing deck, as in deck {sourceId}."
+                    : $"{projectIds.Count} project(s) added to the new briefing deck.",
+                new Dictionary<string, string?> { ["ProjectIds"] = string.Join(",", projectIds) });
+        }
 
         return deck.Id;
+    }
+
+    // The projects a new deck starts with: the ticked ones, or the list of another deck the person
+    // may see (its projects only, in its order; not its notes, photographs or settings). Only
+    // projects that may be added (not deleted, archived or cancelled) are kept, as Add projects does.
+    private async Task<IReadOnlyList<int>> ResolveNewDeckProjectsAsync(
+        ProjectBriefingNewDeckProjects projects,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<int> requested;
+        if (projects.SameAsDeckId is { } sourceDeckId)
+        {
+            var source = await LoadViewableAsync(sourceDeckId, userId, includeItems: true, cancellationToken);
+            requested = source.Items
+                .OrderBy(item => item.SortOrder)
+                .ThenBy(item => item.Id)
+                .Select(item => item.ProjectId)
+                .ToArray();
+        }
+        else
+        {
+            requested = (projects.ProjectIds ?? Array.Empty<int>())
+                .Where(projectId => projectId > 0)
+                .Distinct()
+                .ToArray();
+        }
+
+        if (requested.Count == 0)
+        {
+            return Array.Empty<int>();
+        }
+
+        var valid = (await _selectionService.ValidateProjectIdsAsync(requested.ToArray(), cancellationToken)).ToHashSet();
+        var kept = requested.Where(valid.Contains).Distinct().ToArray();
+        if (kept.Length == 0)
+        {
+            throw new InvalidOperationException(projects.SameAsDeckId.HasValue
+                ? "None of that deck's projects can be added: they have been archived, deleted or cancelled."
+                : "None of the ticked projects can be added: they have been archived, deleted or cancelled.");
+        }
+
+        if (kept.Length > MaximumProjectsPerDeck)
+        {
+            throw new InvalidOperationException(
+                $"A deck holds at most {MaximumProjectsPerDeck} projects; {kept.Length} are chosen. Untick {kept.Length - MaximumProjectsPerDeck} and try again.");
+        }
+
+        return kept;
     }
 
     public async Task<long> DuplicateAsync(
@@ -1879,3 +1960,8 @@ public static class ProjectBriefingDeckQueries
         return decks.Where(deck => deck.DeletedAtUtc != null && deck.DeletedAtUtc >= restorableAfter);
     }
 }
+
+// The projects a new deck starts with: ticked project ids, or the list of another deck.
+public sealed record ProjectBriefingNewDeckProjects(
+    IReadOnlyCollection<int> ProjectIds,
+    long? SameAsDeckId = null);

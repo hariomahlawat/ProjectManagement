@@ -675,6 +675,92 @@ public sealed class ProjectBriefingDeckPageHandlerTests
         public List<(string Action, string? DeckId)> Entries { get; } = new();
     }
 
+    // ---- New deck with its projects (Plan: The Studio is optional, PR 4) --------------------------
+
+    // In-page, the dialog gets the new deck's addresses back, to download it from the library.
+    [Fact]
+    public async Task Create_InPage_WithTickedProjects_ReturnsTheNewDecksAddresses()
+    {
+        await using var db = CreateDb();
+        db.Projects.Add(new Project { Id = ProjectId, Name = "Project ten", CreatedByUserId = Hod });
+        await db.SaveChangesAsync();
+        var page = CreatePage(db, Hod, ajax: true, selection: new ProjectBriefingSelectionService(db, new FixedClock()));
+
+        var result = await page.OnPostCreateAsync(
+            new IndexModel.CreateDeckInput { Name = "December review", ProjectIds = new List<int> { ProjectId } },
+            CancellationToken.None);
+
+        var payload = System.Text.Json.JsonSerializer.SerializeToElement(
+            Assert.IsType<JsonResult>(result).Value,
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        var deckId = payload.GetProperty("deckId").GetInt64();
+        Assert.Equal(1, payload.GetProperty("projectCount").GetInt32());
+        Assert.Equal(new[] { ProjectId }, db.Set<ProjectBriefingDeckItem>().Where(item => item.DeckId == deckId).Select(item => item.ProjectId));
+        foreach (var key in new[] { "studioUrl", "gapsUrl", "generateUrl" })
+        {
+            Assert.False(string.IsNullOrEmpty(payload.GetProperty(key).GetString()));
+        }
+    }
+
+    // A plain post: with projects the deck opens on its slides; without, on Add projects (as an
+    // older page's form always did).
+    [Fact]
+    public async Task Create_Posted_OpensTheDeck_OrAddProjectsWhenItHasNone()
+    {
+        await using var db = CreateDb();
+        db.Projects.Add(new Project { Id = ProjectId, Name = "Project ten", CreatedByUserId = Hod });
+        await db.SaveChangesAsync();
+        var page = CreatePage(db, Hod, selection: new ProjectBriefingSelectionService(db, new FixedClock()));
+
+        var withProjects = Assert.IsType<RedirectToPageResult>(await page.OnPostCreateAsync(
+            new IndexModel.CreateDeckInput { Name = "With projects", ProjectIds = new List<int> { ProjectId } },
+            CancellationToken.None));
+        var empty = Assert.IsType<RedirectToPageResult>(await page.OnPostCreateAsync(
+            new IndexModel.CreateDeckInput { Name = "Empty deck" },
+            CancellationToken.None));
+
+        Assert.False(withProjects.RouteValues!.ContainsKey("start"));
+        Assert.Equal("projects", empty.RouteValues!["start"]);
+    }
+
+    // Copying the list of a deck the person cannot see is refused as a message, never a 500.
+    [Fact]
+    public async Task Create_InPage_SameAsADeckThePersonCannotSee_IsRefusedWithAMessage()
+    {
+        await using var db = CreateDb();
+        var hidden = await SeedAsync(db, Comdt, ProjectBriefingDeckScope.Command);
+        var page = CreatePage(db, Officer, ajax: true, selection: new ProjectBriefingSelectionService(db, new FixedClock()));
+
+        var result = await page.OnPostCreateAsync(
+            new IndexModel.CreateDeckInput { Name = "Copy", SameAsDeckId = hidden.Id },
+            CancellationToken.None);
+
+        Assert.Equal(400, StatusOf(result));
+        Assert.Equal(ProjectBriefingDeckService.NotFoundMessage, MessageOf(result));
+        Assert.Single(db.Set<ProjectBriefingDeck>());
+    }
+
+    // The New deck dialog chooses projects before there is a deck: deck 0 lists them, none "in deck".
+    [Fact]
+    public async Task FilterProjects_WithoutADeck_ListsProjectsWithNoneInTheDeck()
+    {
+        await using var db = CreateDb();
+        db.Projects.Add(new Project { Id = ProjectId, Name = "Project ten", CreatedByUserId = Officer });
+        await db.SaveChangesAsync();
+        var page = CreatePage(db, Officer, ajax: true, selection: new ProjectBriefingSelectionService(db, new FixedClock()));
+
+        var payload = System.Text.Json.JsonSerializer.SerializeToElement(
+            Assert.IsType<JsonResult>(await page.OnGetFilterProjectsAsync(new IndexModel.FilterProjectsInput { DeckId = 0 }, CancellationToken.None)).Value,
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        var options = await page.OnGetFilterOptionsAsync(0, CancellationToken.None);
+
+        Assert.Equal(1, payload.GetProperty("total").GetInt32());
+        Assert.Equal(0, payload.GetProperty("inDeck").GetInt32());
+        Assert.False(payload.GetProperty("rows")[0].GetProperty("isSelected").GetBoolean());
+        Assert.IsType<JsonResult>(options);
+        Assert.IsType<BadRequestObjectResult>(await page.OnGetFilterProjectsAsync(new IndexModel.FilterProjectsInput { DeckId = -1 }, CancellationToken.None));
+    }
+
     // ---- Gaps (the library asks before downloading a deck with gaps) ----------------------------
 
     // Whoever may see the deck may ask, including a command user looking at an officer's deck

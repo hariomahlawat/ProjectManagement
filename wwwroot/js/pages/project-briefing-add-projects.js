@@ -8,10 +8,17 @@
 //   root, deckId, checkReply(response, options), setState(element, message, state),
 //   statusElement (the dialog's status line), updateMembership(add, remove, statusElement),
 //   confirmRemoval(options) -> Promise<boolean> (the PrismConfirm dialog), modalElement, getMembers() -> the deck's projects now.
+//
+// With picker: true it chooses projects for a deck not made yet (the New deck dialog, Plan: The
+// Studio is optional, PR 4): deckId is 0, nothing is "in deck", nothing is saved here, and the
+// dialog reads the ticks (tickedIds) and hears of each change (pbd:filter-ticked on root).
+// idPrefix keeps its element ids apart from the Studio's.
 export function initAddProjects(deps) {
   const { root, deckId, checkReply, setState, statusElement, updateMembership, confirmRemoval, modalElement, getMembers } = deps;
-  const filterRoot = root.querySelector('[data-pbd-filter]');
-  if (!filterRoot) return null;
+  const picker = deps.picker === true;
+  const idPrefix = deps.idPrefix || 'pbd-filter';
+  const filterRoot = root.querySelector(picker ? '[data-pbd-filter-picker]' : '[data-pbd-filter]:not([data-pbd-filter-picker])');
+  if (!filterRoot || (deckId <= 0 && !picker)) return null;
   const doc = root.ownerDocument;
   const view = doc.defaultView;
   const filterQuery = filterRoot.querySelector('[data-pbd-filter-query]');
@@ -43,7 +50,7 @@ export function initAddProjects(deps) {
   // With refresh, choices already loaded are fetched again quietly (each opening, cold review 4),
   // so their counts follow the list; what is shown stays until the new ones arrive.
   const loadFilterOptions = ({ refresh = false } = {}) => {
-    if (deckId <= 0 || optionsState === 'loading' || optionsState === 'refreshing') return optionsLoad;
+    if ((deckId <= 0 && !picker) || optionsState === 'loading' || optionsState === 'refreshing') return optionsLoad;
     // A refresh on opening fetches again only when the choices are over two minutes old (cold
     // review 5): reading every ARPP entry and completion on each opening was wasted work.
     if (optionsState === 'loaded' && (!refresh || Date.now() - optionsLoadedAt < OPTIONS_FRESH_MS)) return optionsLoad;
@@ -51,7 +58,7 @@ export function initAddProjects(deps) {
     optionsState = quiet ? 'refreshing' : 'loading';
     if (!quiet) renderFilterPanel();
     const url = new URL(root.dataset.filterOptionsUrl, view.location.origin);
-    url.searchParams.set('deckId', String(deckId));
+    url.searchParams.set('deckId', String(Math.max(0, deckId)));
     optionsLoad = view.fetch(url, {
       credentials: 'same-origin',
       headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
@@ -171,7 +178,7 @@ export function initAddProjects(deps) {
         button.textContent = Number.isFinite(count) && !otherFiltersSet(filter.key) ? `${filter.label} · ${count}` : filter.label;
       } else {
         button.setAttribute('aria-expanded', String(openFilter === filter.key));
-        button.setAttribute('aria-controls', 'pbd-filter-panel');
+        button.setAttribute('aria-controls', `${idPrefix}-panel`);
         button.textContent = summary || `+ ${filter.label}`;
       }
       chip.append(button);
@@ -222,7 +229,7 @@ export function initAddProjects(deps) {
     filterPanel.replaceChildren();
     filterPanel.hidden = !filter;
     if (!filter) return;
-    filterPanel.id = 'pbd-filter-panel';
+    filterPanel.id = `${idPrefix}-panel`;
     filterPanel.setAttribute('aria-label', filter.label);
     if (!['loaded', 'refreshing'].includes(optionsState) && !filter.toggle && filter.key !== 'status') {
       if (optionsState === 'failed') {
@@ -323,7 +330,7 @@ export function initAddProjects(deps) {
   let matchTotal = 0;
   let matchInDeck = 0;
   const room = () => Math.max(0, maximumProjects - Math.max(members().size, serverMemberCount ?? 0));
-  if (filterRoom && !filterRoom.id) filterRoom.id = 'pbd-filter-room';
+  if (filterRoom && !filterRoom.id) filterRoom.id = `${idPrefix}-room`;
   let roomAnnouncer = root.querySelector('[data-pbd-filter-announce]');
   if (!roomAnnouncer && filterRoom) {
     roomAnnouncer = doc.createElement('span');
@@ -380,6 +387,7 @@ export function initAddProjects(deps) {
     syncTickLimits();
     if (filterClear) filterClear.hidden = count === 0;
     if (filterAdd) filterAdd.textContent = count ? `Add ${count} ${count === 1 ? 'project' : 'projects'}` : 'Add projects';
+    if (picker) root.dispatchEvent(new view.CustomEvent('pbd:filter-ticked', { detail: { count } }));
   };
 
   // Tick all ticks only as many as fit (cold review 3, M2).
@@ -387,8 +395,9 @@ export function initAddProjects(deps) {
     if (allTicked) return `Untick these ${notInDeck.length}`;
     const untickedCount = notInDeck.filter((row) => !ticked.has(row.projectId)).length;
     const fits = Math.max(0, room() - ticked.size);
+    // Without a deck yet (picker) nothing is in it, so "not in the deck" says nothing.
     return untickedCount <= fits
-      ? `Tick all ${notInDeck.length} not in the deck`
+      ? (picker ? `Tick all ${notInDeck.length}` : `Tick all ${notInDeck.length} not in the deck`)
       : `Tick the first ${fits} that fit`;
   };
   const updateTickAll = (notInDeck) => {
@@ -506,13 +515,13 @@ export function initAddProjects(deps) {
   };
 
   const loadFilterRows = async ({ all = false } = {}) => {
-    if (deckId <= 0) return false;
+    if (deckId <= 0 && !picker) return false;
     filterAbort?.abort();
     filterAbort = new view.AbortController();
     const request = ++listRequest;
     const membershipAtRequest = membershipVersion;
     const url = new URL(root.dataset.filterUrl, view.location.origin);
-    url.searchParams.set('deckId', String(deckId));
+    url.searchParams.set('deckId', String(Math.max(0, deckId)));
     const query = filterQuery?.value.trim() || '';
     lastQuery = query;
     if (query) url.searchParams.set('query', query);
@@ -920,5 +929,17 @@ export function initAddProjects(deps) {
     view.setTimeout(() => view.bootstrap?.Modal?.getOrCreateInstance(modalElement)?.show(), 0);
   }
 
-  return { refreshMembership, open: openDialog, reload: loadFilterRows };
+  return {
+    refreshMembership,
+    open: openDialog,
+    reload: loadFilterRows,
+    // The ticked projects, in the order they were ticked (the New deck dialog sends these).
+    tickedIds: () => [...ticked.keys()],
+    clearTicks: () => {
+      ticked.clear();
+      showTicked = false;
+      renderFilterRows();
+      renderFilterChips();
+    }
+  };
 }

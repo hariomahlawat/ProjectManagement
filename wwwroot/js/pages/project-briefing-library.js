@@ -288,5 +288,8 @@ document.addEventListener('submit', async (event) => {
       delete button.dataset.pbdDownloading;
       button.removeAttribute('aria-disabled');
     }
+    // Whoever started it (the New deck dialog's Create and download) hears that it is over:
+    // downloaded, declined or failed.
+    form.dispatchEvent(new CustomEvent('pbd:download-settled', { bubbles: true }));
   }
 });

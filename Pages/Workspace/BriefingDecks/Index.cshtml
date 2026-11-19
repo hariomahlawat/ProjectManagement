@@ -962,7 +962,7 @@
 
         @* Inside the workspace so it shares the page's colour tokens. *@
         <div class="modal fade" id="pbd-new-deck-modal" tabindex="-1" aria-labelledby="pbd-new-deck-title" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
                 <div class="modal-content pbd-modal">
                     @* novalidate: the name rule is said under the field (decks.js), not in a browser bubble. *@
                     <form method="post" asp-page-handler="Create" novalidate data-pbd-new-form>
@@ -987,9 +987,72 @@
                                 }
                             </fieldset>
                             <label class="form-label"><span>Description <small>optional</small></span><textarea class="form-control" name="Description" maxlength="600" rows="2" placeholder="Purpose, audience or review context"></textarea></label>
-                            <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> Shared with every Comdt and HoD workspace user. The slides are rebuilt from current PRISM data each time; next you choose the projects.</p>
+                            @* The projects, here rather than in the Studio, so a deck can be made and downloaded from
+                               the library (Plan: The Studio is optional, PR 4). Ticks use the Add projects filters
+                               (project-briefing-add-projects.js, picker mode); Same as a deck copies another deck's list. *@
+                            <fieldset class="pbd-new-projects" data-pbd-new-projects
+                                      data-filter-url="@Url.Page("/Workspace/BriefingDecks/Index", "FilterProjects")"
+                                      data-filter-options-url="@Url.Page("/Workspace/BriefingDecks/Index", "FilterOptions")"
+                                      data-max-projects="@ProjectBriefingDeckService.MaximumProjectsPerDeck">
+                                <legend class="form-label">Projects <small>optional: you can add them later</small></legend>
+                                @if (Model.Decks.Any(saved => saved.ProjectCount > 0))
+                                {
+                                    <div class="pbd-segmented" role="group" aria-label="How to choose the projects">
+                                        <button type="button" class="pbd-segmented__option is-active" aria-pressed="true" data-pbd-new-source="pick">Choose projects</button>
+                                        <button type="button" class="pbd-segmented__option" aria-pressed="false" data-pbd-new-source="same">Same as a deck</button>
+                                    </div>
+                                }
+                                <div class="pbd-filter pbd-new-projects__pick" data-pbd-filter data-pbd-filter-picker data-pbd-new-pick>
+                                    <div class="pbd-filter__head">
+                                        <label class="pbd-project-search">
+                                            <span class="visually-hidden">Search projects</span>
+                                            <i class="bi bi-search" aria-hidden="true"></i>
+                                            <input type="search" class="form-control" placeholder="Search name, officer or file no." autocomplete="off" data-pbd-filter-query />
+                                        </label>
+                                        <div class="pbd-filter__chips" role="group" aria-label="Filters" data-pbd-filter-chips></div>
+                                        <div class="pbd-filter__panel" data-pbd-filter-panel role="group" hidden></div>
+                                        <div class="pbd-filter__summary">
+                                            <span data-pbd-filter-count aria-live="polite">Loading projects…</span>
+                                            <button type="button" class="btn btn-link btn-sm" data-pbd-filter-tick-all hidden></button>
+                                            <button type="button" class="btn btn-link btn-sm" data-pbd-filter-list-retry hidden>Try again</button>
+                                        </div>
+                                        <p class="pbd-filter__changed" data-pbd-filter-changed hidden></p>
+                                    </div>
+                                    <div class="pbd-filter__results pbd-new-projects__results" data-pbd-filter-results></div>
+                                    <div class="pbd-filter__footer-info">
+                                        <button type="button" class="btn btn-link btn-sm pbd-filter__ticked" data-pbd-filter-ticked disabled>Nothing ticked</button>
+                                        <span class="pbd-filter__room" data-pbd-filter-room></span>
+                                        <span class="visually-hidden" data-pbd-filter-announce aria-live="polite"></span>
+                                        <button type="button" class="btn btn-link btn-sm" data-pbd-filter-clear hidden>Clear ticks</button>
+                                    </div>
+                                </div>
+                                <div class="pbd-new-projects__same" data-pbd-new-same hidden>
+                                    <label class="form-label">
+                                        <span>Deck to copy the projects of</span>
+                                        <select class="form-select" name="SameAsDeckId" disabled data-pbd-new-same-deck>
+                                            <option value="">Choose a deck</option>
+                                            @foreach (var saved in Model.Decks.Where(saved => saved.ProjectCount > 0))
+                                            {
+                                                <option value="@saved.Id">@saved.Name · @saved.ProjectCount @(saved.ProjectCount == 1 ? "project" : "projects")</option>
+                                            }
+                                        </select>
+                                    </label>
+                                    <small class="pbd-form-help">Copies that deck's list of projects as it is today: not its notes, photographs or settings. The new deck does not follow later changes to it.</small>
+                                </div>
+                            </fieldset>
+                            <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> @(Model.IsCommandUser ? "Shared with every Comdt and HoD workspace user." : "Your own deck: the Comdt and HoDs can download or duplicate it.") The slides are rebuilt from current PRISM data each time.</p>
                         </div>
-                        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Create and add projects</button></div>
+                        <div class="modal-footer pbd-new-deck__footer">
+                            <p class="pbd-new-deck__summary" data-pbd-new-summary aria-live="polite">No projects chosen yet: the deck opens on Add projects.</p>
+                            <p class="pbd-form-error" data-pbd-new-error role="alert" hidden></p>
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-outline-primary" data-pbd-new-action="open">Create and open</button>
+                            @* Download needs the library's download flow (the gap question), so it is offered there. *@
+                            @if (deck is null)
+                            {
+                                <button type="submit" class="btn btn-primary" data-pbd-new-action="download" disabled>Create and download</button>
+                            }
+                        </div>
                     </form>
                 </div>
             </div>

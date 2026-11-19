@@ -599,3 +599,92 @@ test('kept ticks all come back even when the deck now has less room, and the roo
     setUp.keptTicks = undefined;
   }
 });
+
+// ---- Picker mode: the New deck dialog (Plan: The Studio is optional, PR 4) ---------------------
+
+const PICKER_MARKUP = `
+<div data-pbd-root data-filter-url="/decks?handler=FilterProjects" data-filter-options-url="/decks?handler=FilterOptions" data-max-projects="120">
+  <div class="modal" id="pbd-add-projects-modal">
+    <div data-pbd-filter>
+      <input type="search" data-pbd-filter-query />
+      <div data-pbd-filter-chips></div>
+      <div data-pbd-filter-panel hidden></div>
+      <span data-pbd-filter-count></span>
+      <button type="button" data-pbd-filter-tick-all hidden></button>
+      <div data-pbd-filter-results></div>
+    </div>
+    <button type="button" data-pbd-filter-ticked disabled>Nothing ticked</button>
+    <span data-pbd-filter-room></span>
+  </div>
+  <div class="modal" id="pbd-new-deck-modal">
+    <fieldset data-pbd-new-projects data-filter-url="/decks?handler=FilterProjects" data-filter-options-url="/decks?handler=FilterOptions" data-max-projects="120">
+      <div data-pbd-filter data-pbd-filter-picker>
+        <input type="search" data-pbd-filter-query />
+        <div data-pbd-filter-chips></div>
+        <div data-pbd-filter-panel hidden></div>
+        <span data-pbd-filter-count></span>
+        <button type="button" data-pbd-filter-tick-all hidden></button>
+        <div data-pbd-filter-results></div>
+        <button type="button" data-pbd-filter-ticked disabled>Nothing ticked</button>
+        <span data-pbd-filter-room></span>
+        <button type="button" data-pbd-filter-clear hidden></button>
+      </div>
+    </fieldset>
+  </div>
+</div>`;
+
+async function setUpPicker() {
+  const { initAddProjects } = await loadModule();
+  const dom = new JSDOM(`<!doctype html><html><body>${PICKER_MARKUP}</body></html>`, { url: 'http://localhost/' });
+  const { window } = dom;
+  const { document } = window;
+  const fetches = [];
+  window.fetch = (url) => {
+    const href = String(url);
+    fetches.push(href);
+    if (href.includes('FilterOptions')) return Promise.resolve(reply({ arppYears: [] }));
+    return Promise.resolve(reply({ rows: [row(1, 'Alpha'), row(2, 'Bravo'), row(3, 'Charlie')], total: 3, inDeck: 0, deckProjectCount: 0 }));
+  };
+  const pickerRoot = document.querySelector('[data-pbd-new-projects]');
+  const modalElement = document.getElementById('pbd-new-deck-modal');
+  const events = [];
+  pickerRoot.addEventListener('pbd:filter-ticked', (event) => events.push(event.detail.count));
+  const deps = {
+    checkReply: () => {},
+    setState: () => {},
+    statusElement: null,
+    updateMembership: async () => { throw new Error('a new deck saves nothing here'); },
+    confirmRemoval: async () => true,
+    getMembers: () => []
+  };
+  // The library page: no deck, so the Studio's own Add projects does not start, and it never
+  // takes over the dialog's picker.
+  const studio = initAddProjects({ ...deps, root: document.querySelector('[data-pbd-root]'), deckId: 0, modalElement: document.getElementById('pbd-add-projects-modal') });
+  const picker = initAddProjects({ ...deps, root: pickerRoot, deckId: 0, picker: true, idPrefix: 'pbd-new-filter', modalElement });
+  return { window, document, fetches, events, studio, picker, pickerRoot, modalElement };
+}
+
+test('picker: chooses projects for a deck not made yet, and saves nothing itself', async () => {
+  const page = await setUpPicker();
+  assert.equal(page.studio, null, 'no deck: the Studio Add projects is not set up');
+
+  page.modalElement.dispatchEvent(new page.window.Event('show.bs.modal'));
+  await tick(); await tick();
+
+  // Asked without a deck (deck 0), and nothing is "in deck".
+  assert.ok(page.fetches.some((href) => href.includes('FilterProjects') && href.includes('deckId=0')));
+  assert.ok(page.fetches.some((href) => href.includes('FilterOptions') && href.includes('deckId=0')));
+  const ticks = [...page.pickerRoot.querySelectorAll('input[data-pbd-filter-tick]')];
+  assert.equal(ticks.length, 3);
+  assert.equal(page.pickerRoot.querySelector('[data-pbd-filter-tick-all]').textContent, 'Tick all 3');
+
+  ticks[2].click();
+  ticks[0].click();
+  assert.deepEqual(page.picker.tickedIds(), [3, 1], 'in the order ticked');
+  assert.equal(page.events.at(-1), 2, 'the dialog hears of each change');
+  assert.equal(page.pickerRoot.querySelector('[data-pbd-filter-room]').id, 'pbd-new-filter-room', 'ids kept apart from the Studio');
+
+  page.picker.clearTicks();
+  assert.deepEqual(page.picker.tickedIds(), []);
+  assert.equal(page.events.at(-1), 0);
+});

@@ -23,9 +23,12 @@ here, kept as history.
 `/Workspace/BriefingDecks` without a deck id is the library (5 Nov 2026); it no longer opens the
 last-updated deck, so nobody edits a deck they did not pick.
 
-- **New deck** asks for a name and a template (Portfolio or Fact Sheets), then opens the
-  Studio on Add projects. A template only fills the new deck's starting settings; the Studio
-  has no template picker and no "customised" state.
+- **New deck** asks for a name, a template (Portfolio or Fact Sheets) and, optionally, the
+  projects: ticked with the Add projects filters, or **Same as a deck** (another deck's list of
+  projects, copied as it is today). **Create and open** opens the Studio (on Add projects when no
+  projects were chosen); on the library, **Create and download** makes the deck and downloads it
+  at once, asking first about gaps as Download does (19 Nov 2026). A template only fills the new
+  deck's starting settings; the Studio has no template picker and no "customised" state.
 - **Deck cards** (owner, 17 Nov 2026; replaced the Continue panel and the table). One card per
   deck, three across on a wide screen, two on a tablet, one on a phone. Each card shows a drawing
   of the deck's slide design (the Deck tab's design drawings, `_DesignMini`), the name and
@@ -927,7 +930,8 @@ library, New deck dialog and simplified Studio).
   deck can be made and downloaded from the library.
 - Download from the library **asks first** when the deck has gaps: "N projects have gaps",
   *Download anyway* / *Open to fix* / *Cancel*. A deck without gaps downloads at once.
-- **Marking is required** when a deck is created. Decks that already exist are unchanged.
+- ~~Marking is required when a deck is created.~~ Withdrawn by the owner the same day: no marking
+  requirement. The marking stays optional, set in the Studio's Handling step, as before.
 - New deck offers **Same as a deck** beside choosing projects (as in the mockup).
 
 **PRs**, each additive and revertible on its own, none with a migration:
@@ -952,15 +956,7 @@ library, New deck dialog and simplified Studio).
    scripts). The ⋯ menu's Download PowerPoint is gone (the card's Download replaces it); the
    view-only deck's Download asks too. Checked in the browser: the question, Download anyway, the
    file, and the card's line updating in place.
-3. **Marking required at creation.** The New deck dialog gets a required Marking choice and the
-   server's `Create` rejects a deck without one, with a plain message. The choices come from one
-   list (configuration, so a site can match its handling rules without a release); the Studio's
-   Handling step offers the same list and still shows an existing free-text marking as it is.
-   **Needs the owner first:** the list of markings. Before choosing it, list the markings
-   production decks already use (`SELECT "HandlingMarking", count(*) FROM
-   "ProjectBriefingDecks" GROUP BY 1`), run read-only by the operator. During a rolling deploy a
-   New deck form from the old build posts without a marking and is told to choose one; nothing is
-   lost but the typed name.
+3. **Marking required at creation.** Dropped (owner, 19 Nov 2026): marking is not required.
 4. **Projects in the New deck dialog, and Create and download.** The dialog takes a slide style,
    the marking and the projects, by filters and ticks (the Add projects module in a no-deck mode:
    the filter handlers accept no deck and mark nothing "in deck") or **Same as a deck** (any deck
@@ -970,6 +966,23 @@ library, New deck dialog and simplified Studio).
    **Create and download** asks about gaps as in PR 2, then downloads and lands on the library
    with the new deck first. The footer says what is still needed, or how many projects have gaps.
    The old two-step path (create, then Add projects) keeps working for posts from older pages.
+   Built (no marking, as decided; the Template choice stays until PR 5 makes it the slide style):
+   - `CreateAsync` takes the projects (`ProjectBriefingNewDeckProjects`: ticked ids, or
+     `SameAsDeckId`), resolved before anything is added and saved with the deck in its one save.
+     Ticked projects keep the order ticked; a copied list keeps its deck's order. Deleted,
+     archived and cancelled projects are left out (as Add projects does); a list with none left,
+     more than 120, or a deck the person may not see is refused and no deck is made. An audit
+     `ProjectBriefing.ProjectsAdded` follows `DeckCreated` when projects came with it.
+   - `Create` posted plainly opens the deck (or Add projects when it has none, as before); in-page
+     it answers with the deck id and its Studio, Gaps and Generate addresses. `FilterOptions` and
+     `FilterProjects` accept deck 0: the projects for a deck not made yet, none "in deck".
+   - The dialog: **Choose projects** (the Add projects filters in picker mode, `picker: true`:
+     nothing saved, ticks read by the dialog, its own element ids) or **Same as a deck** (only
+     when some deck has projects; a list of decks the person can see). The footer says how many
+     are chosen. **Create and open** posts the form; **Create and download** (library only: the
+     Studio has no Download flow to hand to) creates in-page, hands the new deck to the library's
+     Download (the gap question, progress, errors), then shows the library with it on top.
+     Without projects Create and download is disabled.
 5. **One name for the slide style.** Template (New deck) and Design (Deck tab) become one
    **Slide style**: Portfolio, Key points, Brief, Fact sheet, written as the deck's existing
    settings exactly as designs are now (`ProjectBriefingProjectSlideDesigns`), so stored decks

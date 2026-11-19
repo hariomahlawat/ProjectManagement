@@ -128,38 +128,76 @@ public sealed class IndexModel : PageModel
         return Page();
     }
 
+    // New deck. A form from an older page posts a name and template and goes on to Add projects.
+    // The New deck dialog also sends the projects (ticked, or Same as a deck: Plan: The Studio is
+    // optional, PR 4), saved with the deck; in-page it gets the new deck's addresses back, to open
+    // it or to download it from the library.
     public async Task<IActionResult> OnPostCreateAsync(
         [FromForm] CreateDeckInput input,
         CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
-        if (!ModelState.IsValid)
+        var isAjax = IsAjaxRequest();
+        IActionResult Fail(string message)
         {
-            ErrorMessage = FirstModelError("Enter a valid deck name.");
+            if (isAjax)
+            {
+                return BadRequest(new { message });
+            }
+
+            ErrorMessage = message;
             return RedirectToPage();
         }
 
+        if (!ModelState.IsValid)
+        {
+            return Fail(FirstModelError("Enter a valid deck name."));
+        }
+
+        var projects = input.SameAsDeckId is > 0
+            ? new ProjectBriefingNewDeckProjects(Array.Empty<int>(), input.SameAsDeckId)
+            : input.ProjectIds.Count > 0
+                ? new ProjectBriefingNewDeckProjects(input.ProjectIds)
+                : null;
+
+        long deckId;
         try
         {
-            var deckId = await _deckService.CreateAsync(
+            deckId = await _deckService.CreateAsync(
                 userId,
                 input.Name,
                 input.Description,
                 cancellationToken,
-                input.Template);
-            // A new deck opens on Add projects: the next step.
-            return RedirectToPage(new { deckId, start = "projects" });
+                input.Template,
+                projects);
         }
-        catch (InvalidOperationException exception)
+        catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
         {
-            ErrorMessage = exception.Message;
-            return RedirectToPage();
+            return Fail(exception.Message);
         }
         catch (DbUpdateException)
         {
-            ErrorMessage = "The deck could not be created. A deck with the same name may already exist.";
-            return RedirectToPage();
+            return Fail("The deck could not be created. A deck with the same name may already exist.");
         }
+
+        if (isAjax)
+        {
+            return new JsonResult(new
+            {
+                deckId,
+                projectCount = await _deckService.GetEntityAsync(deckId, userId, includeItems: true, cancellationToken) is { } created
+                    ? created.Items.Count
+                    : 0,
+                studioUrl = Url.Page("/Workspace/BriefingDecks/Index", new { deckId }),
+                gapsUrl = Url.Page("/Workspace/BriefingDecks/Index", "Gaps", new { deckId }),
+                generateUrl = Url.Page("/Workspace/BriefingDecks/Index", "Generate")
+            });
+        }
+
+        // With its projects the deck opens on its slides; without, on Add projects (the next step).
+        return projects is null
+            ? RedirectToPage(new { deckId, start = "projects" })
+            : RedirectToPage(new { deckId });
     }
 
     public async Task<IActionResult> OnPostDuplicateAsync(long deckId, CancellationToken cancellationToken)
@@ -997,10 +1035,12 @@ public sealed class IndexModel : PageModel
 
     // The Add projects filter's choices and counts (docs/ux/briefing-add-projects.md), asked for
     // when the dialog opens. Like the list, only for a deck this person may change.
+    // Without a deck (deckId 0) for the New deck dialog: anyone who may make decks (the page's
+    // policy) may choose projects for one, as they may for a deck of their own.
     public async Task<IActionResult> OnGetFilterOptionsAsync(long deckId, CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
-        if (deckId <= 0 || await _deckService.GetEntityAsync(deckId, userId, includeItems: false, cancellationToken) is null)
+        if (deckId < 0 || (deckId > 0 && await _deckService.GetEntityAsync(deckId, userId, includeItems: false, cancellationToken) is null))
         {
             return NotFound(new { message = ProjectBriefingDeckService.NotFoundMessage });
         }
@@ -1017,12 +1057,15 @@ public sealed class IndexModel : PageModel
         CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
-        if (input.DeckId <= 0)
+        if (input.DeckId < 0)
         {
             return BadRequest(new { message = "Select a deck before choosing projects." });
         }
 
-        var deck = await _deckService.GetEntityAsync(input.DeckId, userId, includeItems: true, cancellationToken);
+        // No deck yet (the New deck dialog): nothing is "in deck".
+        var deck = input.DeckId == 0
+            ? new ProjectBriefingDeck()
+            : await _deckService.GetEntityAsync(input.DeckId, userId, includeItems: true, cancellationToken);
         if (deck is null)
         {
             return NotFound(new { message = ProjectBriefingDeckService.NotFoundMessage });
@@ -1404,6 +1447,11 @@ public sealed class IndexModel : PageModel
 
         // The template (slide design) the deck starts from; none gives the standard settings.
         public ProjectBriefingDeckPreset? Template { get; set; }
+
+        // The projects the deck starts with: ticked in the New deck dialog, or the list of another
+        // deck the person may see. Neither: an empty deck, opened on Add projects (older pages).
+        public List<int> ProjectIds { get; set; } = new();
+        public long? SameAsDeckId { get; set; }
     }
 
     private static IReadOnlyList<ProjectBriefingUpdateSheetRow> ResolveUpdateSheetRows(
