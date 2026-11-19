@@ -481,6 +481,8 @@ test('turning to the back keeps the card\'s own title, from its front', async ({
   const errors = await openFresh(page);
   await page.locator('[data-start-design="classic"]').click();
   const title = page.locator('[data-name]');
+  // Once the card has its own name from its words.
+  await expect(title).not.toHaveAttribute('placeholder', 'Untitled collage');
   const before = await title.getAttribute('placeholder');
   await page.locator('[data-card-side="add"]').click();
   await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
