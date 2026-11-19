@@ -2323,6 +2323,14 @@ body.clg-dialog-open .prism-toasts {
 body.clg-dialog-open .prism-toasts .prism-toast {
     pointer-events: none;
 }
+/* The Card panel's logo choices show their whole name, on two lines if need be. */
+.clg-card-logo__choices .clg-sticker__name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.15;
+    text-align: center;
+}
 
 /* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */
 /* Browsers without color-mix() (Chromium/Edge before 111) would draw these colours blank.
@@ -2384,12 +2392,3 @@ body.clg-dialog-open .prism-toasts .prism-toast {
     }
 }
 /* END GENERATED: color-mix() fallbacks */
-
-/* The Card panel's logo choices show their whole name, on two lines if need be. */
-.clg-card-logo__choices .clg-sticker__name {
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-    line-height: 1.15;
-    text-align: center;
-}
