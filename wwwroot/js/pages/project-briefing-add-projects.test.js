@@ -383,7 +383,7 @@ test('the choices are fetched again on an opening once they are two minutes old,
   assert.equal(optionLoads(), before + 1);
   page.$('[data-pbd-filter-open="completed"]').click();
   assert.equal(page.$('[data-pbd-filter-range="completedFrom"]').options.length, 12);
-  assert.match(page.$('[data-pbd-filter-panel]').textContent, /A completion year with no date counts from April of that year/);
+  assert.match(page.$('[data-pbd-filter-panel]').textContent, /A project with only a completion year matches both financial years that year spans/);
   page.$('[data-pbd-filter-all-years]').click();
   assert.equal(page.$('[data-pbd-filter-range="completedFrom"]').options.length, 16);
   assert.equal(page.document.activeElement, page.$('[data-pbd-filter-range="completedFrom"]'));
