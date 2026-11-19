@@ -850,3 +850,27 @@ test('the "names left out" note goes with its list: Undo to a shorter list does 
   await expect(page.locator('[data-card-guest-count]')).not.toContainText('left out');
   expect(errors).toEqual([]);
 });
+
+// Cold review 6, H1: Bilingual never prints a Hindi occasion or host that says something else.
+test('Bilingual empties a Hindi line that would contradict typed English, and says so', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  const occasion = page.locator('[data-card-field="occasion"]');
+  await occasion.fill('Mess Night');
+  await occasion.blur();
+  const host = page.locator('[data-card-field="host"]');
+  await host.fill('Lieutenant General R.K. Sharma, AVSM');
+  await host.blur();
+  await page.locator('[data-card-design="bilingual"]').click();
+  await expect(page.locator('[data-prism-toast]:not(.is-leaving)', { hasText: 'Type the Hindi lines' })).toBeVisible();
+  await expect(page.locator('[data-card-field="occasionHi"]')).toHaveValue('');
+  await expect(page.locator('[data-card-field="hostHi"]')).toHaveValue('');
+  // A quick pick fills its Hindi.
+  await page.locator('[data-card-pick="occasion"][data-value="Regimental Dinner"]').click();
+  await expect(page.locator('[data-card-field="occasionHi"]')).toHaveValue('रेजिमेंटल रात्रिभोज');
+  // English typed on the Bilingual card itself: the quick pick's Hindi goes.
+  await occasion.fill('Mess Night');
+  await occasion.blur();
+  await expect(page.locator('[data-card-field="occasionHi"]')).toHaveValue('');
+  expect(errors).toEqual([]);
+});

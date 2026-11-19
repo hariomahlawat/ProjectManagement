@@ -29,7 +29,7 @@
     at: 'at the',
     occasion: 'Raising Day Dinner',
     when: 'Friday, 12 December 2026 at 1930 h',
-    venue: "Officers' Mess, SDD Campus",
+    venue: 'Officers’ Mess, SDD Campus',
     dress: 'Dress: Lounge Suit',
     rsvp: 'R.S.V.P. The Adjutant · Ext 2241',
     note: 'Kindly bring this card',
@@ -61,7 +61,7 @@
     logoMode: ''
   });
   /** What a new poster starts with: the same fields, a poster's wording. */
-  const POSTER_DETAILS = Object.freeze({ ...DEFAULT_DETAILS, when: '20 – 22 January 2027 · 0700 h onwards', venue: 'Unit Sports Ground' });
+  const POSTER_DETAILS = Object.freeze({ ...DEFAULT_DETAILS, when: '20 – 22 December 2026 · 0700 h onwards', venue: 'Unit Sports Ground' });
   /** The fields on the back of the card. */
   const BACK_FIELDS = Object.freeze(['programmeTitle', 'programme', 'backNote']);
   /** Fields that are not words on the card: they set something else about it. */
@@ -320,8 +320,8 @@
       poster: true,
       background: { type: 'color', value: '#0f2c5c' },
       portrait: [
-        logoPlace(0.12, 0.09, 0.13, 0.6),
-        words('subtitle', 0.24, 0.07, 0.7, 26, { font: 'clean', color: '#e8b020', bold: true, spacing: 14, align: 'left' }, { anchor: 'left', lines: 1, yNoLogo: 0.06 }),
+        logoPlace(0.88, 0.09, 0.13, 0.6),
+        words('subtitle', 0.08, 0.07, 0.7, 26, { font: 'clean', color: '#e8b020', bold: true, spacing: 14, align: 'left' }, { anchor: 'left', lines: 1, yNoLogo: 0.06 }),
         words('title', 0.08, 0.34, 0.86, 140, { font: 'poster', color: '#ffffff', bold: false, align: 'left' }, { anchor: 'left', lines: 3, yNoLogo: 0.29 }),
         { ...block('band', 0.5, 0.61, 1.2, 0.07, { fill: '#e8b020', stroke: '' }), angle: -4 },
         { ...words('when', 0.5, 0.61, 0.84, 46, { font: 'poster', color: '#0f2c5c', bold: false }, { lines: 1 }), angle: -4 },
@@ -342,10 +342,10 @@
         logoPlace(0.5, 0.1, 0.12, 0.6),
         words('title', 0.5, 0.24, 0.84, 72, { font: 'elegant', color: MAROON, bold: true }, { lines: 2, yNoLogo: 0.12 }),
         words('subtitle', 0.5, 0.33, 0.84, 30, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2, yNoLogo: 0.21 }),
-        rule('rule', 0.5, 0.385, 0.3, GOLD, 2.5),
-        words('when', 0.5, 0.46, 0.84, 34, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
-        words('venue', 0.5, 0.53, 0.84, 32, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
-        words('lines', 0.5, 0.68, 0.84, 28, { font: 'clean', color: INK, bold: false }, { lines: 6 }),
+        { ...rule('rule', 0.5, 0.385, 0.3, GOLD, 2.5), yNoLogo: 0.265 },
+        words('when', 0.5, 0.46, 0.84, 34, { font: 'clean', color: INK, bold: true }, { lines: 2, yNoLogo: 0.34 }),
+        words('venue', 0.5, 0.53, 0.84, 32, { font: 'clean', color: INK, bold: false }, { lines: 2, yNoLogo: 0.41 }),
+        words('lines', 0.5, 0.68, 0.84, 28, { font: 'clean', color: INK, bold: false }, { lines: 6, yNoLogo: 0.56 }),
         words('contact', 0.5, 0.93, 0.84, 22, { font: 'clean', color: '#55607a', bold: false }, { lines: 1 })
       ]
     }),
@@ -1139,6 +1139,23 @@
     return { left: item.x - item.width / 2, right: item.x + item.width / 2, top: item.y - half, bottom: item.y + half };
   }
 
+  /**
+   * The Hindi wording kept in step with the English (cold review 6): an occasion quick pick has
+   * its Hindi (`picks`, English to Hindi); a Hindi field still holding the sample's or a quick
+   * pick's Hindi while its English is something else is emptied, so the card never prints a
+   * Hindi line that says something different. Words the user typed in Hindi stay theirs.
+   */
+  function hindiInStep(details, picks = {}) {
+    const out = { ...details };
+    const known = new Set([DEFAULT_DETAILS.occasionHi, ...Object.values(picks)]);
+    if (picks[out.occasion]) out.occasionHi = picks[out.occasion];
+    else if (known.has(out.occasionHi) && out.occasion !== DEFAULT_DETAILS.occasion) out.occasionHi = '';
+    for (const [field, hindi] of [['host', 'hostHi'], ['invite', 'inviteHi']]) {
+      if (out[hindi] === DEFAULT_DETAILS[hindi] && out[field] !== DEFAULT_DETAILS[field]) out[hindi] = '';
+    }
+    return out;
+  }
+
   /** The fields that have an item on either side of a card. */
   function placedOn(collage) {
     return [...new Set([...(collage.items || []), ...(collage.back?.items || [])].filter((item) => item.field).map((item) => item.field))];
@@ -1239,5 +1256,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, followLogo, roleItemOn, designOnSize });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, followLogo, roleItemOn, designOnSize, hindiInStep });
 });

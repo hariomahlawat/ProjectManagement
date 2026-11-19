@@ -761,6 +761,11 @@ details.clg-custom-size[open] > summary {
     padding: 0.75rem 0;
 }
 
+/* The poster's logo question is a section too, with its own inner room (cold review 6). */
+.clg-section.clg-card-question {
+    padding: 0.55rem 0.7rem;
+}
+
 .clg-section__title {
     font-size: 0.7rem;
     letter-spacing: 0.08em;

@@ -36,7 +36,7 @@
     const how = quality === 'print' ? 'print quality' : 'screen size';
     // Cards on a print sheet: how many to which sheet, in print words.
     // "4 × RSVP card 3.5 × 5 in": a size's name is never made plural.
-    if (format === 'pdf' && sheet) return `A PDF at ${how}: ${sheet.count === 1 ? 'one' : sheet.count} × ${paper || 'card'} to each ${sheet.label} sheet, at true size.`;
+    if (format === 'pdf' && sheet) return `A PDF at ${how}: ${sheet.count === 1 ? `one ${paper || 'card'}` : `${sheet.count} × ${paper || 'card'}`} to each ${sheet.label} sheet, at true size.`;
     if (format === 'pdf') return `A PDF at ${how}: ${paper ? `${paper} at its true size, ` : ''}${size}.`;
     const kind = format === 'jpeg' ? 'JPG' : 'PNG';
     return `A ${kind} picture at ${how}: ${size}${format === 'jpeg' && target ? `, kept under ${target}` : ''}.`;
@@ -212,6 +212,13 @@
         const isCard = ['card', 'pocket', 'custom'].includes(group);
         sheetBox.hidden = !(isCard && chosen('format') === 'pdf');
         const flip = getCollage().back ? '; the back sheet lines up when the printer flips on the long edge' : '';
+        // Where edge to edge fits more on the same paper, the sheet with margins says why it fits fewer
+        // (A5 on A4: one with room for cutting, two edge to edge).
+        const edgeMore = (key, fits) => {
+          const edge = Object.keys(print.SHEETS).find((other) => print.SHEETS[other].edge && print.SHEETS[other].mm.join() === print.SHEETS[key].mm.join());
+          const more = edge ? print.sheetLayout(getCollage().size, edge)?.count || 0 : 0;
+          return more > fits ? ` The margins and gaps for cutting leave room for only ${fits === 1 ? 'one' : fits}; ${print.SHEETS[edge].label} fits ${more}.` : '';
+        };
         for (const key of Object.keys(print.SHEETS)) {
           const layout = print.sheetLayout(getCollage().size, key);
           const note = sheetBox.querySelector(`[data-sheet-note="${key}"]`);
@@ -224,7 +231,7 @@
           if (note) {
             note.textContent = !fits ? 'The card is too large for this sheet.'
               : layout.edge ? `${fits} cards touching, no cut marks: cut on the card edges${flip}. It needs a printer that prints to the paper's edge; most office printers leave a margin or shrink the page, so print one sheet to check.`
-              : `${fits} card${fits === 1 ? '' : 's'} to a sheet, with cut marks${flip}.`;
+              : `${fits} card${fits === 1 ? '' : 's'} to a sheet, with cut marks${flip}.${edgeMore(key, fits)}`;
           }
           if (input) {
             input.disabled = !fits || !offered;
@@ -605,7 +612,8 @@
         const saved = files.length === 1 ? `Saved “${files[0].name}”` : `Saved ${files.map((file) => `“${file.name}”`).join(' and ')}`;
         const pageNote = cards && cards.length ? `${cards.length} guest cards on ${pageCount} page${pageCount === 1 ? '' : 's'}` : pdf && pages.length > 1 ? `${pages.length} pages` : null;
         const namesNote = namesLeftOut ? `The guests' names go on the ${designs.isFolded(getCollage().size) ? 'inside' : guestSide ? 'back' : 'front'}, which was not saved, so the ${guestSide ? 'outside' : 'back'} was saved once for each guest, without names` : null;
-        const parts = [saved, pageNote, namesNote, `${width.toLocaleString('en-IN')} × ${height.toLocaleString('en-IN')} pixels`, sizeText].filter(Boolean);
+        const pixelsNote = pdf ? null : `${width.toLocaleString('en-IN')} × ${height.toLocaleString('en-IN')} pixels`;
+        const parts = [saved, pageNote, namesNote, pixelsNote, sizeText].filter(Boolean);
         let line = `${parts.join(' · ')}.`;
         if (fits.scaled) {
           const dpi = core.paperDpi(getCollage().size, fits.width);

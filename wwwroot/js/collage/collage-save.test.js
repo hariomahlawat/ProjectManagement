@@ -9,6 +9,8 @@ test('a PDF of cards on print sheets is summed up in print words', () => {
     'A PDF at print quality: 2 × A6 card to each A4 sheet, at true size.');
   assert.equal(save.saveSummary({ format: 'pdf', quality: 'print', pixels: { width: 1, height: 1 }, paper: 'Entry card or car pass', sheet: { count: 10, label: 'A4' } }),
     'A PDF at print quality: 10 × Entry card or car pass to each A4 sheet, at true size.');
+  assert.equal(save.saveSummary({ format: 'pdf', quality: 'print', pixels: { width: 10, height: 10 }, paper: 'A5 card', sheet: { count: 1, label: 'A4' } }),
+    'A PDF at print quality: one A5 card to each A4 sheet, at true size.');
 });
 
 test('each purpose sets a type and quality, and a hand-made choice matches no purpose', () => {

@@ -81,10 +81,10 @@ test('words typed on the card show in the Card details, and a plain collage has 
   await page.getByRole('button', { name: 'Back to the start' }).click();
 
   await page.locator('[data-start-design="navy"]').click();
-  await expect(page.locator('[data-card-field="venue"]')).toHaveValue("Officers' Mess, SDD Campus");
+  await expect(page.locator('[data-card-field="venue"]')).toHaveValue('Officers’ Mess, SDD Campus');
   // Select the venue on the page through Layers and type in its Words box.
   await page.locator('.clg-props [data-props-tab="layers"]').click();
-  await page.locator('[data-layer-select]').filter({ hasText: "Officers' Mess" }).click();
+  await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).click();
   await page.locator('.clg-props [data-props-tab="settings"]').click();
   const words = page.locator('[data-text]');
   await words.fill('Sudarshan Hall');
@@ -115,7 +115,7 @@ test('a quick pick pressed straight after typing words in Settings still fills i
   await page.locator('[data-start-design="classic"]').click();
   // Select the venue through Layers and type in its Words box, then at once press a quick pick.
   await page.locator('.clg-props [data-props-tab="layers"]').click();
-  await page.locator('[data-layer-select]').filter({ hasText: "Officers' Mess" }).click();
+  await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).click();
   await page.locator('.clg-props [data-props-tab="settings"]').click();
   await page.locator('[data-text]').fill('Sudarshan Hall');
   await page.locator('[data-card-pick="occasion"][data-value="Barakhana"]').click();
@@ -157,9 +157,9 @@ test('words typed in Card details show in the selected item\'s Words box at once
   const errors = await openFresh(page);
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('.clg-props [data-props-tab="layers"]').click();
-  await page.locator('[data-layer-select]').filter({ hasText: "Officers' Mess" }).click();
+  await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).click();
   await page.locator('.clg-props [data-props-tab="settings"]').click();
-  await expect(page.locator('[data-text]')).toHaveValue("Officers' Mess, SDD Campus");
+  await expect(page.locator('[data-text]')).toHaveValue('Officers’ Mess, SDD Campus');
   await page.locator('[data-card-field="venue"]').fill('Sudarshan Hall');
   await expect(page.locator('[data-text]')).toHaveValue('Sudarshan Hall');
   expect(errors).toEqual([]);
@@ -193,7 +193,7 @@ test('a Card field clicked straight after typing words in Settings shows those w
   const errors = await openFresh(page);
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('.clg-props [data-props-tab="layers"]').click();
-  await page.locator('[data-layer-select]').filter({ hasText: "Officers' Mess" }).click();
+  await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).click();
   await page.locator('.clg-props [data-props-tab="settings"]').click();
   await page.locator('[data-text]').fill('Sudarshan Hall');
   // At once, into the matching Card details field, and type one more letter.

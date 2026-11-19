@@ -423,8 +423,8 @@
           : `<input class="form-control form-control-sm" id="${id}" type="text" maxlength="${core.TEXT_LIMITS.maxLength}" value="${value}" data-card-field="${field}" autocomplete="off">`;
         const picks = field === 'occasion' ? OCCASIONS : field === 'dress' ? DRESSES : null;
         const chips = picks ? `<div class="clg-chips clg-card-picks">${picks.map((pick) => `<button type="button" class="clg-chip" data-card-pick="${field}" data-value="${escapeHtml(pick)}" aria-pressed="${(details[field] || '') === pick}">${escapeHtml(pick.replace(/^Dress: /, ''))}</button>`).join('')}</div>` : '';
-        const note = field === 'occasionHi' ? '<p class="clg-hint clg-card-hindi-note">An occasion quick pick fills this in too; words you type in English are not translated.</p>'
-          : /Hi$/.test(field) ? '<p class="clg-hint clg-card-hindi-note">Not translated for you: change it to match the English.</p>' : '';
+        const note = field === 'occasionHi' ? '<p class="clg-hint clg-card-hindi-note">An occasion quick pick fills this in too. Other English is not translated: an old Hindi line is emptied for you to type.</p>'
+          : /Hi$/.test(field) ? '<p class="clg-hint clg-card-hindi-note">Not translated for you: when the English changes, this is emptied for you to type the Hindi.</p>' : '';
         return `<label class="clg-field" for="${id}"><span class="clg-field__label">${escapeHtml(label)}</span>${input}</label>${chips}${note}`;
       }).join('');
       // A poster asks which logo first, above everything, until it is answered (PR 11).
@@ -820,7 +820,7 @@
       // The first names as they will print, so a wrong column shows before Save.
       // Names are the user's (or a file's) words: escaped, never markup.
       const first = (state.collage.card?.guests || []).slice(0, 3).map((name) => `“${escapeHtml(name)}”`).join(', ');
-      return `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it. First on the cards: ${first}${count > 3 ? ', …' : ''}.${left}${column} The names stay in this browser.`;
+      return `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it. First on the cards: ${first}${count > 3 ? ', …' : '.'}${left}${column} The names stay in this browser.`;
     }
 
     /** Sets the guest list from text (pasted, typed, or a file's); kept with the draft, recorded for Undo. */
@@ -976,11 +976,13 @@
       if (!designs.DESIGNS[key] || state.collage?.card?.design === key) return;
       history.flushNudge();
       selection.select(null);
-      doc.edit((draft) => designs.applyDesign(draft, key, designs.detailsOf(draft), options()), 'none');
+      // The Hindi follows the English where it can, and is emptied where it would say something else.
+      doc.edit((draft) => designs.applyDesign(draft, key, designs.hindiInStep(designs.detailsOf(draft), OCCASIONS_HI), options()), 'none');
       history.commit();
       surface.syncAll();
       renderStrip();
-      messages.offerUndo(`Design: ${designs.DESIGNS[key].label}. Your words are kept.`);
+      const hindiEmpty = designs.fieldsOnCard(state.collage).some((field) => /Hi$/.test(field)) && ['occasionHi', 'hostHi', 'inviteHi'].some((field) => !designs.detailsOf(state.collage)[field]);
+      messages.offerUndo(`Design: ${designs.DESIGNS[key].label}. Your words are kept.${hindiEmpty ? ' Type the Hindi lines to match your English.' : ''}`);
     }
 
     form?.addEventListener('input', (event) => {
@@ -993,6 +995,19 @@
       if (event.target.matches('[data-card-guests]')) setGuests(event.target.value, { held: true });
     });
     form?.addEventListener('change', (event) => {
+      // English changed on a card with Hindi lines: a Hindi line still saying the sample's words
+      // is emptied (or follows an occasion quick pick), so the two languages never disagree.
+      const english = event.target.dataset.cardField;
+      if (['occasion', 'host', 'invite'].includes(english) && designs.fieldsOnCard(state.collage).some((field) => /Hi$/.test(field))) {
+        const before = designs.detailsOf(state.collage);
+        const after = designs.hindiInStep(before, OCCASIONS_HI);
+        for (const field of ['occasionHi', 'hostHi', 'inviteHi']) {
+          if (after[field] === before[field] || !designs.fieldsOnCard(state.collage).includes(field)) continue;
+          const input = form.querySelector(`[data-card-field="${field}"]`);
+          if (input) input.value = after[field];
+          setField(field, after[field]);
+        }
+      }
       if (event.target.dataset.cardField || event.target.dataset.cardColour || event.target.matches('[data-card-guests]')) history.flushNudge();
     });
     form?.addEventListener('click', (event) => {

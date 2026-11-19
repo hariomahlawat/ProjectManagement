@@ -890,3 +890,39 @@ test('a guest name\'s floor is 60% of its design size; a wide logo is at most 2.
   assert.equal(designs.logoWidth(100, 1, 100), 240, 'a very wide logo stops at 2.4 times the place');
   assert.ok(designs.logoWidth(100, 1, 2) < 240);
 });
+
+// Cold review 6, H1: Bilingual never prints Hindi that says something else than the English.
+test('the Hindi follows an occasion quick pick and is emptied where it would contradict the English', () => {
+  const picks = { 'Regimental Dinner': 'रेजिमेंटल रात्रिभोज' };
+  const base = { ...designs.DEFAULT_DETAILS };
+  // A quick pick: its Hindi.
+  assert.equal(designs.hindiInStep({ ...base, occasion: 'Regimental Dinner' }, picks).occasionHi, 'रेजिमेंटल रात्रिभोज');
+  // Typed English: the sample Hindi (or a quick pick's) is emptied.
+  assert.equal(designs.hindiInStep({ ...base, occasion: 'Mess Night' }, picks).occasionHi, '');
+  assert.equal(designs.hindiInStep({ ...base, occasion: 'Mess Night', occasionHi: 'रेजिमेंटल रात्रिभोज' }, picks).occasionHi, '');
+  // Hindi the user typed stays.
+  assert.equal(designs.hindiInStep({ ...base, occasion: 'Mess Night', occasionHi: 'मेस नाइट' }, picks).occasionHi, 'मेस नाइट');
+  // The host and invitation line: the sample's Hindi goes when the English is someone else's.
+  const typed = designs.hindiInStep({ ...base, host: 'Lt Gen R.K. Sharma, AVSM', invite: 'requests the pleasure of' }, picks);
+  assert.equal(typed.hostHi, '');
+  assert.equal(typed.inviteHi, '');
+  // The sample as it is keeps its Hindi.
+  const sample = designs.hindiInStep(base, picks);
+  assert.equal(sample.hostHi, base.hostHi);
+  assert.equal(sample.occasionHi, base.occasionHi);
+});
+
+// Cold review 6, M1 and M2: No logo leaves no empty band; a poster's top line lines up with its
+// heading whether or not a logo is chosen.
+test('No logo on the Notice moves its details up with the heading; the Event top line starts on the heading edge', () => {
+  const opts = { measure, newId };
+  const at = (c, field) => c.items.find((item) => item.field === field);
+  const withLogo = designs.applyDesign(core.newCollage('a4p'), 'notice', designs.POSTER_DETAILS, opts);
+  const none = designs.applyDesign(core.newCollage('a4p'), 'notice', { ...designs.POSTER_DETAILS, logoMode: 'none' }, opts);
+  const gap = (c) => (at(c, 'when').y - core.itemHeight(at(c, 'when')) / 2) - (at(c, 'subtitle').y + core.itemHeight(at(c, 'subtitle')) / 2);
+  assert.ok(gap(none) <= gap(withLogo) + 1, 'the gap under the subtitle is no bigger without a logo');
+  assert.ok(at(none, 'when').y < at(withLogo, 'when').y);
+  const event = designs.applyDesign(core.newCollage('a4p'), 'event', designs.POSTER_DETAILS, opts);
+  const left = (item) => item.x - item.width / 2;
+  assert.ok(Math.abs(left(at(event, 'subtitle')) - left(at(event, 'title'))) < 2, 'top line and heading start together');
+});

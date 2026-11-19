@@ -37,7 +37,9 @@
   const card = (group, label, note, mm) => Object.freeze({
     group, label, note, width: Math.round(mm[0] / 25.4 * 300), height: Math.round(mm[1] / 25.4 * 300), mm
   });
-  const turned = (size, label) => Object.freeze({ ...size, label, width: size.height, height: size.width, mm: [size.mm[1], size.mm[0]] });
+  // A size turned the other way round: its measurements in the note turn too (cold review 6).
+  const turnNote = (note) => String(note || '').replace(/(\d+(?:\.\d+)?) × (\d+(?:\.\d+)?)( mm| in)/, '$2 × $1$3');
+  const turned = (size, label) => Object.freeze({ ...size, label, note: turnNote(size.note), width: size.height, height: size.width, mm: [size.mm[1], size.mm[0]] });
   const A5 = card('card', 'A5 card', '148 × 210 mm', [148, 210]);
   const A6 = card('card', 'A6 card', '105 × 148 mm', [105, 148]);
   const IN57 = card('card', '5 × 7 in card', '127 × 178 mm', [127, 177.8]);
