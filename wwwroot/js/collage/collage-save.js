@@ -262,14 +262,30 @@
     function namedFront(front, name) {
       if (!front) return null;
       if (front.items.some((item) => item.field === 'guest')) {
-        return { ...front, items: front.items.map((item) => (item.field === 'guest' ? { ...item, text: name } : item)) };
+        return { ...front, items: front.items.map((item) => (item.field === 'guest' ? nameInField(item, name) : item)) };
       }
       let n = 0;
       const made = designs?.fieldItem({ ...getCollage(), items: front.items }, 'guest', { ...designs.detailsOf(getCollage()), guest: name }, { measure: measureText, newId: () => `guest${++n}` });
       return made ? { ...front, items: [...front.items, made] } : front;
     }
 
-    /** Guest cards into the PDF: each on its own page (with the back after it), or filling sheets. */
+    /**
+     * The guest field with a guest's name, laid out again, keeping the edge it is aligned to: a
+     * left-aligned field's left edge stays put as the name grows, a right-aligned one's right edge.
+     */
+    function nameInField(field, name) {
+      const layout = core.layoutText({ ...field, text: name }, measureText);
+      const named = { ...field, text: name, width: layout.width, aspect: layout.width / layout.height };
+      if (field.align === 'left') named.x = field.x - field.width / 2 + layout.width / 2;
+      if (field.align === 'right') named.x = field.x + field.width / 2 - layout.width / 2;
+      return named;
+    }
+
+    /**
+     * Guest cards into the PDF: each on its own page (with the back after it), or filling sheets.
+     * `fronts` has one entry a guest; an entry is null when only the back is saved, so the backs
+     * still come one a guest, on as many pages or sheet places as the fronts would take.
+     */
     async function guestPdf(pdf, fronts, backPage, fits, sheetKey) {
       const pt = 72 / 25.4;
       const drawImage = async (page) => {
@@ -287,7 +303,7 @@
       if (!layout?.count) {
         const size = core.pdfPage(getCollage().size);
         for (const page of fronts) {
-          pdf.addPage([size.width, size.height]).drawImage(await drawImage(page), { x: 0, y: 0, width: size.width, height: size.height });
+          if (page) pdf.addPage([size.width, size.height]).drawImage(await drawImage(page), { x: 0, y: 0, width: size.width, height: size.height });
           if (backImage) pdf.addPage([size.width, size.height]).drawImage(backImage, { x: 0, y: 0, width: size.width, height: size.height });
         }
         return;
@@ -302,12 +318,14 @@
       };
       for (let start = 0; start < fronts.length; start += layout.count) {
         const batch = fronts.slice(start, start + layout.count);
-        const sheet = pdf.addPage([sw * pt, sh * pt]);
-        for (const [i, page] of batch.entries()) {
-          const slot = layout.cards[i];
-          sheet.drawImage(await drawImage(page), { x: slot.x * pt, y: (sh - slot.y - slot.h) * pt, width: slot.w * pt, height: slot.h * pt });
+        if (batch.some(Boolean)) {
+          const sheet = pdf.addPage([sw * pt, sh * pt]);
+          for (const [i, page] of batch.entries()) {
+            const slot = layout.cards[i];
+            if (page) sheet.drawImage(await drawImage(page), { x: slot.x * pt, y: (sh - slot.y - slot.h) * pt, width: slot.w * pt, height: slot.h * pt });
+          }
+          marks(sheet);
         }
-        marks(sheet);
         if (backImage) {
           const backSheet = pdf.addPage([sw * pt, sh * pt]);
           for (const i of batch.keys()) {
@@ -359,7 +377,9 @@
         const names = all.length > 1 ? (sides === 'both' ? ['front', 'back'] : [sides]) : [''];
         // One card for each guest (PR 10): the front once a guest, their name on it, then the back.
         const guests = format === 'pdf' && !$('[data-save-guests]')?.hidden && chosen('guests') === 'each' ? (getCollage().card?.guests || []) : [];
-        const fronts = guests.length ? guests.map((name) => namedFront(pages[0] === all[0] ? all[0] : null, name)).filter(Boolean) : null;
+        // Backs only still come one a guest, so they match the fronts printed apart.
+        const frontSaved = pages[0] === all[0];
+        const fronts = guests.length && (frontSaved || pages.length) ? guests.map((name) => (frontSaved ? namedFront(all[0], name) : null)) : null;
         const stem = core.fileStem(collageTitle());
         saveLeftOut = 0;
         saveStickersLeftOut = 0;

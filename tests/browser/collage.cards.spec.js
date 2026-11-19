@@ -191,6 +191,22 @@ test('a guest list makes one card for each guest: on their own pages, or filling
   await expect(page.locator('[data-save-result]')).toContainText('3 guest cards on 2 pages');
   await page.keyboard.press('Escape');
 
+  // With a back, Back only still gives one back a guest: three pages, or two A4 sheets.
+  await page.locator('[data-card-side="add"]').click();
+  await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await page.locator('input[name="sides"][value="back"]').check();
+  await page.locator('[data-save-sheet] input[value="card"]').check();
+  download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  expect((await pagesOf(await download)).length).toBe(3);
+  await page.locator('[data-save-sheet] input[value="a4"]').check();
+  download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  expect(await pagesOf(await download)).toEqual([842, 842]);
+  await page.keyboard.press('Escape');
+
   // Cleared, with Undo; Save then offers no guest cards.
   await page.locator('[data-card-guest="clear"]').click();
   await expect(page.locator('[data-card-guests]')).toHaveValue('');
