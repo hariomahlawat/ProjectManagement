@@ -1028,7 +1028,9 @@ public sealed class IndexModel : PageModel
             return NotFound(new { message = ProjectBriefingDeckService.NotFoundMessage });
         }
 
-        var projects = await _selectionService.FilterAsync(
+        // The first FilterRowsShown rows unless all are asked for (cold review 6): a deck takes at
+        // most 120 projects, so the first 200 always hold as many as Tick all can tick.
+        var page = await _selectionService.FilterPageAsync(
             new ProjectBriefingProjectFilter
             {
                 Query = input.Query,
@@ -1040,10 +1042,11 @@ public sealed class IndexModel : PageModel
                 CompletedToFinancialYear = input.CompletedTo,
                 AvailableForProliferation = input.Proliferation
             },
+            input.All ? null : FilterRowsShown,
             cancellationToken);
 
         var membership = deck.Items.ToDictionary(item => item.ProjectId, item => item.SortOrder);
-        var rows = projects.Select(project => new ProjectBriefingManageSearchResultVm(
+        var rows = page.Rows.Select(project => new ProjectBriefingManageSearchResultVm(
             project.ProjectId,
             project.ProjectName,
             project.Lifecycle,
@@ -1057,8 +1060,8 @@ public sealed class IndexModel : PageModel
             .ToArray();
         return new JsonResult(new
         {
-            total = rows.Length,
-            inDeck = rows.Count(row => row.IsSelected),
+            total = page.ProjectIds.Count,
+            inDeck = page.ProjectIds.Count(membership.ContainsKey),
             // The deck's size now, so the dialog's room follows another editor's changes (cold review 5).
             deckProjectCount = deck.Items.Count,
             rows
@@ -1076,7 +1079,11 @@ public sealed class IndexModel : PageModel
         public int? CompletedFrom { get; set; }
         public int? CompletedTo { get; set; }
         public bool Proliferation { get; set; }
+        // Every matching row, not only the first FilterRowsShown ("Show all N projects").
+        public bool All { get; set; }
     }
+
+    internal const int FilterRowsShown = 200;
 
     public async Task<IActionResult> OnGetPreviewAsync(long deckId, CancellationToken cancellationToken)
     {

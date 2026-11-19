@@ -169,6 +169,31 @@ public sealed class ProjectBriefingProjectFilterTests
         Assert.Equal(1106, rows.Count);
     }
 
+    // The dialog's read (cold review 6): every match's id, by name, and full rows for only the
+    // first few, the same first few the whole list would start with.
+    [Fact]
+    public async Task FilterPage_CountsEveryMatch_ButBuildsRowsForTheFirstOnly()
+    {
+        await using var db = await SeedAsync();
+        db.Projects.AddRange(Enumerable.Range(1000, 300).Select(id => new Project
+        {
+            Id = id,
+            Name = $"Bulk {id}",
+            CreatedByUserId = "u",
+            LifecycleStatus = ProjectLifecycleStatus.Active
+        }));
+        await db.SaveChangesAsync();
+        var service = Service(db);
+
+        var page = await service.FilterPageAsync(new ProjectBriefingProjectFilter(), take: 200);
+        var all = await service.FilterAsync(new ProjectBriefingProjectFilter());
+
+        Assert.Equal(306, page.ProjectIds.Count);
+        Assert.Equal(200, page.Rows.Count);
+        Assert.Equal(all.Select(row => row.ProjectId), page.ProjectIds);
+        Assert.Equal(all.Take(200).Select(row => row.ProjectId), page.Rows.Select(row => row.ProjectId));
+    }
+
     [Fact]
     public async Task ArppYear_AProjectDelistedThenRelistedInTheSameYearIsListed()
     {

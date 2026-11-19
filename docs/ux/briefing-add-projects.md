@@ -199,3 +199,20 @@ UX 8, code 8; no High. The findings are fixed in one PR.
 
 **Open question for the owner**
 - A completion year with no date counts from April of that year. If `CompletedYear` holds a calendar year, a project finished in January–March lands one financial year late.
+
+## Sixth cold review (19 Nov 2026)
+
+Scores: UX 8, code 8.5, no High. The three Medium findings were fixed; the Lows were left.
+
+**Fixed**
+- Each row shows its file number first ("File …"), so a search that matched the file number shows why.
+- The server builds rows for the first 200 matches only (`IndexModel.FilterRowsShown`). It still counts every match by id, so the totals and "already in the deck" are real. "Show all N projects" asks the server for every row (`all=true`). A deck takes at most 120 projects, so the first 200 rows always hold as many as Tick all can tick.
+- When a list reply shows the deck differs from what the page holds (another tab or editor changed it), the dialog says so at once, marks rows as the server has them, and drops ticks on projects now in the deck. Reload keeps the ticks (in `sessionStorage`) and opens the dialog again with them. The page's own newer deck clears the notice.
+
+**Left (Low)**
+- A deck filled by archived or deleted projects cannot be fixed from the dialog.
+- Rank and category names match by "contains" (typing "Col" lists every colonel's project).
+- Escape from the footer closes the whole dialog.
+- Some text is about 12.5px; the chip × is under the touch-target size on phones.
+- The list has no accessible name.
+- "This financial year" is worked out in UTC.

@@ -21,6 +21,7 @@ export function initAddProjects(deps) {
   const filterTickAll = filterRoot.querySelector('[data-pbd-filter-tick-all]');
   const filterListRetry = filterRoot.querySelector('[data-pbd-filter-list-retry]');
   const filterResults = filterRoot.querySelector('[data-pbd-filter-results]');
+  const filterChanged = filterRoot.querySelector('[data-pbd-filter-changed]');
   const filterAddForm = filterRoot.querySelector('[data-pbd-filter-add-form]');
   const filterTickedLabel = root.querySelector('[data-pbd-filter-ticked]');
   const filterRoom = root.querySelector('[data-pbd-filter-room]');
@@ -316,7 +317,11 @@ export function initAddProjects(deps) {
   // Counts each membership change the page applies, so a list reply read before one is not
   // trusted for the deck's size (Codex review).
   let membershipVersion = 0;
+  // The server sends the first 200 rows and the real totals (cold review 6); "Show all" asks it
+  // for every row.
   let showAllRows = false;
+  let matchTotal = 0;
+  let matchInDeck = 0;
   const room = () => Math.max(0, maximumProjects - Math.max(members().size, serverMemberCount ?? 0));
   if (filterRoom && !filterRoom.id) filterRoom.id = 'pbd-filter-room';
   let roomAnnouncer = root.querySelector('[data-pbd-filter-announce]');
@@ -395,8 +400,9 @@ export function initAddProjects(deps) {
     filterTickAll.textContent = tickAllLabel(notInDeck, allTicked);
   };
 
-  // At most this many rows are drawn at first; "Show all N" draws the rest (cold review 5). The
-  // count and Tick all still cover every match.
+  // The server sends at most this many rows unless all are asked for
+  // (IndexModel.FilterRowsShown); "Show all N" fetches the rest (cold review 6). A deck takes at
+  // most 120 projects, so these always hold as many as Tick all can tick.
   const ROWS_SHOWN = 200;
   const renderFilterRows = () => {
     // A rebuild under someone already in the list keeps them on the same row (cold review 5).
@@ -412,7 +418,11 @@ export function initAddProjects(deps) {
     if (wasReviewing && !showTicked) renderFilterChips();
     const rows = showTicked ? [...ticked.values()] : filterRows;
     const notInDeck = rows.filter((row) => !row.isSelected);
-    const inDeck = rows.length - notInDeck.length;
+    // Every row is here: count them as the page knows the deck now. Only the first are: the
+    // server counted them all.
+    const partial = !showTicked && matchTotal > rows.length;
+    const total = partial ? matchTotal : rows.length;
+    const inDeck = partial ? matchInDeck : rows.length - notInDeck.length;
     if (filterCount) {
       // Ongoing projects have no completion year, so "Ongoing" with "Completed between" can match
       // nothing: say why (cold review 3).
@@ -420,16 +430,15 @@ export function initAddProjects(deps) {
         && Boolean(filterState.completedFrom || filterState.completedTo);
       filterCount.textContent = showTicked
         ? `Showing the ${rows.length} ticked ${rows.length === 1 ? 'project' : 'projects'}, whatever the filters.`
-        : rows.length
-          ? `${rows.length} ${rows.length === 1 ? 'project matches' : 'projects match'}${inDeck ? ` · ${inDeck} already in the deck` : ''}`
+        : total
+          ? `${total} ${total === 1 ? 'project matches' : 'projects match'}${inDeck ? ` · ${inDeck} already in the deck` : ''}`
           : contradictory
             ? 'No projects match: ongoing projects have no completion year. Clear Status or Completed between.'
             : 'No projects match these filters.';
     }
     if (filterListRetry) filterListRetry.hidden = true;
     updateTickAll(notInDeck);
-    const drawn = showTicked || showAllRows ? rows : rows.slice(0, ROWS_SHOWN);
-    drawn.forEach((row) => {
+    rows.forEach((row) => {
       const item = doc.createElement(row.isSelected ? 'div' : 'label');
       item.className = `pbd-search-result pbd-filter__row${row.isSelected ? ' is-in-deck' : ''}${ticked.has(row.projectId) ? ' is-selected' : ''}`;
       item.dataset.projectResult = String(row.projectId);
@@ -465,7 +474,11 @@ export function initAddProjects(deps) {
       }
       const meta = doc.createElement('small');
       meta.id = `pbd-filter-meta-${row.projectId}`;
-      meta.textContent = [...new Set([row.lifecycle, row.presentStage, row.technicalCategory, row.projectCategory, row.projectOfficer].filter(Boolean))].join(' · ');
+      // The file number leads, so a search that matched it shows why (cold review 6).
+      meta.textContent = [
+        row.caseFileNumber ? `File ${row.caseFileNumber}` : '',
+        ...new Set([row.lifecycle, row.presentStage, row.technicalCategory, row.projectCategory, row.projectOfficer])
+      ].filter(Boolean).join(' · ');
       body.append(heading, meta);
       item.append(body);
       if (row.isSelected) {
@@ -479,12 +492,12 @@ export function initAddProjects(deps) {
       }
       filterResults.append(item);
     });
-    if (drawn.length < rows.length) {
+    if (partial) {
       const more = doc.createElement('button');
       more.type = 'button';
       more.className = 'btn btn-outline-secondary btn-sm pbd-filter__more';
       more.dataset.pbdFilterShowAll = 'true';
-      more.textContent = `Show all ${rows.length} projects`;
+      more.textContent = `Show all ${total} projects`;
       filterResults.append(more);
     }
     updateTickedFooter();
@@ -492,8 +505,8 @@ export function initAddProjects(deps) {
     else if (keepRemove) filterResults.querySelector(`[data-pbd-filter-remove="${keepRemove}"]`)?.focus();
   };
 
-  const loadFilterRows = async () => {
-    if (deckId <= 0) return;
+  const loadFilterRows = async ({ all = false } = {}) => {
+    if (deckId <= 0) return false;
     filterAbort?.abort();
     filterAbort = new view.AbortController();
     const request = ++listRequest;
@@ -509,6 +522,7 @@ export function initAddProjects(deps) {
     if (filterState.completedFrom) url.searchParams.set('completedFrom', filterState.completedFrom);
     if (filterState.completedTo) url.searchParams.set('completedTo', filterState.completedTo);
     if (filterState.proliferation) url.searchParams.set('proliferation', 'true');
+    if (all) url.searchParams.set('all', 'true');
     // "Finding projects…" only when the answer is slow, so it is not read out on every keystroke
     // (cold review 3).
     const finding = view.setTimeout(() => {
@@ -523,33 +537,76 @@ export function initAddProjects(deps) {
       checkReply(response, { read: true });
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.message || `Projects could not be listed (${response.status}).`);
-      if (request !== listRequest) return;
+      if (request !== listRequest) return false;
       // "In deck" comes from the deck as the page knows it now, not from when the server
       // answered: a reply that arrives after an Add must not offer those projects again
       // (cold review 2, M3).
       const inDeck = members();
-      // The deck's size as the server saw it: another editor may have filled it (cold review 5).
-      // A Remove, Add or Undo applied while this request was out is newer than its count.
-      if (membershipAtRequest === membershipVersion) {
+      // The deck as the server saw it: another editor may have changed it (cold reviews 5 and 6).
+      // A Remove, Add or Undo applied while this request was out is newer than the reply.
+      const current = membershipAtRequest === membershipVersion;
+      if (current) {
         serverMemberCount = Number.isFinite(payload?.deckProjectCount) ? payload.deckProjectCount : null;
+        const differs = (payload?.rows || []).some((row) => Boolean(row.isSelected) !== inDeck.has(Number(row.projectId)))
+          || (serverMemberCount !== null && serverMemberCount !== inDeck.size);
+        if (differs) changedElsewhere = true;
       }
-      showAllRows = false;
+      showAllRows = all;
+      matchTotal = Number.isFinite(payload?.total) ? payload.total : (payload?.rows || []).length;
+      matchInDeck = Number.isFinite(payload?.inDeck) ? payload.inDeck : 0;
       filterRows = (payload?.rows || []).map((row) => {
         const projectId = Number(row.projectId);
-        return { ...row, projectId, isSelected: inDeck.has(projectId) };
+        // Once the deck is known to have changed elsewhere, the server's marks are the truer.
+        const isSelected = current && changedElsewhere ? Boolean(row.isSelected) : inDeck.has(projectId);
+        if (isSelected) ticked.delete(projectId);
+        return { ...row, projectId, isSelected };
       });
       renderFilterRows();
+      showChangedElsewhere();
+      return true;
     } catch (error) {
-      if (error.name === 'AbortError' || request !== listRequest) return;
+      if (error.name === 'AbortError' || request !== listRequest) return false;
       // No stale rows to tick under an error, and a way to try again (cold review 3, M3).
       filterRows = [];
       renderFilterRows();
       if (filterCount) filterCount.textContent = error.message || 'Projects could not be listed.';
       if (filterListRetry) filterListRetry.hidden = false;
+      return false;
     } finally {
       view.clearTimeout(finding);
     }
   };
+  // Another tab or editor changed the deck since this page loaded (cold review 6): the dialog
+  // says so as soon as a list reply shows it, rather than on Add, and Reload keeps the ticks.
+  let changedElsewhere = false;
+  const ticksKey = `prism.briefingDecks.addTicks.${deckId}`;
+  const showChangedElsewhere = () => {
+    if (filterChanged) filterChanged.hidden = !changedElsewhere;
+  };
+  filterChanged?.querySelector('[data-pbd-filter-changed-reload]')?.addEventListener('click', () => {
+    try {
+      view.sessionStorage.setItem(ticksKey, JSON.stringify([...ticked.values()]));
+    } catch { /* the ticks are not kept */ }
+    view.location.reload();
+  });
+  // Ticks kept across that reload come back, and the dialog opens again with them.
+  let restoredTicks = false;
+  try {
+    const kept = JSON.parse(view.sessionStorage.getItem(ticksKey) || 'null');
+    view.sessionStorage.removeItem(ticksKey);
+    if (Array.isArray(kept)) {
+      const inDeck = members();
+      kept.forEach((row) => {
+        const projectId = Number(row?.projectId);
+        // All of them, even past the room: the room line asks which to untick (Codex review).
+        if (projectId > 0 && !inDeck.has(projectId)) {
+          ticked.set(projectId, { ...row, projectId, isSelected: false });
+        }
+      });
+      restoredTicks = true;
+    }
+  } catch { /* nothing kept */ }
+
   const reloadFilterRows = (delay = 0) => {
     view.clearTimeout(filterTimer);
     filterTimer = view.setTimeout(loadFilterRows, delay);
@@ -559,8 +616,11 @@ export function initAddProjects(deps) {
   // is now in the deck is no longer ticked.
   const refreshMembership = (projects) => {
     // The page's own reply is newer than the last list reply, and than any still on its way.
+    // It is the deck as the server holds it now, so the deck is no longer out of date here.
     serverMemberCount = null;
     membershipVersion += 1;
+    changedElsewhere = false;
+    showChangedElsewhere();
     const inDeck = new Set(projects.map((project) => Number(project.projectId)));
     inDeck.forEach((projectId) => ticked.delete(projectId));
     filterRows = filterRows.map((row) => ({ ...row, isSelected: inDeck.has(row.projectId) }));
@@ -807,10 +867,13 @@ export function initAddProjects(deps) {
     if (event.detail) event.detail.reticked = undone.filter((projectId) => ticked.has(projectId)).length;
     renderFilterRows();
   });
-  filterResults.addEventListener('click', (event) => {
-    if (!(event.target instanceof view.Element) || !event.target.closest('[data-pbd-filter-show-all]')) return;
-    showAllRows = true;
-    renderFilterRows();
+  filterResults.addEventListener('click', async (event) => {
+    const more = event.target instanceof view.Element ? event.target.closest('[data-pbd-filter-show-all]') : null;
+    if (!more) return;
+    more.disabled = true;
+    more.textContent = 'Showing all…';
+    view.clearTimeout(filterTimer);
+    if (!(await loadFilterRows({ all: true }))) return;
     // The keyboard carries on at the first row that was not shown before.
     filterResults.querySelectorAll('.pbd-filter__row')[ROWS_SHOWN]?.querySelector('input, button')?.focus();
   });
@@ -853,6 +916,9 @@ export function initAddProjects(deps) {
     reloadFilterRows();
   };
   modalElement?.addEventListener('show.bs.modal', openDialog);
+  if (restoredTicks && modalElement) {
+    view.setTimeout(() => view.bootstrap?.Modal?.getOrCreateInstance(modalElement)?.show(), 0);
+  }
 
   return { refreshMembership, open: openDialog, reload: loadFilterRows };
 }

@@ -692,6 +692,40 @@ public sealed class ProjectBriefingDeckPageHandlerTests
         Assert.IsType<NotFoundObjectResult>(options);
     }
 
+    // The list sends the first 200 rows with the real totals, every row when asked, and the
+    // deck's size (cold review 6).
+    [Fact]
+    public async Task FilterProjects_SendsTheFirst200Rows_WithTheRealTotals()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, Officer, ProjectBriefingDeckScope.Personal);
+        db.Projects.AddRange(Enumerable.Range(1000, 250).Select(id => new Project
+        {
+            Id = id,
+            Name = $"Bulk {id}",
+            CaseFileNumber = $"F/{id}",
+            CreatedByUserId = Officer
+        }));
+        deck.Items.Add(new ProjectBriefingDeckItem { ProjectId = 1249, SortOrder = 2, AddedAtUtc = new FixedClock().UtcNow });
+        await db.SaveChangesAsync();
+        var page = CreatePage(db, Officer, ajax: true, selection: new ProjectBriefingSelectionService(db, new FixedClock()));
+
+        var first = Payload(await page.OnGetFilterProjectsAsync(new IndexModel.FilterProjectsInput { DeckId = deck.Id }, CancellationToken.None));
+        var all = Payload(await page.OnGetFilterProjectsAsync(new IndexModel.FilterProjectsInput { DeckId = deck.Id, All = true }, CancellationToken.None));
+
+        Assert.Equal(251, first.GetProperty("total").GetInt32());
+        Assert.Equal(2, first.GetProperty("inDeck").GetInt32());
+        Assert.Equal(2, first.GetProperty("deckProjectCount").GetInt32());
+        Assert.Equal(200, first.GetProperty("rows").GetArrayLength());
+        Assert.Equal("F/1000", first.GetProperty("rows")[0].GetProperty("caseFileNumber").GetString());
+        Assert.Equal(251, all.GetProperty("rows").GetArrayLength());
+
+        static System.Text.Json.JsonElement Payload(IActionResult result)
+            => System.Text.Json.JsonSerializer.SerializeToElement(
+                Assert.IsType<JsonResult>(result).Value,
+                new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+    }
+
     // A full deck (120) asked again for projects it already holds adds nothing and is not refused;
     // one new project is refused with how many it holds (cold review 5, L9).
     [Fact]
