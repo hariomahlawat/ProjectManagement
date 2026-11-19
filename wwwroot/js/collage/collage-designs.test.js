@@ -503,4 +503,9 @@ test('a locked part keeps its place behind the logo; a field locked on the front
   const guests = [...folded.items, ...(folded.back?.items || [])].filter((item) => item.field === 'guest');
   assert.equal(guests.length, 1);
   assert.equal(guests[0].locked, true);
+  // Card details finds it where it is, on the front, so typing changes it (Codex on #3452).
+  assert.equal(designs.sideOf(folded, 'guest'), 'front');
+  assert.equal(designs.sideOf(core.flipSide(folded), 'guest'), 'front');
+  // A field not on the card: the side the design puts it on.
+  assert.equal(designs.sideOf(designs.applyDesign(core.newCollage('fold6'), 'classic', {}, opts), 'venue'), 'back');
 });

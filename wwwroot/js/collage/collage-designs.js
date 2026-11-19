@@ -592,6 +592,14 @@
 
   /** Which side of the card a field is on, from the design: 'front', 'back', or null when it has none. */
   function sideOf(collage, field) {
+    // A field already on the card is on its side, wherever the design would put it now (one the
+    // user locked stays where it was through a size change: Codex on #3452).
+    const showingBack = collage?.side === 'back' && collage.back;
+    const frontItems = (showingBack ? collage.back.items : collage?.items) || [];
+    const backItems = (showingBack ? collage.items : collage?.back?.items) || [];
+    const has = (items) => items.some((item) => item.kind === 'text' && item.field === field);
+    if (has(frontItems)) return 'front';
+    if (collage?.back && has(backItems)) return 'back';
     const parts = partsFor(collage?.card?.design, collage?.size);
     if (fieldsIn(parts.front).includes(field)) return 'front';
     if (collage?.back && fieldsIn(parts.back).includes(field)) return 'back';
