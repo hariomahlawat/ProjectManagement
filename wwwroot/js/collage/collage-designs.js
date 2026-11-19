@@ -1041,6 +1041,44 @@
     Object.assign(guest, { size: next.size, minSize: next.minSize, width: layout.width, aspect: layout.width / layout.height, y: baseY - raise });
   }
 
+  /**
+   * Whether a field that follows another (the cover title, following the occasion) may be put on
+   * the card now: only while the field it follows is not already on its side. A folded card made
+   * before the cover title had the occasion itself on its cover; a second title would lie on top
+   * of it (Codex on #3460).
+   */
+  function mayFollow(collage, field) {
+    const from = FALLBACKS[field];
+    if (!from) return false;
+    const side = (collage?.card?.design && partsFor(collage.card.design, collage.size).back || []).some((part) => part.field === field) ? 'back' : 'front';
+    return sideOf(collage, from) !== side || !fieldsOnCard(collage).includes(from);
+  }
+
+  /**
+   * A field still following another (the cover title showing the occasion) takes the words the
+   * other now has, however those were changed: in Card details, or in the Words box of the item
+   * on the page (Codex on #3460). Following means its detail is empty and its words are the
+   * other's words as last given; words the user typed into it stay. Returns the collage with the
+   * follower's words, size and the given words brought up to date, or the same collage.
+   */
+  function followFallbacks(collage, measure) {
+    const given = collage?.card?.details || {};
+    let out = collage;
+    for (const [field, from] of Object.entries(FALLBACKS)) {
+      if (given[field] !== '') continue;
+      const all = [...(out.items || []), ...(out.back?.items || [])];
+      const source = all.find((item) => item.kind === 'text' && item.field === from);
+      const follower = all.find((item) => item.kind === 'text' && item.field === field);
+      if (!source || !follower || follower.locked || !String(source.text || '').trim()) continue;
+      if (follower.text === source.text || follower.text !== String(given[from] ?? '')) continue;
+      const layout = core.layoutText({ ...follower, text: source.text }, measure);
+      const next = { ...follower, text: source.text, width: layout.width, aspect: layout.width / layout.height };
+      const swap = (items) => items.map((item) => (item === follower ? next : item));
+      out = { ...out, items: swap(out.items || []), ...(out.back ? { back: { ...out.back, items: swap(out.back.items || []) } } : {}), card: { ...out.card, details: { ...given, [from]: source.text } } };
+    }
+    return out;
+  }
+
   /** The faces a guest's name may take, from a design's own: script, then serif italic, then clean. */
   const GUEST_FACES = Object.freeze(['script', 'elegant', 'clean']);
 
@@ -2068,5 +2106,5 @@
   const FRAMES_WORDS = 'the frames round the panels';
   const COLOUR_USES = lookupTable({ roundel: 'the ring round the logo', logotile: 'the tile behind the logo', backlogotile: 'the tile behind the logo', rule: 'the line at the bottom', backrule: 'the line on the back', backborder: 'the border on the back', coverrule: 'the line on the cover', innerrule: 'the line inside', leftrule: 'the line inside', backcoverrule: 'the lines on the back cover', backcoverrule2: 'the lines on the back cover', coverborder: FRAMES_WORDS, backcover: FRAMES_WORDS, innerborder: FRAMES_WORDS, innerborder2: FRAMES_WORDS });
 
-  return Object.freeze({ AUTO_PARTS, COLOUR_USES, DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, followLogo, roleItemOn, designOnSize, hindiInStep, fieldAnchor, FALLBACKS, closeLogoPlace, fitGuest, guestStyle, clearOccasion });
+  return Object.freeze({ AUTO_PARTS, COLOUR_USES, DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, mayFollow, followFallbacks, followLogo, roleItemOn, designOnSize, hindiInStep, fieldAnchor, FALLBACKS, closeLogoPlace, fitGuest, guestStyle, clearOccasion });
 });

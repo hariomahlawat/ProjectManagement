@@ -1127,7 +1127,8 @@
       // Followers follow an emptied field too (Codex on #3460): they go with it, and come back
       // still following when words are typed again, so the cover never keeps an old occasion.
       const followers = Object.keys(designs.FALLBACKS).filter((each) => designs.FALLBACKS[each] === field && details[each] === '');
-      const followerBack = new Map(followers.filter((each) => text.trim() && !textFor(collage, each)).map((each) => [each, designs.fieldItem(collage, each, { ...details, [each]: '' }, options())]).filter(([, item]) => item));
+      // An older folded card with the occasion itself on its cover gets no second title on it.
+      const followerBack = new Map(followers.filter((each) => text.trim() && !textFor(collage, each) && designs.mayFollow(collage, each)).map((each) => [each, designs.fieldItem(collage, each, { ...details, [each]: '' }, options())]).filter(([, item]) => item));
       const fresh = !textFor(collage, field) && shown.trim() ? designs.fieldItem(collage, field, details, options()) : null;
       // Words still at the width their design gave them take the width the design gives the new
       // words (no word left alone on a line: cold review 9, L1); words the user resized keep theirs.

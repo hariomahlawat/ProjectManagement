@@ -114,3 +114,20 @@ test('the cover title follows the occasion through clearing it and typing a new 
   await expect(page.locator('[data-card-field="coverTitle"]')).toHaveValue('');
   expect(errors).toEqual([]);
 });
+
+// Codex on #3460: the occasion typed in its Words box on the page (inside) takes the cover with it.
+test('the occasion typed on the page in its Words box takes the following cover title with it', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('fold6');
+  await page.locator('[data-start-design="classic"]').click();
+  await type(page, 'occasion', 'Barakhana');
+  await expect.poll(async () => (await sides(page)).front.find((item) => item.field === 'coverTitle')?.text).toBe('Barakhana');
+  await page.locator('[data-card-side="back"]').click();
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator('[data-layer-select]').filter({ hasText: 'Barakhana' }).click();
+  await page.locator('.clg-props [data-props-tab="settings"]').click();
+  await page.locator('[data-text]').fill('Regimental Dinner');
+  await expect.poll(async () => (await sides(page)).back.find((item) => item.field === 'occasion')?.text).toBe('Regimental Dinner');
+  await expect.poll(async () => (await sides(page)).front.find((item) => item.field === 'coverTitle')?.text).toBe('Regimental Dinner');
+  expect(errors).toEqual([]);
+});

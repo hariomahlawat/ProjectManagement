@@ -1624,3 +1624,42 @@ test('a locked two-line guest name is left as it is when the page is laid out', 
   designs.applyDesign(withGuest, 'classic', designs.detailsOf(withGuest), opts);
   assert.equal(JSON.stringify(locked), before, 'the locked item of the collage is unchanged');
 });
+
+// Codex on #3460: a folded card made before the cover title (the occasion itself on the cover)
+// gets no second title on its cover.
+test('mayFollow: no following cover title where the occasion itself is on the cover', () => {
+  const opts = { measure, newId };
+  const card = designs.applyDesign(core.newCollage('fold6'), 'classic', designs.startDetails('classic'), opts);
+  assert.equal(designs.mayFollow(card, 'coverTitle'), true, 'a card of today: the occasion is inside');
+  // As an older PRISM saved it: the cover's title is the occasion, and the inside has none.
+  const cover = card.items.find((item) => item.field === 'coverTitle');
+  const legacy = {
+    ...card,
+    items: card.items.map((item) => (item === cover ? { ...item, field: 'occasion' } : item)),
+    back: { ...card.back, items: card.back.items.filter((item) => item.field !== 'occasion') },
+    card: { ...card.card, placed: (card.card.placed || []).filter((field) => field !== 'coverTitle') }
+  };
+  const noCover = { ...legacy, items: legacy.items };
+  assert.equal(designs.mayFollow(noCover, 'coverTitle'), false);
+  assert.equal(designs.mayFollow(card, 'occasion'), false, 'only a field that follows another');
+});
+
+// Codex on #3460: a following cover title takes the occasion's words however they were changed.
+test('followFallbacks: the cover still following takes the occasion edited on the page; own words stay', () => {
+  const opts = { measure, newId };
+  const card = designs.applyDesign(core.newCollage('fold6'), 'classic', { ...designs.startDetails('classic'), occasion: 'Barakhana' }, opts);
+  const coverOf = (collage) => collage.items.find((item) => item.field === 'coverTitle');
+  assert.equal(coverOf(card).text, 'Barakhana');
+  assert.equal(designs.followFallbacks(card, measure), card, 'nothing to follow: the same card');
+  const typed = { ...card, back: { ...card.back, items: card.back.items.map((item) => (item.field === 'occasion' ? { ...item, text: 'Regimental Dinner' } : item)) } };
+  const followed = designs.followFallbacks(typed, measure);
+  assert.equal(coverOf(followed).text, 'Regimental Dinner');
+  assert.equal(followed.card.details.occasion, 'Regimental Dinner');
+  assert.ok(coverOf(followed).width > coverOf(card).width, 'measured for its new words');
+  // Words the user typed on the cover itself are theirs.
+  const own = { ...typed, items: typed.items.map((item) => (item.field === 'coverTitle' ? { ...item, text: 'You are invited' } : item)) };
+  assert.equal(designs.followFallbacks(own, measure), own);
+  // A cover title with words of its own in the details does not follow.
+  const set = { ...typed, card: { ...typed.card, details: { ...typed.card.details, coverTitle: 'Dinner Night' } } };
+  assert.equal(designs.followFallbacks(set, measure), set);
+});
