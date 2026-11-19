@@ -904,7 +904,7 @@ test('a guest name\'s floor is 60% of its design size; a wide logo is at most 2.
   for (const size of ['a5p', 'a6p']) {
     const card = designs.applyDesign(core.newCollage(size), 'classic', { guest: 'Maj A' }, { measure, newId });
     const guest = card.items.find((item) => item.field === 'guest');
-    assert.ok(Math.abs(guest.minSize - Math.max(Math.ceil(designs.minTextUnits ? designs.minTextUnits(size) : 0), Math.round(guest.size * 0.6))) <= 1, `${size}: floor ${guest.minSize} for ${guest.size}`);
+    assert.ok(Math.abs(guest.minSize - Math.max(Math.ceil(designs.minTextUnits ? designs.minTextUnits(size) : 0), Math.round(guest.size * 0.8))) <= 1, `${size}: floor ${guest.minSize} for ${guest.size}`);
   }
   assert.equal(designs.logoWidth(100, 1, 100), 240, 'a very wide logo stops at 2.4 times the place');
   assert.ok(designs.logoWidth(100, 1, 2) < 240);
@@ -1541,4 +1541,26 @@ test('No photo on Ceremonial landscape uses the whole width: words on both halve
     assert.ok(Math.abs((left + right) / 2 - core.PAGE_WIDTH * 0.535) < core.PAGE_WIDTH * 0.06, `${size}: the words are balanced across the page beside the band`);
     assert.ok(boxes.some((b) => b.left > core.PAGE_WIDTH / 2), `${size}: details on the right half`);
   }
+});
+
+test('a long guest name with rank and decorations stays readable on A6 and A5 in every design, clear of the words around it', () => {
+  const opts = { measure, newId };
+  for (const name of ['Lt Gen A. K. Singh, PVSM, AVSM, VSM, ADC and Mrs Sunita Singh', 'Maj Gen Hari Narayan Venkataraghavan Subramaniam, AVSM, SM, VSM and Mrs Subramaniam']) {
+    for (const size of ['a6p', 'a5p']) {
+      const mmPerUnit = core.sizeOf(size).mm[0] / core.PAGE_WIDTH;
+      for (const design of designs.designsFor(size)) {
+        const card = designs.applyDesign(core.newCollage(size), design.key, { ...designs.startDetails(design.key), guest: name, photoMode: 'none' }, opts);
+        const side = card.items.some((item) => item.field === 'guest') ? card.items : card.back.items;
+        const guest = side.find((item) => item.field === 'guest');
+        const layout = core.layoutText(guest, measure);
+        const pt = layout.size * mmPerUnit * 72 / 25.4;
+        assert.ok(pt >= 6.5, `${design.key} ${size}: the name prints at ${pt.toFixed(1)} pt`);
+        assert.ok(layout.lines <= 2 && layout.width <= guest.maxWidth + 0.5, `${design.key} ${size}: the name on at most two lines`);
+        for (const other of side.filter((item) => item.kind === 'text' && item !== guest)) assert.ok(!overlap(box(guest), box(other)), `${design.key} ${size}: the name overlaps ${other.field}`);
+      }
+    }
+  }
+  // A short name keeps the design's face, one line, full size.
+  const short = designs.applyDesign(core.newCollage('a6p'), 'classic', { guest: 'Col P. Singh' }, opts).items.find((item) => item.field === 'guest');
+  assert.deepEqual([short.font, short.maxLines], ['script', 1]);
 });

@@ -1116,6 +1116,8 @@
       const fresh = !textFor(collage, field) && shown.trim() ? designs.fieldItem(collage, field, details, options()) : null;
       // Words still at the width their design gave them take the width the design gives the new
       // words (no word left alone on a line: cold review 9, L1); words the user resized keep theirs.
+      // A guest's name is set as the design sets that name (cold review 9, M5).
+      const guestLook = field === 'guest' && current && shown.trim() ? designs.guestStyle(collage, current, shown, options()) : null;
       const widths = new Map();
       for (const each of [field, ...followers]) {
         const item = textFor(collage, each);
@@ -1138,12 +1140,16 @@
         const retext = (target, words) => {
           const left = target.x - target.width / 2;
           const right = target.x + target.width / 2;
+          const bottom = target.y + core.itemHeight(target) / 2;
           target.text = words;
           if (widths.has(target.field)) target.maxWidth = widths.get(target.field);
+          if (guestLook && target.field === 'guest') for (const key of ['font', 'italic', 'size', 'maxLines', 'minSize']) target[key] = guestLook[key];
           surface.layoutTextItem(target);
           const edge = designs.DESIGNS[draft.card?.design] && designs.fieldsOnCard(draft).includes(target.field) ? designs.fieldAnchor(draft, target.field) : target.align;
           if (edge === 'left') target.x = left + target.width / 2;
           if (edge === 'right') target.x = right - target.width / 2;
+          // A guest's name keeps its last line on the line drawn under it: a second line grows upwards.
+          if (target.field === 'guest') target.y = bottom - core.itemHeight(target) / 2;
         };
         for (const follower of followers) {
           const item = textFor(draft, follower);

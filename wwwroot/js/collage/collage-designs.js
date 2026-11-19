@@ -911,7 +911,7 @@
         // guest's name stops at 60% of its size.
         const floor = Math.ceil(minSize);
         if (floor > 0) item.minSize = floor;
-        if (part.field === 'guest') item.minSize = Math.max(floor, Math.round(item.size * 0.6));
+        if (part.field === 'guest') Object.assign(item, fitGuest(item, measure, floor));
         // No word left alone on a wrapped line's last line (cold review 9, L1).
         if (item.maxLines > 1) item.maxWidth = balancedWidth(item, measure);
         const layout = core.layoutText(item, measure);
@@ -1000,6 +1000,51 @@
     // The second logo, placed beside the design's logo, with the user's own items.
     for (const second of seconds) if (!own.some((item) => item.id === second.id)) own.push(second);
     return fitLogoTile([...made, ...own, ...leftOver], { width, height });
+  }
+
+  /** The faces a guest's name may take, from a design's own: script, then serif italic, then clean. */
+  const GUEST_FACES = Object.freeze(['script', 'elegant', 'clean']);
+
+  /**
+   * A guest's name fitted to its place (cold review 9, M5: a long name with rank and
+   * decorations shrank to about 6 pt of script on A6). Tried in order, in the design's face and
+   * then each plainer one: one line at 80% of the design's size or more; two lines at 80% (two
+   * full-size lines would reach the words above), no smaller than 70%. A name that fits none
+   * takes the plainest face on two lines, down to 60%. Never below `floor` (6 pt). Returns the
+   * item with its font, italic, size, maxLines and minSize set.
+   */
+  function fitGuest(item, measure, floor = 0) {
+    const size = item.size;
+    const atLeast = (value) => Math.max(Math.ceil(floor), Math.round(value));
+    const at = GUEST_FACES.indexOf(item.font);
+    const faces = at < 0 ? [item.font] : GUEST_FACES.slice(at);
+    const look = (font) => ({ font, italic: font === item.font ? item.italic : font === 'elegant' });
+    const tries = faces.flatMap((font) => [
+      { ...look(font), size, maxLines: 1, minSize: atLeast(size * 0.8) },
+      { ...look(font), size: atLeast(size * 0.8), maxLines: 2, minSize: atLeast(size * 0.7) }
+    ]);
+    for (const each of tries) {
+      const candidate = { ...item, ...each };
+      const layout = core.layoutText(candidate, measure);
+      if (layout.lines <= each.maxLines && layout.width <= candidate.maxWidth + 0.5) return candidate;
+    }
+    return { ...item, ...look(faces[faces.length - 1]), size: atLeast(size * 0.8), maxLines: 2, minSize: atLeast(size * 0.6) };
+  }
+
+  /**
+   * A guest's name in the guest field `item` (Card details, and Save's card for each guest): set
+   * as the design sets that name (fitGuest), while the field still has the design's look for its
+   * words now; a field the user restyled keeps its look. Returns the item with the name.
+   */
+  function guestStyle(collage, item, name, opts) {
+    const details = detailsOf(collage);
+    const now = fieldItem(collage, 'guest', { ...details, guest: item.text }, opts);
+    const close = (a, b) => (typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) < 0.01 : a === b);
+    const designLook = now && ['font', 'italic', 'size', 'maxLines', 'color'].every((key) => close(now[key], item[key]));
+    if (!designLook || !String(name).trim()) return { ...item, text: name };
+    const next = fieldItem(collage, 'guest', { ...details, guest: name }, opts);
+    if (!next) return { ...item, text: name };
+    return { ...item, text: name, font: next.font, italic: next.italic, size: next.size, maxLines: next.maxLines, minSize: next.minSize };
   }
 
   /**
@@ -1922,5 +1967,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, followLogo, roleItemOn, designOnSize, hindiInStep, fieldAnchor, FALLBACKS, closeLogoPlace });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, followLogo, roleItemOn, designOnSize, hindiInStep, fieldAnchor, FALLBACKS, closeLogoPlace, fitGuest, guestStyle });
 });

@@ -418,8 +418,13 @@
       const linked = page.items.find((item) => item.field === 'guest');
       const layout = (item) => core.layoutText(item, measureText);
       if (linked) {
-        const text = guestText(linked, name, layout);
-        const named = nameInField(linked, text, layout({ ...linked, text }));
+        // Set as the design sets this name (one line or two, a plainer face for a long one: cold
+        // review 9, M5), unless the user restyled the field.
+        let n = 0;
+        const styled = (words) => (designs?.guestStyle ? designs.guestStyle(getCollage(), linked, words, { measure: measureText, newId: () => `guest${++n}` }) : { ...linked, text: words });
+        const text = guestText(styled(name), name, layout);
+        const fitted = styled(text);
+        const named = nameInField(fitted, text, layout(fitted));
         return { ...page, items: page.items.map((item) => (item === linked ? named : item)) };
       }
       // A design that leaves a line to write on: the name in the place its design has for it.
