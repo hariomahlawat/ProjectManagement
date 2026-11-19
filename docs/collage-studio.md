@@ -237,7 +237,13 @@ its npm package by hand; the libman entry records the version.
   - **Regimental**: three bands in the unit's colours with the logo in a roundel. The host's words, the dress and the rules follow the same colours, set under **Unit colours** in Card details and kept in the card's `colours` detail. Each part that follows a colour records which in `tint`;
   - **Ceremonial photo**: a frame for the user's own photo, `role: "photo"`. A photo put in it moves to the next design's frame with its crop, or stays as the user's own when that design has none. An emptied frame stays the design's;
   - **Bilingual**: Hindi and English side by side, with `hostHi`, `inviteHi` and `occasionHi`. Card details shows those fields only for this design; it shows only the fields the current design uses;
-  - **Modern**.
+  - **Modern**;
+  - pocket cards (PR 9b), offered only for the pocket sizes: **Entry card or car pass** (a
+    title such as CAR PASS, the occasion, when and where, a line for the vehicle number), **RSVP
+    card** (will / will not attend, name and number lines, reply by), **Programme card** and
+    **Pocket invitation**. They fill from the same Card details, so a function's wording is typed
+    once. `designsFor(size)` gives the designs for a size, and the start screen's Card size menu
+    lists Cards and Pocket cards in groups.
 
    Each has a portrait and a landscape arrangement, with parts placed by fractions of the page and sized by the card's scale (`unitOf`: 1 on A5, following the page's area, at most 1.3× the shorter side). `applyDesign(collage, key, details, { measure, newId })` makes ordinary items: borders and rules (`shape`), the SDD logo (`logo:sdd`), and words that fit a width, each linked to its `field` and marked with a `role`. It replaces the parts of a design applied before and keeps the user's own items in front. `detailsOf` reads the wording back, with words typed on the card winning. The card's design and wording are kept in the collage's `card` field, which drafts read back. The start screen and the Card panel offer them (PR 5, `collage-card.js`) |
 | `wwwroot/js/collage/collage-stickers.js` | The sticker catalogue, the drawn stickers as SVG and the search |

@@ -31,7 +31,15 @@
     // The back of the card (PR 8).
     ['programmeTitle', 'Back: title'],
     ['programme', 'Back: programme, one line each', true],
-    ['backNote', 'Back: note at the bottom']
+    ['backNote', 'Back: note at the bottom'],
+    // Pocket cards (PR 9b).
+    ['passTitle', 'Title of the pass'],
+    ['vehicle', 'Words before the vehicle number line'],
+    ['replyTitle', 'Title of the reply card'],
+    ['replyName', 'Words under the name line'],
+    ['attend', 'Will or will not attend'],
+    ['replyCount', 'Words under the number line'],
+    ['replyBy', 'Reply by']
   ]);
   const COLOUR_NAMES = Object.freeze(['Top', 'Middle', 'Bottom']);
   const OCCASIONS = Object.freeze(['Raising Day Dinner', 'Regimental Dinner', 'Change of Command', 'Farewell', 'Barakhana', 'At Home', 'Ladies’ Night', 'Passing Out Parade']);
@@ -48,7 +56,8 @@
     const startSize = ui.$('[data-card-size]');
     const options = () => ({ measure: surface.measureText, newId: doc.newItemId });
     // A field's words may be on the side not showing (the back's programme while the front shows).
-    const fieldsHere = (collage, field) => (designs.BACK_FIELDS.includes(field) === (collage.side === 'back') ? collage.items : collage.back?.items || []);
+    // A field's side comes from the design (a programme card shows its programme on the front).
+    const fieldsHere = (collage, field) => (designs.isBackField(collage, field) === (collage.side === 'back') ? collage.items : collage.back?.items || []);
     const textFor = (collage, field) => fieldsHere(collage, field).find((item) => item.kind === 'text' && item.field === field) || null;
 
     // -------------------------------------------------------------------------
@@ -59,11 +68,17 @@
     function renderStart() {
       if (!startGrid || !startSize) return;
       if (!startSize.options.length) {
-        for (const key of Object.keys(core.SIZES).filter((each) => core.SIZES[each].group === 'card')) {
-          const option = document.createElement('option');
-          option.value = key;
-          option.textContent = core.SIZES[key].label;
-          startSize.appendChild(option);
+        // Cards and pocket cards, each in its own group; the designs offered follow the size.
+        for (const group of core.sizesByGroup().filter((each) => each.key === 'card' || each.key === 'pocket')) {
+          const list = document.createElement('optgroup');
+          list.label = group.label;
+          for (const key of group.keys) {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = core.SIZES[key].label;
+            list.appendChild(option);
+          }
+          startSize.appendChild(list);
         }
         // A size typed in mm (PR 5b).
         const typed = document.createElement('option');
@@ -75,7 +90,7 @@
       const size = core.isSize(startSize.value) ? startSize.value : DEFAULT_CARD_SIZE;
       const round = ++thumbs;
       startGrid.textContent = '';
-      for (const design of Object.values(designs.DESIGNS)) {
+      for (const design of designs.designsFor(size)) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'clg-design-card';
@@ -548,8 +563,11 @@
     function renderStrip() {
       if (!strip) return;
       const current = state.collage?.card?.design;
-      if (!strip.children.length) {
-        strip.innerHTML = Object.values(designs.DESIGNS).map((design) => `<button type="button" class="btn btn-sm" data-card-design="${design.key}">${escapeHtml(design.label)}</button>`).join('');
+      // The designs for the card's kind (pocket or not); drawn again only when that changes.
+      const offered = designs.designsFor(state.collage.size).map((design) => design.key).join(' ');
+      if (strip.dataset.offered !== offered) {
+        strip.dataset.offered = offered;
+        strip.innerHTML = designs.designsFor(state.collage.size).map((design) => `<button type="button" class="btn btn-sm" data-card-design="${design.key}">${escapeHtml(design.label)}</button>`).join('');
       }
       for (const button of strip.querySelectorAll('[data-card-design]')) {
         const on = button.dataset.cardDesign === current;

@@ -34,7 +34,15 @@
     // The back of the card (PR 8).
     programmeTitle: 'Programme',
     programme: '1930 h · Guests arrive' + String.fromCharCode(10) + '2000 h · Address by the Commandant' + String.fromCharCode(10) + '2030 h · Cultural programme' + String.fromCharCode(10) + '2100 h · Dinner',
-    backNote: 'Car passes at the main gate · Parking beside the Officers’ Mess'
+    backNote: 'Car passes at the main gate · Parking beside the Officers’ Mess',
+    // Pocket cards (PR 9b).
+    passTitle: 'CAR PASS',
+    vehicle: 'Vehicle No.',
+    replyTitle: 'R.S.V.P.',
+    replyName: 'Name',
+    attend: 'will / will not attend',
+    replyCount: 'Number attending',
+    replyBy: 'Kindly reply by Friday, 5 December 2026'
   });
   /** The fields on the back of the card. */
   const BACK_FIELDS = Object.freeze(['programmeTitle', 'programme', 'backNote']);
@@ -268,6 +276,119 @@
         words('note', 0.92, 0.91, 0.38, 16, { font: 'elegant', color: INK, bold: false, italic: true, align: 'right' }, { anchor: 'right', lines: 1 })
       ]
     }),
+    // Pocket cards (PR 9b): offered for the pocket sizes; each fills from the same Card details.
+    pass: Object.freeze({
+      key: 'pass',
+      label: 'Entry card or car pass',
+      note: 'With a line for the vehicle number',
+      pocket: true,
+      background: { type: 'color', value: '#ffffff' },
+      portrait: [
+        block('band1', 0.5, 0.03, 1, 0.06, { fill: NAVY, stroke: '' }),
+        logo(0.5, 0.16, 0.16),
+        words('passTitle', 0.5, 0.34, 0.86, 64, { font: 'clean', color: MAROON, bold: true, spacing: 8 }, { lines: 1 }),
+        words('occasion', 0.5, 0.46, 0.86, 40, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
+        words('when', 0.5, 0.58, 0.86, 30, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
+        words('venue', 0.5, 0.66, 0.86, 28, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
+        words('vehicle', 0.12, 0.81, 0.4, 28, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        rule('vehicleline', 0.68, 0.83, 0.42, INK, 2),
+        block('band3', 0.5, 0.97, 1, 0.06, { fill: GOLD, stroke: '' })
+      ],
+      landscape: [
+        block('band1', 0.04, 0.5, 0.08, 1, { fill: NAVY, stroke: '' }),
+        logo(0.2, 0.42, 0.16),
+        words('passTitle', 0.32, 0.17, 0.62, 64, { font: 'clean', color: MAROON, bold: true, spacing: 8, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('occasion', 0.32, 0.37, 0.62, 44, { font: 'elegant', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('when', 0.32, 0.55, 0.62, 32, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('venue', 0.32, 0.67, 0.62, 30, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('vehicle', 0.32, 0.84, 0.3, 28, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        rule('vehicleline', 0.75, 0.86, 0.34, INK, 2)
+      ]
+    }),
+    reply: Object.freeze({
+      key: 'reply',
+      label: 'RSVP card',
+      note: 'Will or will not attend, and a name',
+      pocket: true,
+      background: { type: 'color', value: '#fbf7ee' },
+      portrait: [
+        border('border', 0.05, GOLD, 2),
+        // A small logo at the top, so a card's logo is kept when it changes to the RSVP card.
+        logo(0.5, 0.1, 0.07),
+        words('replyTitle', 0.5, 0.21, 0.8, 40, { font: 'elegant', color: MAROON, bold: true, spacing: 6 }, { lines: 1 }),
+        words('occasion', 0.5, 0.32, 0.8, 34, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
+        rule('nameline', 0.5, 0.5, 0.76, INK, 1.5),
+        words('replyName', 0.5, 0.54, 0.8, 22, { font: 'clean', color: '#55607a', bold: false }, { lines: 1 }),
+        words('attend', 0.5, 0.655, 0.8, 30, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
+        rule('countline', 0.5, 0.77, 0.3, INK, 1.5),
+        words('replyCount', 0.5, 0.81, 0.8, 22, { font: 'clean', color: '#55607a', bold: false }, { lines: 1 }),
+        words('replyBy', 0.5, 0.91, 0.8, 22, { font: 'clean', color: GOLD, bold: true }, { lines: 2 })
+      ],
+      landscape: [
+        border('border', 0.05, GOLD, 2),
+        logo(0.1, 0.18, 0.07),
+        words('replyTitle', 0.55, 0.15, 0.7, 36, { font: 'elegant', color: MAROON, bold: true, spacing: 6 }, { lines: 1 }),
+        words('occasion', 0.55, 0.31, 0.7, 26, { font: 'elegant', color: INK, bold: true }, { lines: 1 }),
+        rule('nameline', 0.5, 0.5, 0.7, INK, 1.5),
+        words('replyName', 0.5, 0.56, 0.8, 16, { font: 'clean', color: '#55607a', bold: false }, { lines: 1 }),
+        words('attend', 0.5, 0.7, 0.8, 22, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
+        words('replyBy', 0.5, 0.86, 0.8, 16, { font: 'clean', color: GOLD, bold: true }, { lines: 1 })
+      ]
+    }),
+    programmecard: Object.freeze({
+      key: 'programmecard',
+      label: 'Programme card',
+      note: 'The order of the evening',
+      pocket: true,
+      background: { type: 'color', value: '#fbf7ee' },
+      portrait: [
+        border('border', 0.05, GOLD, 2),
+        logo(0.5, 0.11, 0.1),
+        words('occasion', 0.5, 0.24, 0.8, 34, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+        words('programmeTitle', 0.5, 0.33, 0.8, 26, { font: 'elegant', color: GOLD, bold: false, italic: true }, { lines: 1 }),
+        words('programme', 0.5, 0.58, 0.84, 30, { font: 'clean', color: INK, bold: false }, { lines: 10 }),
+        words('when', 0.5, 0.88, 0.8, 22, { font: 'clean', color: INK, bold: true }, { lines: 2 })
+      ],
+      landscape: [
+        border('border', 0.05, GOLD, 2),
+        logo(0.14, 0.5, 0.12),
+        words('occasion', 0.6, 0.18, 0.66, 30, { font: 'elegant', color: MAROON, bold: true }, { lines: 1 }),
+        words('programmeTitle', 0.6, 0.31, 0.66, 22, { font: 'elegant', color: GOLD, bold: false, italic: true }, { lines: 1 }),
+        words('programme', 0.6, 0.6, 0.66, 19, { font: 'clean', color: INK, bold: false }, { lines: 10 }),
+        words('when', 0.6, 0.88, 0.66, 16, { font: 'clean', color: INK, bold: true }, { lines: 1 })
+      ]
+    }),
+    pocketinvite: Object.freeze({
+      key: 'pocketinvite',
+      label: 'Pocket invitation',
+      note: 'The invitation, small',
+      pocket: true,
+      background: { type: 'color', value: '#fbf7ee' },
+      portrait: [
+        border('border', 0.04, GOLD, 2.5),
+        border('border2', 0.06, GOLD, 1),
+        logo(0.5, 0.13, 0.11),
+        words('host', 0.5, 0.29, 0.8, 22, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
+        words('invite', 0.5, 0.39, 0.8, 24, { font: 'script', color: GOLD, bold: false }, { lines: 2 }),
+        words('occasion', 0.5, 0.52, 0.84, 40, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+        words('when', 0.5, 0.66, 0.84, 22, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
+        words('venue', 0.5, 0.74, 0.84, 21, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
+        words('dress', 0.5, 0.81, 0.84, 20, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
+        words('rsvp', 0.5, 0.89, 0.84, 17, { font: 'clean', color: INK, bold: false }, { lines: 2 })
+      ],
+      landscape: [
+        border('border', 0.04, GOLD, 2.5),
+        border('border2', 0.06, GOLD, 1),
+        logo(0.17, 0.5, 0.13),
+        words('host', 0.62, 0.17, 0.6, 19, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
+        words('invite', 0.62, 0.3, 0.6, 21, { font: 'script', color: GOLD, bold: false }, { lines: 1 }),
+        words('occasion', 0.62, 0.45, 0.62, 34, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+        words('when', 0.62, 0.62, 0.62, 19, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
+        words('venue', 0.62, 0.71, 0.62, 18, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
+        words('dress', 0.62, 0.8, 0.62, 17, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
+        words('rsvp', 0.62, 0.89, 0.62, 15, { font: 'clean', color: INK, bold: false }, { lines: 1 })
+      ]
+    }),
     modern: Object.freeze({
       key: 'modern',
       label: 'Modern',
@@ -335,10 +456,18 @@
     return [0, 1, 2].map((i) => (/^#[0-9a-f]{6}$/i.test(given[i] || '') ? given[i].toLowerCase() : fallback[i]));
   }
 
+  /** The designs offered for a size: the pocket designs for a pocket card, the others otherwise. */
+  function designsFor(sizeKey) {
+    const pocket = core.sizeOf(sizeKey).group === 'pocket';
+    return Object.values(DESIGNS).filter((design) => Boolean(design.pocket) === pocket);
+  }
+
   /** Whether a design follows the unit's colours. */
+  /** Whether a design follows the unit's colours: a part's colour is one of 'band1' to 'band3'. */
   function usesColours(designKey) {
     const design = DESIGNS[designKey];
-    return Boolean(design && JSON.stringify(design.portrait).includes('"band'));
+    if (!design) return false;
+    return [...design.portrait, ...(design.landscape || [])].some((part) => ['fill', 'stroke', 'color'].some((prop) => /^band[123]$/.test(part.look?.[prop] || '')));
   }
 
   /** Whether a page this shape takes a design's portrait arrangement (square counts as portrait). */
@@ -510,7 +639,10 @@
   function backPage(collage, designKey, details, opts, items = []) {
     const look = BACK_LOOKS[designKey] || BACK_LOOKS.classic;
     const wording = { ...DEFAULT_DETAILS, ...(details || {}) };
-    const made = makePage(items, backParts(designKey, isPortrait(collage.size)), pageContext(collage, wording, opts, { isCard: false, frameRole: 'backphoto' }));
+    // A field the front already shows (a programme card's programme) is not on the back again.
+    const onFront = new Set(fieldsOf(designKey, collage.size));
+    const parts = backParts(designKey, isPortrait(collage.size)).filter((part) => part.kind !== 'text' || !onFront.has(part.field));
+    const made = makePage(items, parts, pageContext(collage, wording, opts, { isCard: false, frameRole: 'backphoto' }));
     // The back's small logo is the front's logo (the SDD logo, a crest or the user's own), or
     // none when the front has none. `collage` here shows its front.
     const front = (collage.items || []).find((item) => item.role === 'logo');
@@ -575,7 +707,8 @@
     const { back, side, ...rest } = front;
     // The back's fields are no longer on the card: their words, as they are now on the card
     // (typed in Card details or in an item's Words box), are kept for a new back.
-    if (rest.card) rest.card = { ...rest.card, details: detailsOf(front), placed: (rest.card.placed || []).filter((field) => !BACK_FIELDS.includes(field)) };
+    // A field the design shows on the front (a programme card's programme) stays tracked.
+    if (rest.card) rest.card = { ...rest.card, details: detailsOf(front), placed: (rest.card.placed || []).filter((field) => !isBackField(rest, field)) };
     return rest;
   }
 
@@ -584,10 +717,18 @@
    * user emptied and fills again, so it comes back in its design's place. Null when the design
    * has no place for it or its words are empty.
    */
+  /**
+   * Whether a field is on the card's back: a back field, unless the design shows it on the
+   * front (a programme card has its programme and title on the front).
+   */
+  function isBackField(collage, field) {
+    return BACK_FIELDS.includes(field) && !fieldsOf(collage?.card?.design, collage?.size).includes(field);
+  }
+
   function fieldItem(collage, field, details, opts) {
     const key = collage?.card?.design;
     if (!DESIGNS[key]) return null;
-    if (BACK_FIELDS.includes(field)) {
+    if (isBackField(collage, field)) {
       if (!collage.back) return null;
       return backPage(collage, key, details, opts).items.find((item) => item.field === field) || null;
     }
@@ -596,5 +737,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, isBackField });
 });

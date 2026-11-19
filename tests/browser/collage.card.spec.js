@@ -457,6 +457,23 @@ test('the back\'s small logo follows the front\'s: replaced, removed and put bac
   await expect.poll(async () => await backLogo()).toBe(null);
   await page.locator('[data-card-logo-use="logo:sdd"]').click();
   await expect.poll(async () => (await backLogo())?.sticker).toBe('logo:sdd');
+});
+
+test('pocket sizes offer the pocket cards; a car pass shows its own fields and shares the occasion', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('passl');
+  await expect(page.locator('[data-start-design]')).toHaveCount(4);
+  await page.locator('[data-start-design="pass"]').click();
+  await expect(page.locator('[data-card-field="passTitle"]')).toHaveValue('CAR PASS');
+  await expect(page.locator('[data-card-field="vehicle"]')).toBeVisible();
+  await expect(page.locator('[data-card-field="host"]')).toHaveCount(0);
+  await expect(page.locator('[data-card-design]')).toHaveCount(4);
+  // Another pocket design keeps the occasion typed for the pass.
+  await page.locator('[data-card-field="occasion"]').fill('Barakhana');
+  await page.locator('[data-card-field="occasion"]').blur();
+  await page.locator('[data-card-design="pocketinvite"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.card?.design).toBe('pocketinvite');
+  expect((await newestDraft(page)).model.items.find((item) => item.field === 'occasion').text).toBe('Barakhana');
   expect(errors).toEqual([]);
 });
 
@@ -464,6 +481,8 @@ test('turning to the back keeps the card\'s own title, from its front', async ({
   const errors = await openFresh(page);
   await page.locator('[data-start-design="classic"]').click();
   const title = page.locator('[data-name]');
+  // Once the card has its own name from its words.
+  await expect(title).not.toHaveAttribute('placeholder', 'Untitled collage');
   const before = await title.getAttribute('placeholder');
   await page.locator('[data-card-side="add"]').click();
   await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
@@ -519,5 +538,17 @@ test('a logo still being read when the card is turned over stays in the tray, no
   const back = model.side === 'back' ? model.items : model.back.items;
   expect(front.find((item) => item.role === 'logo').sticker).toBe('logo:sdd');
   expect(back.some((item) => item.role === 'logo')).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('a programme card\'s programme typed in Card details is the programme on the card', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a7p');
+  await page.locator('[data-start-design="programmecard"]').click();
+  const programme = page.locator('[data-card-field="programme"]');
+  await programme.fill('1900 h  Arrival\n1930 h  Dinner');
+  await programme.blur();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'programme')?.text).toBe('1900 h  Arrival\n1930 h  Dinner');
+  await expect(programme).toHaveValue('1900 h  Arrival\n1930 h  Dinner');
   expect(errors).toEqual([]);
 });
