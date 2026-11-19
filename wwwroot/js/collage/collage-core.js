@@ -1477,14 +1477,33 @@
    * The empty frame whose shape is closest to a photo's (by how much one is wider than the
    * other), so a wide photo goes into a wide frame; the first such frame on a tie, or null.
    */
+  /** Frames whose shapes differ by no more than this ratio count as the same shape (PR 4). */
+  const SAME_SHAPE = 1.1;
+
   /**
-   * Which empty frame each photo of a batch goes into: the pairs that match best in shape are made
-   * first (a tall photo to a tall frame), so a batch is not filled in order regardless of shape.
-   * `photos` are { id, aspect }; returns a Map from photo id to frame id. Photos left over (more
-   * photos than frames) are not in it.
+   * Which empty frame each photo of a batch goes into. `photos` are { id, aspect }, in the order
+   * the user picked them; returns a Map from photo id to frame id. Photos left over (more photos
+   * than frames) are not in it.
+   * - When the empty frames all have about the same shape, as in a grid, photos fill them in the
+   *   order picked: left to right, then top to bottom, and the last ones picked are left over
+   *   (docs/ux/collage-usability-plan.md, PR 4).
+   * - Otherwise the pairs that match best in shape are made first (a tall photo to a tall frame).
    */
   function assignToSlots(items, photos) {
     const slots = (items || []).filter((item) => item.kind === 'slot' && !item.hidden && !item.locked && item.aspect > 0);
+    const aspects = slots.map((slot) => slot.aspect);
+    if (slots.length && Math.max(...aspects) / Math.min(...aspects) <= SAME_SHAPE) {
+      const top = (slot) => slot.y - itemHeight(slot) / 2;
+      const left = (slot) => slot.x - slot.width / 2;
+      // Reading order: a row is frames whose tops are within a unit of each other.
+      const ordered = [...slots].sort((a, b) => (Math.abs(top(a) - top(b)) > 1 ? top(a) - top(b) : left(a) - left(b)));
+      const chosen = new Map();
+      for (const photo of photos || []) {
+        if (!(photo.aspect > 0) || chosen.size >= ordered.length) continue;
+        chosen.set(photo.id, ordered[chosen.size].id);
+      }
+      return chosen;
+    }
     const pairs = [];
     for (const photo of photos || []) {
       if (!(photo.aspect > 0)) continue;

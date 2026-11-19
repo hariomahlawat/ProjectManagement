@@ -571,9 +571,13 @@ section are in view. A collage nobody named is called by the first line of its f
 that only show where to type, such as "Your heading"), or by when it was started; the first time
 its words name it, a short message says so. A frame goes with the Square shape only: with another
 shape the Frame row shows None, and the frame chosen before comes back with Square. Photo
-backgrounds are named by their file. A photo goes
-into the empty frame closest to its shape (a batch is matched tall to tall and wide to wide); photos past a layout's frames wait in Photos, with a
-message, rather than sit loose on the grid. Several photos added to a page with no layout are laid
+backgrounds are named by their file. Photos fill a
+layout's empty frames in the order they were picked, left to right then down, when the frames all
+have about the same shape, as in a grid ([ux/collage-usability-plan.md](ux/collage-usability-plan.md),
+PR 4; `assignToSlots`, frames within 10% of each other). On a layout whose frames differ ("1 big,
+2 small", "2 over 3", "Mosaic of 7") a batch is matched tall to tall and wide to wide. Photos past
+a layout's frames (the last ones picked, on a grid) wait in Photos, with a message, rather than
+sit loose on the grid. Several photos added to a page with no layout are laid
 out in a neat grid, each fully in view. New words and stickers go where they cover nothing
 yet (covering other words or stickers counts far more than covering a photo; words that land on a
 photo get a white outline so they can be read), and the item's toolbar moves below it when above would cover another item. Save asks what the picture is

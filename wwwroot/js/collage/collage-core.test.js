@@ -1069,6 +1069,37 @@ test('a batch fills empty frames tall to tall and wide to wide', () => {
   assert.deepEqual([...three.keys()].sort(), ['a', 'b']);
 });
 
+// docs/ux/collage-usability-plan.md, PR 4: on a grid, photos keep the order they were picked in.
+test('on frames of one shape, photos fill them in the order picked, left to right then down', () => {
+  let n = 0;
+  const grid = collage.applyLayout(collage.newCollage('a4l'), 't6', collage.LAYOUT_LIMITS.defaultGap, 0, [], () => `s${++n}`).collage;
+  // The frames listed out of order still fill in reading order.
+  const shuffled = [...grid.items].reverse();
+  const reading = [...grid.items].sort((a, b) => a.cell - b.cell).map((slot) => slot.id);
+  const mixed = [1.5, 0.75, 1.5, 0.75, 1.5, 0.75].map((aspect, i) => ({ id: `p${i + 1}`, aspect }));
+  const chosen = collage.assignToSlots(shuffled, mixed);
+  assert.deepEqual(mixed.map((photo) => chosen.get(photo.id)), reading);
+  // More photos than frames: the last ones picked are left over, whatever their shape.
+  const eight = [...mixed, { id: 'p7', aspect: 1.3 }, { id: 'p8', aspect: 1.3 }];
+  const some = collage.assignToSlots(grid.items, eight);
+  assert.deepEqual([...some.keys()], ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']);
+  // Fewer photos than frames: the first frames in reading order fill.
+  const two = collage.assignToSlots(grid.items, mixed.slice(0, 2));
+  assert.deepEqual([...two.values()], reading.slice(0, 2));
+  // A frame already filled is skipped; the rest still fill in order.
+  const partly = grid.items.map((slot) => (slot.cell === 0 ? { ...slot, kind: 'photo', photo: 'x' } : slot));
+  assert.deepEqual([...collage.assignToSlots(partly, mixed.slice(0, 2)).values()], reading.slice(1, 3));
+});
+
+test('on frames of different shapes, photos are still matched by shape', () => {
+  let n = 0;
+  const mosaic = collage.applyLayout(collage.newCollage('a4l'), 't3', collage.LAYOUT_LIMITS.defaultGap, 0, [], () => `s${++n}`).collage;
+  const big = mosaic.items.find((slot) => slot.cell === 0);
+  // "1 big, 2 small": the big frame is the tallest, so the tall photo goes there, picked last or not.
+  const chosen = collage.assignToSlots(mosaic.items, [{ id: 'w1', aspect: 1.5 }, { id: 'w2', aspect: 1.5 }, { id: 'tall', aspect: 0.66 }]);
+  assert.equal(chosen.get('tall'), big.id);
+});
+
 test('words over a photo are told apart from words on the empty page', () => {
   const photo = collage.photoItem('p', 'f', 1.5, { x: 300, y: 300, width: 400 });
   const over = { id: 't', kind: 'text', x: 300, y: 300, width: 200, aspect: 4, angle: 0 };
