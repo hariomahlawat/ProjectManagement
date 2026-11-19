@@ -81,8 +81,10 @@ test('each guest\'s name goes on the side that holds it, and only the sides chos
   assert.deepEqual(save.guestCards(['O', 'I'], ['O', 'I'], ['A'], 1, name).cards, [{ front: 'O', back: 'I:A' }]);
   // Inside only: no outside page.
   assert.deepEqual(save.guestCards(['O', 'I'], ['I'], ['A'], 1, name).cards, [{ front: null, back: 'I:A' }]);
-  // Outside only: the names would not be saved.
-  assert.deepEqual(save.guestCards(['O', 'I'], ['O'], ['A'], 1, name), { cards: null, namesLeftOut: true });
+  // Outside only: the names are not saved, but the outside still comes once a guest, to match
+  // the insides printed apart (Codex on PR 10).
+  assert.deepEqual(save.guestCards(['O', 'I'], ['O'], ['A', 'B2'], 1, name), { cards: [{ front: 'O', back: null }, { front: 'O', back: null }], namesLeftOut: true });
+  assert.deepEqual(save.guestCards(['F', 'B'], ['B'], ['A', 'B2', 'C'], 0, name).cards.map((card) => card.back), ['B', 'B', 'B']);
   assert.deepEqual(save.guestCards(['F'], ['F'], [], 0, name), { cards: null, namesLeftOut: false });
 });
 

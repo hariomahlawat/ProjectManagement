@@ -172,8 +172,9 @@ its npm package by hand; the libman entry records the version.
     first column. Quoted cells may hold commas and line breaks; a CSV saved with semicolons is
     read too. A heading line ("Name", "Guests") is left out; there are at most 300 names of 120
     characters each, and names past 300 are counted and the user is told how many were left out.
-    If the side that holds the names is not saved (a folded card's outside only), one copy is
-    saved and the result says why. **Clear names** offers Undo. The names are kept in the card's `guests`, in the draft in
+    If the side that holds the names is not saved (a folded card's outside, or a flat card's
+    back, only), that side still comes once for each guest, so it matches the named side
+    printed apart, and the result says the names were not saved. **Clear names** offers Undo. The names are kept in the card's `guests`, in the draft in
     this browser only, and stay through design changes.
 
     Saved as a PDF, **One card for each guest** puts each guest's name in the guest field (or in

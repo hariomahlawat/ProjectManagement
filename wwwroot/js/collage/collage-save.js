@@ -69,20 +69,20 @@
   /**
    * One card for each guest (PR 10): { front, back } pages per guest, the name (by `namePage`)
    * on the side that holds it, `guestSide` (0 the front, 1 the back or a folded card's inside),
-   * and only the sides chosen (`pages`). When the side with the names is not chosen there are
-   * no guest cards, and `namesLeftOut` says so.
+   * and only the sides chosen (`pages`). When the side with the names is not chosen, the other
+   * side still comes once for each guest, so it matches the named side printed apart, and
+   * `namesLeftOut` says the names were not saved.
    */
   function guestCards(all, pages, guests, guestSide, namePage) {
     if (!guests.length) return { cards: null, namesLeftOut: false };
     const chosen = (page) => pages.includes(page);
-    if (!chosen(all[guestSide])) return { cards: null, namesLeftOut: true };
     const cards = guests.map((name) => {
       const named = namePage(all[guestSide], name);
       const front = guestSide === 0 ? named : all[0];
       const back = guestSide === 1 ? named : (all[1] || null);
       return { front: chosen(all[0]) ? front : null, back: all[1] && chosen(all[1]) ? back : null };
     });
-    return { cards, namesLeftOut: false };
+    return { cards, namesLeftOut: !chosen(all[guestSide]) };
   }
 
   /**
@@ -600,7 +600,7 @@
         const sizeText = photoTools ? photoTools.formatBytes(total) : `${Math.ceil(total / 1000)} KB`;
         const saved = files.length === 1 ? `Saved “${files[0].name}”` : `Saved ${files.map((file) => `“${file.name}”`).join(' and ')}`;
         const pageNote = cards && cards.length ? `${cards.length} guest cards on ${pageCount} page${pageCount === 1 ? '' : 's'}` : pdf && pages.length > 1 ? `${pages.length} pages` : null;
-        const namesNote = namesLeftOut ? `The guests' names go on the ${designs.isFolded(getCollage().size) ? 'inside' : guestSide ? 'back' : 'front'}, which was not saved, so one copy was saved without names` : null;
+        const namesNote = namesLeftOut ? `The guests' names go on the ${designs.isFolded(getCollage().size) ? 'inside' : guestSide ? 'back' : 'front'}, which was not saved, so the ${guestSide ? 'outside' : 'back'} was saved once for each guest, without names` : null;
         const parts = [saved, pageNote, namesNote, `${width.toLocaleString('en-IN')} × ${height.toLocaleString('en-IN')} pixels`, sizeText].filter(Boolean);
         let line = `${parts.join(' · ')}.`;
         if (fits.scaled) {

@@ -228,7 +228,7 @@ test('a colour set by hand stays when a unit colour changes', async ({ page }) =
   expect(errors).toEqual([]);
 });
 
-test('guests with only the side without names saved: one copy, and the result says why', async ({ page }) => {
+test('guests with only the side without names saved: one copy a guest, and the result says why', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
   await page.locator('[data-card-size]').selectOption('fold6');
@@ -249,7 +249,8 @@ test('guests with only the side without names saved: one copy, and the result sa
     for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
     return (await window.PDFLib.PDFDocument.load(bytes)).getPageCount();
   }, (await bytesOf(file)).toString('base64'));
-  expect(pages).toBe(1);
+  // One outside for each guest, to match the insides printed apart.
+  expect(pages).toBe(3);
   expect(errors).toEqual([]);
 });
 
