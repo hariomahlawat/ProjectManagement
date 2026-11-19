@@ -637,7 +637,7 @@ test('every design prints its words at 6 pt or more at every size it is offered 
         const pt = core.layoutText(item, measure).size * mmPerUnit * 72 / 25.4;
         assert.ok(pt >= 5.99, `${design.key} ${size}: ${item.field} prints at ${pt.toFixed(1)} pt`);
         // Script and italic lines start at 7 pt, before fitting to their width.
-        if (item.font === 'script' || item.italic) assert.ok(item.size * mmPerUnit * 72 / 25.4 >= 6.99, `${design.key} ${size}: ${item.field} starts below 7 pt`);
+        if (['script', 'formal'].includes(item.font) || item.italic) assert.ok(item.size * mmPerUnit * 72 / 25.4 >= 6.99, `${design.key} ${size}: ${item.field} starts below 7 pt`);
       }
     }
   }

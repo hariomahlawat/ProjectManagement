@@ -328,7 +328,9 @@ its npm package by hand; the libman entry records the version.
 | `wwwroot/js/collage/collage-core.js` (`window.PrismCollage`) | The collage as plain JSON and every pure rule: sizes, layouts, crop and pan, frames, shapes, looks, text layout, snapping, lining up, Save sizes, reading a draft back safely, undo history |
 | `wwwroot/js/collage/collage-draw.js` (`window.PrismCollageDraw`) | Drawing a photo, text, sticker, shape (line, rectangle, oval) and background on a 2D canvas. The editor uses it inside Konva shapes and Save uses it on its own canvas, so **the saved picture always matches the screen** |
 | `wwwroot/js/collage/collage-designs.js` (`window.PrismCollageDesigns`) | Ready-made card designs as data ([ux/invitations-posters.md](ux/invitations-posters.md), PR 4b and PR 6). There are six:
-  - **Classic ivory** and **Navy and gold**;
+  - **Classic ivory** and **Navy and gold**. These and Regimental set the host in engraved
+    capitals (Cinzel, the Engraved font) and the invitation line in formal script (Pinyon Script,
+    Formal script), on flat and folded cards;
   - **Regimental**: three bands in the unit's colours with the logo in a roundel. The host's words, the dress and the rules follow the same colours, set under **Unit colours** in Card details and kept in the card's `colours` detail. Each part that follows a colour records which in `tint`;
   - **Ceremonial photo**: a frame for the user's own photo, `role: "photo"`. A photo put in it moves to the next design's frame with its crop, or stays as the user's own when that design has none. An emptied frame stays the design's;
   - **Bilingual**: Hindi and English side by side, with `hostHi`, `inviteHi` and `occasionHi`. Card details shows those fields only for this design; it shows only the fields the current design uses;

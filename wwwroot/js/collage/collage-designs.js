@@ -99,6 +99,9 @@
   const NAVY = '#1d2c55';
   const GREY = '#55607a';
 
+  // The designs set in engraved capitals and formal script (Cinzel and Pinyon Script, #3447).
+  const FORMAL_DESIGNS = Object.freeze(['classic', 'navy', 'regimental']);
+
   const DESIGNS = lookupTable({
     classic: Object.freeze({
       key: 'classic',
@@ -109,8 +112,8 @@
         border('border', 0.035, GOLD, 3),
         border('border2', 0.05, GOLD, 1.2),
         logo(0.5, 0.135, 0.11),
-        words('host', 0.5, 0.29, 0.76, 28, { font: 'elegant', color: INK, bold: true, spacing: 6 }, { lines: 3 }),
-        words('invite', 0.5, 0.385, 0.8, 34, { font: 'script', color: GOLD, bold: false }),
+        words('host', 0.5, 0.29, 0.76, 28, { font: 'engraved', color: INK, bold: true, spacing: 6 }, { lines: 3 }),
+        words('invite', 0.5, 0.385, 0.8, 39, { font: 'formal', color: GOLD, bold: false }),
         rule('guestline', 0.5, 0.46, 0.62, INK, 1.5),
         words('guest', 0.5, 0.445, 0.62, 34, { font: 'script', color: INK, bold: false }, { lines: 1 }),
         words('at', 0.5, 0.515, 0.4, 24, { font: 'elegant', color: INK, bold: false, italic: true }),
@@ -127,8 +130,8 @@
         border('border2', 0.05, GOLD, 1.2),
         logo(0.16, 0.5, 0.14),
         rule('divider', 0.29, 0.5, 0.0, GOLD, 1.2),
-        words('host', 0.6, 0.17, 0.58, 26, { font: 'elegant', color: INK, bold: true, spacing: 6 }, { lines: 2 }),
-        words('invite', 0.6, 0.29, 0.6, 32, { font: 'script', color: GOLD, bold: false }),
+        words('host', 0.6, 0.17, 0.58, 26, { font: 'engraved', color: INK, bold: true, spacing: 6 }, { lines: 2 }),
+        words('invite', 0.6, 0.29, 0.6, 37, { font: 'formal', color: GOLD, bold: false }),
         rule('guestline', 0.6, 0.38, 0.46, INK, 1.5),
         words('guest', 0.6, 0.36, 0.46, 32, { font: 'script', color: INK, bold: false }, { lines: 1 }),
         words('at', 0.6, 0.425, 0.4, 20, { font: 'elegant', color: INK, bold: false, italic: true }),
@@ -149,8 +152,8 @@
         border('border', 0.04, PALE_GOLD, 1.5),
         border('border2', 0.055, PALE_GOLD, 0.8),
         logo(0.5, 0.14, 0.115),
-        words('host', 0.5, 0.3, 0.76, 26, { font: 'elegant', color: PALE_GOLD, bold: false, spacing: 10 }, { lines: 3 }),
-        words('invite', 0.5, 0.395, 0.8, 34, { font: 'script', color: IVORY, bold: false }),
+        words('host', 0.5, 0.3, 0.76, 26, { font: 'engraved', color: PALE_GOLD, bold: false, spacing: 10 }, { lines: 3 }),
+        words('invite', 0.5, 0.395, 0.8, 39, { font: 'formal', color: IVORY, bold: false }),
         rule('guestline', 0.5, 0.47, 0.6, IVORY, 1.2),
         words('guest', 0.5, 0.455, 0.6, 34, { font: 'script', color: IVORY, bold: false }, { lines: 1 }),
         words('at', 0.5, 0.515, 0.4, 22, { font: 'elegant', color: IVORY, bold: false, italic: true }),
@@ -166,8 +169,8 @@
         border('border', 0.04, PALE_GOLD, 1.5),
         border('border2', 0.055, PALE_GOLD, 0.8),
         logo(0.16, 0.5, 0.14),
-        words('host', 0.6, 0.17, 0.58, 24, { font: 'elegant', color: PALE_GOLD, bold: false, spacing: 10 }, { lines: 2 }),
-        words('invite', 0.6, 0.29, 0.6, 32, { font: 'script', color: IVORY, bold: false }),
+        words('host', 0.6, 0.17, 0.58, 24, { font: 'engraved', color: PALE_GOLD, bold: false, spacing: 10 }, { lines: 2 }),
+        words('invite', 0.6, 0.29, 0.6, 37, { font: 'formal', color: IVORY, bold: false }),
         rule('guestline', 0.6, 0.38, 0.46, IVORY, 1.2),
         words('guest', 0.6, 0.36, 0.46, 32, { font: 'script', color: IVORY, bold: false }, { lines: 1 }),
         words('at', 0.6, 0.42, 0.4, 20, { font: 'elegant', color: IVORY, bold: false, italic: true }),
@@ -190,7 +193,7 @@
         block('band3', 0.5, 0.0875, 1, 0.035, { fill: 'band3', stroke: '' }),
         roundel('roundel', 'ellipse', 0.5, 0.135, 0.17, 0.72, { fill: '#ffffff', stroke: 'band2', strokeWidth: 3 }),
         logo(0.5, 0.135, 0.1),
-        words('host', 0.5, 0.29, 0.8, 26, { font: 'clean', color: 'band1', bold: true, spacing: 8 }, { lines: 3 }),
+        words('host', 0.5, 0.29, 0.8, 26, { font: 'engraved', color: 'band1', bold: true, spacing: 8 }, { lines: 3 }),
         words('invite', 0.5, 0.375, 0.8, 24, { font: 'elegant', color: INK, bold: false, italic: true }),
         rule('guestline', 0.5, 0.45, 0.62, INK, 1.5),
         words('guest', 0.5, 0.435, 0.62, 34, { font: 'script', color: INK, bold: false }, { lines: 1 }),
@@ -209,7 +212,7 @@
         block('band3', 0.5, 0.125, 1, 0.05, { fill: 'band3', stroke: '' }),
         roundel('roundel', 'ellipse', 0.16, 0.52, 0.2, 0.72, { fill: '#ffffff', stroke: 'band2', strokeWidth: 3 }),
         logo(0.16, 0.52, 0.12),
-        words('host', 0.61, 0.25, 0.6, 24, { font: 'clean', color: 'band1', bold: true, spacing: 8 }, { lines: 2 }),
+        words('host', 0.61, 0.25, 0.6, 24, { font: 'engraved', color: 'band1', bold: true, spacing: 8 }, { lines: 2 }),
         words('invite', 0.61, 0.36, 0.6, 22, { font: 'elegant', color: INK, bold: false, italic: true }),
         rule('guestline', 0.61, 0.44, 0.46, INK, 1.5),
         words('guest', 0.61, 0.42, 0.46, 30, { font: 'script', color: INK, bold: false }, { lines: 1 }),
@@ -804,7 +807,7 @@
         const item = core.textItem(newId(), text, { x: part.x * width, y: part.y * height }, {
           ...look,
           // Script and italic lines are harder to read small: 7 pt for them, 6 pt for the rest.
-          size: Math.max(Math.round(part.size * unit), Math.ceil(look.font === 'script' || look.italic ? minSize * 7 / 6 : minSize)),
+          size: Math.max(Math.round(part.size * unit), Math.ceil(['script', 'formal'].includes(look.font) || look.italic ? minSize * 7 / 6 : minSize)),
           maxWidth: part.w * width,
           maxLines: part.lines || 1,
           field: part.field,
@@ -939,12 +942,14 @@
    */
   function foldedParts(designKey, side) {
     const look = BACK_LOOKS[designKey] || BACK_LOOKS.classic;
+    // The formal designs set the host in engraved capitals and the invitation in formal script.
+    const formal = FORMAL_DESIGNS.includes(designKey);
     const panelBorder = (role, cx) => ({ role, kind: 'shape', form: 'rect', x: cx, y: 0.5, w: 0.44, h: 0.88, look: { stroke: look.accent, strokeWidth: 1.2, fill: '' } });
     if (side === 'outside') {
       return [
         panelBorder('coverborder', 0.75),
         logo(0.75, 0.26, 0.13),
-        words('host', 0.75, 0.52, 0.38, 24, { font: 'elegant', color: look.title, bold: true, spacing: 6 }, { lines: 3 }),
+        words('host', 0.75, 0.52, 0.38, 24, { font: formal ? 'engraved' : 'elegant', color: look.title, bold: true, spacing: 6 }, { lines: 3 }),
         rule('coverrule', 0.75, 0.64, 0.12, look.accent, 2),
         words('note', 0.25, 0.82, 0.36, 18, { font: 'elegant', color: look.ink, bold: false, italic: true }, { lines: 2 })
       ];
@@ -957,7 +962,7 @@
     return [
       panelBorder('innerborder', 0.25),
       panelBorder('innerborder2', 0.75),
-      words('invite', 0.25, 0.36, 0.38, 26, { font: 'script', color: look.accent, bold: false }, { lines: 2 }),
+      words('invite', 0.25, 0.36, 0.38, formal ? 30 : 26, { font: formal ? 'formal' : 'script', color: look.accent, bold: false }, { lines: 2 }),
       rule('guestline', 0.25, 0.53, 0.32, look.ink, 1.5),
       words('guest', 0.25, 0.51, 0.32, 28, { font: 'script', color: look.ink, bold: false }, { lines: 1 }),
       words('at', 0.75, 0.2, 0.3, 19, { font: 'elegant', color: look.ink, bold: false, italic: true }, { lines: 1 }),

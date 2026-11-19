@@ -248,8 +248,9 @@ comes with tests that fail without it.
     browser memory test in its "Done when". Canvases are let go one at a time, but each card's
     picture stays in the PDF, so a long list makes a large PDF (300 A5 cards, about 69 MB, 13 s).
     The estimate and preview are left for later.
-- **Fonts (owner approved, 19 Nov):** Cinzel (Engraved) and Pinyon Script (Formal script) were
-  downloaded from @fontsource 5.3.0 and shipped to master on their own (#3447).
+- **Fonts in the designs (19 Nov):** after #3447 merged, Classic ivory, Navy and gold and
+  Regimental set the host in Engraved (Cinzel) and the invitation line in Formal script (Pinyon
+  Script, a size larger as its letters run small), on flat and folded cards.
 - **Sheet counts:** on A4, with 8 mm margins and 4 mm gaps, 2 A6, 4 A7 or 10 car passes fit;
   A5 is exactly half of A4, so one fits.
 - **Release order (owner agreed, 19 Nov):** PR 2 reaches production a release before PR 3 and
