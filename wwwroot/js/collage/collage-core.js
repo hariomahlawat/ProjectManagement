@@ -1676,7 +1676,16 @@
     else delete clean.tint;
   }
 
+  // Marks a draft already turned front first while being read, so it is not turned twice.
+  const SHOWN_FRONT_FIRST = Symbol('front first');
+
   function readDraftModel(raw, photoIds) {
+    // A card saved with its back showing has the back at the top (see draftModel): read it front
+    // first, as everything here expects, and turned over at the end.
+    if (raw && typeof raw === 'object' && raw.side === 'back' && raw.back && typeof raw.back === 'object' && Array.isArray(raw.back.items) && Array.isArray(raw.items) && !raw[SHOWN_FRONT_FIRST]) {
+      const { background: frontBackground, items: frontItems, layout: frontLayout, ...backFields } = raw.back;
+      raw = { ...raw, background: frontBackground, items: frontItems, layout: frontLayout, back: { ...backFields, background: raw.background, items: raw.items, layout: raw.layout }, [SHOWN_FRONT_FIRST]: true };
+    }
     let showBack = false;
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.items)) return null;
     const version = isNumber(raw.version) ? raw.version : 1;
@@ -1928,9 +1937,21 @@
    */
   function draftModel(collage) {
     if (!collage) return collage;
-    // A card is stored front first, whichever side is showing, so the draft's shape never depends
-    // on the screen (a PRISM without backs opens the front); `side` says the back was showing.
-    if (collage.side === 'back' && collage.back) return { ...draftModel(flipSide(collage)), side: 'back' };
+    // A card saved with its back showing is stored as the PRISM before it stores one (code review
+    // 7): the side showing at the top, the other in `back`, and `side: 'back'`. Both read each
+    // other's drafts the right way round. The collage's own newer fields stay at the top.
+    if (collage.side === 'back' && collage.back) {
+      const front = draftModel(flipSide(collage));
+      const { background: backBackground, items: backItems, layout: backLayout, ...backFields } = front.back;
+      return {
+        ...front,
+        background: backBackground,
+        items: backItems,
+        layout: backLayout ?? null,
+        back: { ...backFields, background: front.background, items: front.items, layout: front.layout ?? null },
+        side: 'back'
+      };
+    }
     // The other side keeps its own newer parts too (PR 8), put back the same way.
     const withBack = collage.back?.kept
       ? { ...collage, back: { ...(collage.back.kept.fields || {}), background: collage.back.background, layout: collage.back.layout || null, items: putBack(collage.back) } }

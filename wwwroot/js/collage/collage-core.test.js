@@ -1450,9 +1450,10 @@ test('a draft with a size named "constructor" or an object for a sticker id read
   assert.deepEqual([photo.frame, photo.look, photo.shape], ['none', 'none', 'rect']);
 });
 
-// A card's draft is stored front first (cold review 3): the saved shape never depends on which
-// side was showing, and the collage's own newer fields stay at the top.
-test('a card saved with its back showing is stored front first, and opens with the back showing', () => {
+// A card saved with its back showing is stored as the PRISM before stores it (code review 7):
+// the side showing at the top, so both read each other's drafts; the collage's own newer fields
+// stay at the top.
+test('a card saved with its back showing is stored as shown, and opens with the back showing', () => {
   const front = { id: 'f', kind: 'text', text: 'Front', x: 500, y: 500, width: 200, aspect: 4, size: 40 };
   const back = { id: 'b', kind: 'text', text: 'Back', x: 500, y: 500, width: 200, aspect: 4, size: 40 };
   const card = collage.readDraftModel({ version: 1, size: 'a5p', background: { type: 'color', value: '#ffffff' }, items: [front], ribbon: 'gold',
@@ -1460,15 +1461,23 @@ test('a card saved with its back showing is stored front first, and opens with t
   const showingBack = collage.flipSide(card);
   assert.equal(showingBack.items[0].id, 'b');
   const saved = collage.draftModel(showingBack);
-  assert.equal(saved.items[0].id, 'f', 'the front at the top');
-  assert.equal(saved.back.items[0].id, 'b');
+  assert.equal(saved.items[0].id, 'b', 'the side showing at the top');
+  assert.equal(saved.back.items[0].id, 'f');
   assert.equal(saved.side, 'back');
   assert.equal(saved.ribbon, 'gold', 'the collage\'s own field at the top');
   assert.equal(saved.back.ribbon, undefined);
   const reopened = collage.readDraftModel(JSON.parse(JSON.stringify(saved)), []);
   assert.equal(reopened.side, 'back');
   assert.equal(reopened.items[0].id, 'b', 'opens with the back showing');
-  assert.equal(collage.draftModel(reopened).items[0].id, 'f');
+  assert.equal(collage.pagesOf(reopened)[0].items[0].id, 'f', 'the front is still the front');
+  assert.equal(collage.draftModel(reopened).items[0].id, 'b');
+  // A draft the PRISM before saved with its back showing (the same shape) reads the right way round.
+  const older = { version: 1, size: 'a5p', side: 'back', background: { type: 'color', value: '#ffffff' }, items: [back],
+    back: { background: { type: 'color', value: '#ffffff' }, items: [front] } };
+  const read = collage.readDraftModel(JSON.parse(JSON.stringify(older)), []);
+  assert.equal(read.side, 'back');
+  assert.equal(read.items[0].id, 'b');
+  assert.equal(collage.pagesOf(read)[0].items[0].id, 'f');
 });
 
 // Turning a card over keeps the parts a newer PRISM kept on either side (cold review 3).
@@ -1480,9 +1489,15 @@ test('turning a card over and back keeps both sides\' kept parts', () => {
   const over = collage.flipSide(read);
   assert.equal(collage.keptCount(over), 2, 'turned over');
   assert.equal(collage.keptCount(collage.flipSide(over)), 2, 'turned back');
+  // Saved with the back showing: the back at the top, as the PRISM before stores it, and read
+  // back the right way round with both sides' kept parts.
   const saved = collage.draftModel(over);
-  assert.deepEqual(saved.items.map((item) => item.id), ['fh']);
-  assert.deepEqual(saved.back.items.map((item) => item.id), ['bh']);
+  assert.deepEqual(saved.items.map((item) => item.id), ['bh']);
+  assert.deepEqual(saved.back.items.map((item) => item.id), ['fh']);
+  const again = collage.readDraftModel(JSON.parse(JSON.stringify(saved)), []);
+  assert.equal(again.side, 'back');
+  assert.equal(collage.keptCount(again), 2);
+  assert.deepEqual(collage.draftModel(collage.flipSide(again)).items.map((item) => item.id), ['fh']);
 });
 
 

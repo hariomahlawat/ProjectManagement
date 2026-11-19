@@ -137,8 +137,10 @@ its npm package by hand; the libman entry records the version.
     Changing the design rebuilds both sides and keeps the side showing. **Delete the back**
     offers Undo. In the model the side not showing is in `back` (its background and items), and
     `side: "back"` says the back shows; `core.flipSide` turns the card over and `core.pagesOf`
-    gives the pages front first. The draft always stores the front at the top, with `side`
-    saying which side was showing, so its shape never depends on the screen. A field is on one
+    gives the pages front first. A draft stores the side that was showing at the top, the other
+    in `back`, and `side: "back"` when the back was showing, as the PRISM before this work does, so
+    each reads the other's drafts the right way round (code review 7); the reader turns it front
+    first. A field is on one
     side only (`designs.partsFor`): a programme card, which has its programme on the front, gets
     a back without a second programme. Your own logo still being read when the card is turned
     over goes to the photo tray, since the logo belongs to the front. Saved with both sides, the
@@ -154,8 +156,8 @@ its npm package by hand; the libman entry records the version.
       A5 is exactly half of A4, so one A5 goes on an A4 sheet.
     - The sheet is turned whichever way holds more.
     - Thin cut marks sit in the gaps at each card's corners. A folded card also has fold marks:
-      short lines above and below the middle of the flat card, in the gaps (just inside its top
-      and bottom edges when it is on its own page or edge to edge), on both sides.
+      short lines just inside the top and bottom edges of the flat card, at its middle, on both
+      sides (a folded card is saved one to a page, so never on a sheet).
     - With a back, the back sheet follows the front sheet, mirrored so each back lands behind
       its front when the printer flips on the long edge: across an upright sheet, top to bottom
       on a turned one. On a turned sheet each back is also drawn turned 180°, so a cut card
