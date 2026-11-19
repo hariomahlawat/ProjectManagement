@@ -349,7 +349,8 @@
     // The settings panel's sections as HTML (collage-settings.js).
     const settingsHtml = window.PrismCollageSettings.createSettingsHtml({
       core, draw, stickers, stickerSource: surface.stickerSource, escapeHtml, photos: doc.photos, FRAME_WIDTHS: ui.FRAME_WIDTHS, TEXT_COLOURS, LABEL_COLOURS,
-      isOpen: (key) => openFolds.has(key)
+      isOpen: (key) => openFolds.has(key),
+      cardField: (item) => (item?.field ? screens.cardFieldLabel(item.field) : null)
     });
     const { arrangeSections, swatches, textSections, switchRow, finishSections } = settingsHtml;
     /** A colour the user picks by hand stays: the part no longer follows a unit colour for it. */
@@ -367,6 +368,9 @@
      * would open its keyboard over the page at once).
      */
     function focusTextField({ focus = true } = {}) {
+      // A card's words are typed in Card details: double-click or Enter goes there (PR 5).
+      const item = doc.selectedItem();
+      if (focus && item?.field && screens.cardFieldLabel(item.field)) { screens.editCardField(item.field); return; }
       const field = ui.props.querySelector('[data-text]');
       if (!field) return;
       // On a phone the Words field is in the settings sheet, which opens first.
@@ -377,6 +381,8 @@
     }
 
     ui.props.addEventListener('click', (event) => {
+      const edit = event.target.closest('[data-card-edit]');
+      if (edit) { screens.editCardField(edit.dataset.cardEdit); return; }
       const set = event.target.closest('[data-text-set]');
       if (set) {
         selection.changeSelected((item) => { item[set.dataset.textSet] = set.dataset.value; untint(item, set.dataset.textSet); });

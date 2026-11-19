@@ -293,7 +293,10 @@
     applyLayoutKey: () => applyLayoutKey,
     setPanel: () => setPanel,
     renderBackgroundPanel: () => renderBackgroundPanel,
-    renderCardPanel: () => card.renderPanel
+    renderCardPanel: () => card.renderPanel,
+    // A card's words are typed in Card details only (docs/ux/collage-usability-plan.md, PR 5).
+    cardFieldLabel: () => (field) => card?.fieldLabel(field) ?? null,
+    editCardField: () => (field) => card?.editField(field)
   });
   const laterParts = window.PrismCollageState.createLaterParts({
     hideToolbar: () => hideToolbar,

@@ -131,10 +131,16 @@ its npm package by hand; the libman entry records the version.
   - **Drafts:** a card or poster opened from a design is kept as a draft from its first change,
     so looking through the designs keeps none. Tab after typing in Card details goes to the next
     field: the panel is drawn again only once focus has landed.
+  - **One place to type** ([ux/collage-usability-plan.md](ux/collage-usability-plan.md), PR 5):
+    words that come from a Card details field are typed there only. Selected on the page, their
+    settings say "These words come from Card details: Venue" with **Edit in Card details**, which
+    opens the Card panel with the cursor in that field and its words selected; their font, size
+    and colour stay below, under **Style**. A double-click on them, or Enter, does the same. Words
+    the user added, and a field the design does not show, keep their own Words box
+    (`fieldLabel` and `editField` in `collage-card.js`).
   - **Phones:** the card and poster designs are each one row that scrolls sideways. The custom card size box closes with **Cancel** or Escape.
   - **Typing:** typing in a field changes the words on the card at once. They're kept in the
-    draft, and recorded for Undo when typing pauses, as on the page. Words typed on the card show
-    in the field the next time the panel is drawn. A field emptied takes its words off the card;
+    draft, and recorded for Undo when typing pauses, as on the page. A field emptied takes its words off the card;
     filled again, they come back in the design's place. Words keep the edge their design sets
     them by as they grow (`fieldAnchor`): a left-set line its left, a block the design centres
     (the back's left-aligned programme) its middle, so a long line never runs past the border
