@@ -9,12 +9,15 @@ const { openFresh, newestDraft, startOn } = require('./helpers');
 
 test('a car pass size and the SDD logo: the menu groups sizes, and Save draws the logo at the card shape', async ({ page }) => {
   const errors = await openFresh(page);
-  await startOn(page, 'collage');
-  await page.getByRole('button', { name: /^A4 landscape/ }).click();
+  // The menu groups every size, and shows the groups for what is open (round 2, PR 2): a car
+  // pass is a pocket card, opened from the card start screen.
+  await startOn(page, 'card');
+  await page.locator('[data-start-pocket="pass"]').click();
+  await expect(page.locator('[data-view="editor"]')).toBeVisible();
 
   const size = page.locator('[data-size]');
   expect(await size.locator('optgroup').evaluateAll((groups) => groups.map((g) => g.label))).toEqual(['Pages and screens', 'Cards', 'Pocket cards', 'Folded cards', 'Custom']);
-  await size.selectOption('passl');
+  expect(await size.locator('optgroup').evaluateAll((groups) => groups.filter((g) => !g.hidden).map((g) => g.label))).toEqual(['Cards', 'Pocket cards', 'Folded cards', 'Custom']);
   await expect(size).toHaveValue('passl');
 
   await page.locator('.clg-rail [data-panel="stickers"]').click();

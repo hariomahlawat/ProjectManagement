@@ -123,11 +123,17 @@
                     <i class="bi bi-images" aria-hidden="true"></i>
                     <div class="clg-start-drop__text">
                         <h2 class="clg-start-drop__title" id="clgPhotosStartTitle">Start with your photos</h2>
-                        <p><span class="clg-for-mouse">Choose them, or drop them here. </span>They open in a layout with a frame for each, up to 12; A4 landscape, which can be changed later.</p>
+                        <p><span class="clg-for-mouse">Choose them, or drop them here. </span>They open in a layout with a frame for each, up to 12.</p>
+                        @* What it is for picks the page (round 2, PR 2): square for WhatsApp, A4 for printing. *@
+                        <div class="clg-start-for" role="group" aria-label="What the collage is for">
+                            <span class="clg-start-for__label" aria-hidden="true">For</span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-start-for="share" aria-pressed="false"><i class="bi bi-whatsapp" aria-hidden="true"></i> WhatsApp <small>square</small></button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-start-for="print" aria-pressed="true"><i class="bi bi-printer" aria-hidden="true"></i> Printing <small>A4</small></button>
+                        </div>
                     </div>
                     <button type="button" class="btn btn-primary" data-action="choose"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add photos</button>
                 </div>
-                <h2 class="clg-start__heading">Or start with a layout <small>A4 landscape; the size can be changed later</small></h2>
+                <h2 class="clg-start__heading">Or start with a layout <small data-start-layouts-note>A4 landscape; the size can be changed later</small></h2>
                 <div class="clg-layouts" data-start-layouts></div>
                 <h2 class="clg-start__heading">Or start with a blank page</h2>
                 <div class="clg-sizes" data-sizes></div>

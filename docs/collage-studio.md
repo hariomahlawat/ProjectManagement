@@ -85,11 +85,18 @@ its npm package by hand; the libman entry records the version.
   (`localStorage` key `prism-collage-start`; without it, cards open). On phones the three are one
   row of compact buttons.
   - **Collage** starts with **Start with your photos** ([ux/collage-usability-plan.md](ux/collage-usability-plan.md),
-    PR 3): photos chosen or dropped there open on A4 landscape in the layout made for their
-    number (2 to 9, and 12; 10 or 11 photos take "12 grid", and past 12 the rest wait in Photos).
-    One photo goes in one frame that fills the page. Or it offers a layout (2 side by side up to
-    a 12 grid and a mosaic of 7) or a blank page in one of seven sizes: A4 landscape or portrait,
-    A3 poster, Slide 16:9, Square, Phone status 9:16 and Banner 3:1.
+    PR 3): photos chosen or dropped there open in the layout made for their number (2 to 9,
+    and 12; 10 or 11 photos take "12 grid", and past 12 the rest wait in Photos). One photo goes
+    in one frame that fills the page. **For: WhatsApp (square) / Printing (A4)** beside it picks
+    the page these and the layouts open on (round 2, PR 2): Square or A4 landscape. Printing is
+    chosen at first, and the choice is remembered in this browser (`prism-collage-for`). Or it
+    offers a layout (2 side by side up to a 12 grid and a mosaic of 7) or a blank page in one of
+    seven sizes: A4 landscape or portrait, A3 poster, Slide 16:9, Square, Phone status 9:16 and
+    Banner 3:1.
+  - **Page size:** one menu, in the top bar, on phones too (narrow). It lists the sizes for what
+    is open: pages and screens for a collage, the card groups for a card or poster, and always
+    the page's own size and the custom sizes. Page settings name the size and keep **Custom
+    size** in mm.
   - **Layouts** marks each layout with a frame for every photo the collage has ("Fits all 6").
     When photos do not fit (added to a full layout, or a smaller layout chosen), the message has
     a button for the layout that fits them all, such as **Use a 6-photo layout**; Undo goes back.

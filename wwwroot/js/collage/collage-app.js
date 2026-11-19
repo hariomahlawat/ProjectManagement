@@ -296,7 +296,9 @@
     renderCardPanel: () => card.renderPanel,
     // A card's words are typed in Card details only (docs/ux/collage-usability-plan.md, PR 5).
     cardFieldLabel: () => (field) => card?.fieldLabel(field) ?? null,
-    editCardField: () => (field) => card?.editField(field)
+    editCardField: () => (field) => card?.editField(field),
+    // The page a new collage opens on: square for WhatsApp, A4 for printing (round 2, PR 2).
+    startSize: () => startSize
   });
   const laterParts = window.PrismCollageState.createLaterParts({
     hideToolbar: () => hideToolbar,
@@ -351,7 +353,7 @@
   }
 
   // the start screen: blank pages, layouts and the drafts (collage-start.js).
-  const { renderStart, showSize } = window.PrismCollageStart.createStart({ core, $, sizeSelect, layoutGrid });
+  const { renderStart, showSize, startSize } = window.PrismCollageStart.createStart({ core, $, sizeSelect, layoutGrid, isCard: () => Boolean(collage?.card) });
   function resetEditor() {
     collageSession += 1;
     namedFromWords = null;

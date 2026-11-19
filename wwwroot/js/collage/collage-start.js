@@ -16,8 +16,41 @@
   /** A remembered choice, or cards when there is none or it is not one of the three. */
   const choiceOf = (value) => (CHOICES.includes(value) ? value : 'card');
 
+  // What a new collage is for, and the page it opens on (docs/ux/collage-usability-plan.md, round 2,
+  // PR 2): WhatsApp takes a square page, printing A4 landscape. Remembered in this browser.
+  const FOR_SIZES = Object.freeze({ share: 'square', print: 'a4l' });
+  const FOR_KEY = 'prism-collage-for';
+  /** A remembered purpose, or printing (A4 landscape, the page collages always opened on). */
+  const forOf = (value) => (Object.hasOwn(FOR_SIZES, value) ? value : 'print');
+
+  /**
+   * The size groups the top bar's menu offers: pages and screens for a collage, the card groups for
+   * a card or poster, and always the group of the page's own size, so it shows and can be left.
+   */
+  function groupsFor(core, sizeKey, isCard) {
+    const own = core.isSize(sizeKey) ? core.sizeOf(sizeKey).group : null;
+    const shown = isCard ? ['card', 'pocket', 'folded'] : ['page'];
+    return own && !shown.includes(own) ? [...shown, own] : shown;
+  }
+
   function createStart(deps) {
     const { core, $, sizeSelect, layoutGrid } = deps;
+
+    const forButtons = () => [...(startView?.querySelectorAll('[data-start-for]') || [])];
+    let purpose = 'print';
+    try { purpose = forOf(window.localStorage?.getItem(FOR_KEY)); } catch { purpose = 'print'; }
+    /** Marks one purpose chosen; `keep` remembers it for the next visit. */
+    function showFor(value, { keep = false } = {}) {
+      purpose = forOf(value);
+      for (const button of forButtons()) button.setAttribute('aria-pressed', String(button.dataset.startFor === purpose));
+      const note = $('[data-start-layouts-note]');
+      if (note) note.textContent = `${core.sizeOf(FOR_SIZES[purpose]).label}; the size can be changed later`;
+      if (keep) {
+        try { window.localStorage?.setItem(FOR_KEY, purpose); } catch { /* not kept; fine */ }
+      }
+    }
+    /** The page a new collage opens on: the one for what it is for. */
+    const startSize = () => FOR_SIZES[purpose];
 
     const choices = $('[data-start-choices]');
     const startView = $('[data-view="start"]');
@@ -43,6 +76,11 @@
       if (button) showChoice(button.dataset.startChoice, { keep: true });
     });
     showChoice(readChoice());
+    startView?.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-start-for]');
+      if (button) showFor(button.dataset.startFor, { keep: true });
+    });
+    showFor(purpose);
 
     /** A small drawing of a layout's frames, for its button. */
     function layoutPicture(key) {
@@ -91,6 +129,7 @@
       for (const group of core.sizesByGroup()) {
         const list = document.createElement('optgroup');
         list.label = group.label;
+        list.dataset.group = group.key;
         for (const key of group.keys) {
           const option = document.createElement('option');
           option.value = key;
@@ -119,11 +158,20 @@
         const group = sizeSelect.querySelector('[data-custom-sizes]') || sizeSelect;
         group.insertBefore(option, group.firstChild);
       }
+      // Only the sizes for what is open: pages and screens for a collage, cards for a card or
+      // poster (round 2, PR 2). Custom sizes are always offered.
+      const shown = groupsFor(core, key, Boolean(deps.isCard?.()));
+      for (const list of sizeSelect.querySelectorAll('optgroup')) {
+        const own = list.dataset.group;
+        const off = Boolean(own && !shown.includes(own));
+        list.hidden = off;
+        list.disabled = off;
+      }
       sizeSelect.value = key;
     }
 
-    return { renderStart, showSize, showChoice };
+    return { renderStart, showSize, showChoice, showFor, startSize };
   }
 
-  return Object.freeze({ createStart, choiceOf, CHOICES, CHOICE_KEY });
+  return Object.freeze({ createStart, choiceOf, CHOICES, CHOICE_KEY, FOR_SIZES, FOR_KEY, forOf, groupsFor });
 });

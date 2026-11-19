@@ -221,7 +221,7 @@
       const files = [...fileList];
       if (!files.length) return;
       const layout = core.layoutForCount(core.photoFileCount(files));
-      await screens.startCollage(core.DEFAULT_SIZE, layout, null, { pageFrame: !layout });
+      await screens.startCollage(screens.startSize(), layout, null, { pageFrame: !layout });
       // The editor did not open (another draft was being opened meanwhile): nothing is added.
       if (ui.views.editor.hidden) return;
       await addFiles(files);

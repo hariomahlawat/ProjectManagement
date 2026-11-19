@@ -281,9 +281,14 @@ draft format. Drafts made before keep working: a card opened from a draft keeps 
   its "To the front" and "To the back" are on no toolbar, and the plan keeps everything that
   existed. #3472, merged 19 Nov 2026.
 - PR 8: guide checked; first-time check done (invitation 8, collage 7, depth 8). Round 2 planned
-  above, with the owner's decisions.
+  above, with the owner's decisions. #3473, merged 19 Nov 2026.
+- Round 2, PR 1: Layouts for collages only. #3474, merged 19 Nov 2026.
+- Round 2, PR 2: page size. **For: WhatsApp (square) / Printing (A4)** beside Add photos picks the
+  page photos and layouts open on; Printing (A4 landscape, as before) is chosen at first, since no
+  default was decided and it keeps earlier behaviour. The top bar's size menu shows on phones,
+  narrow, and lists the sizes for what is open; Page settings keep Custom size only.
 - Round 2, PR 3: the date starts empty. New cards and posters open with Date and time empty, the
   example as the hint; Save's note names it until it has words. Not done from the plan's first
   wording: no dotted line on the card where the date goes (the owner's decision did not ask for
   one; the space shows where it goes), and Save names the empty date in its note rather than
-  asking with Save anyway.
+  asking with Save anyway. #3477, merged 19 Nov 2026.
