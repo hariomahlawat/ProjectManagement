@@ -354,7 +354,7 @@ public sealed class ProjectBriefingContractTests
         // Library: which project matched; a clear column name. New deck: the rule up front.
         Assert.Contains("data-pbd-library-match hidden", library, StringComparison.Ordinal);
         Assert.Contains("match.textContent = projects.length", libraryScript, StringComparison.Ordinal);
-        Assert.Contains("<p class=\"pbd-deck-card__status\">", library, StringComparison.Ordinal);
+        Assert.Contains("<p class=\"pbd-deck-card__status\" data-pbd-library-status>", library, StringComparison.Ordinal);
         Assert.Contains("required, at least 3 characters", page, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"@UpdateSheetRowLabel(row)\"", page, StringComparison.Ordinal);
     }
@@ -380,27 +380,26 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
-    public void Library_ContinueIsHonestAndGenerateRunsTheStudiosChecks()
+    public void Library_ContinueIsHonestAndDownloadAsksAboutGapsFirst()
     {
         var library = Read("_DeckLibrary.cshtml");
-        var script = Read("project-briefing-decks.js");
+        var script = Read("project-briefing-library.js");
 
         // "Continue" only for the person's own last deck.
         Assert.Contains("@(continueDeck!.LastEditedByMe ? \"Continue\" : \"Recently edited\")", library, StringComparison.Ordinal);
 
-        // Generate from the library opens the deck and runs the Studio's Generate; no bare post.
-        Assert.DoesNotContain("asp-page-handler=\"Generate\"", library, StringComparison.Ordinal);
-        Assert.Contains("asp-route-generate=\"1\"", library, StringComparison.Ordinal);
-        // Generate needs the link flag and the library's one-time marker (review 2 fixes, PR 6).
-        Assert.Contains("const generateFlag = startUrl.searchParams.get('generate') === '1';", script, StringComparison.Ordinal);
-        Assert.Contains("if (generateFlag && generateMarked) {", script, StringComparison.Ordinal);
-        Assert.Contains("form.requestSubmit();", script, StringComparison.Ordinal);
-        // It waits for the Studio to set the Gaps count, however the modules load (Codex, #2950).
-        Assert.Contains("document.addEventListener('pbd:studio-ready', generateFromLibrary, { once: true });", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("    }, 0);", script, StringComparison.Ordinal);
-        Assert.Contains("document.dispatchEvent(new CustomEvent('pbd:studio-ready'));", Read("project-briefing-studio.js"), StringComparison.Ordinal);
+        // Download from the library without the Studio (Plan: The Studio is optional, PR 2): a deck
+        // the person may change downloads through Generate (recorded), after the gap question.
+        Assert.Contains("<form method=\"post\" asp-page-handler=\"Generate\" data-pbd-library-download data-pbd-library-generate", library, StringComparison.Ordinal);
+        Assert.Contains("<form method=\"post\" asp-page-handler=\"Download\" data-pbd-library-download", library, StringComparison.Ordinal);
+        Assert.Contains("data-gaps-url=\"@Url.Page(\"/Workspace/BriefingDecks/Index\", \"Gaps\", new { deckId = deck.Id })\"", library, StringComparison.Ordinal);
+        Assert.DoesNotContain("asp-route-generate=\"1\"", library, StringComparison.Ordinal);
+        Assert.Contains("if (!(await askAboutGaps(form, gaps, button))) return;", script, StringComparison.Ordinal);
+        // The Studio still honours an old ?generate=1 link only with its one-time marker, which the
+        // library no longer leaves, so such a link just opens the deck.
+        Assert.Contains("if (generateFlag && generateMarked) {", Read("project-briefing-decks.js"), StringComparison.Ordinal);
 
-        // A deck without projects offers Add projects instead of a greyed-out Generate.
+        // A deck without projects offers Add projects instead of a greyed-out Download.
         Assert.Contains("asp-route-start=\"projects\">Add projects</a>", library, StringComparison.Ordinal);
     }
 

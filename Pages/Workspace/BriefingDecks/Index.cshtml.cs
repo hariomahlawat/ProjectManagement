@@ -1199,6 +1199,30 @@ public sealed class IndexModel : PageModel
         }
     }
 
+    // The library asks before downloading a deck with gaps (docs/ux/briefing-decks.md, "Plan: The
+    // Studio is optional", PR 2): how many presented projects lack content the deck shows, by the
+    // Studio's own rule (ProjectBriefingContentGaps). Anyone who may see the deck may ask; the
+    // download that follows checks its own access again.
+    public async Task<IActionResult> OnGetGapsAsync(long deckId, CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        var deck = deckId <= 0 ? null : await _dataService.GetDeckAsync(deckId, userId, cancellationToken);
+        if (deck is null)
+        {
+            return NotFound(new { message = ProjectBriefingDeckService.NotFoundMessage });
+        }
+
+        var summary = ProjectBriefingContentGaps.Summarize(
+            deck.Projects.Count(project => project.IsPresented),
+            deck.ContentGaps);
+        return new JsonResult(new
+        {
+            projects = summary.Projects,
+            projectsWithGaps = summary.ProjectsWithGaps,
+            kinds = summary.Kinds
+        });
+    }
+
     public async Task<IActionResult> OnPostGenerateAsync(long deckId, CancellationToken cancellationToken)
     {
         var userId = RequireUserId();

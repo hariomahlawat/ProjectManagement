@@ -33,10 +33,18 @@ last-updated deck, so nobody edits a deck they did not pick.
   status: when it was generated and how many slides, then "up to date", "N changes since" (a link
   to the deck) or "changes not tracked yet"; "Not generated" or "No PowerPoint yet" before that.
   The deck the person last edited carries a **Continue** tag (else "Recently edited" on the
-  latest); with the default sort it is the first card. Buttons: Open and Generate (Add projects
-  and Open for an empty deck), and a ⋯ menu with Download, Duplicate and Delete through the
-  Studio confirmation dialog. A Project Officer's deck that a command user can only view is
-  tagged "<name>'s deck · view only" and offers Download and Duplicate. **Mine** keeps decks the
+  latest); with the default sort it is the first card. Buttons: **Download** and Open (Add
+  projects and Open for an empty deck), and a ⋯ menu with Duplicate and Delete through the
+  Studio confirmation dialog. Download makes the PowerPoint without opening the Studio (19 Nov
+  2026): it reads the deck's gaps (`OnGetGapsAsync`, the Studio's `ProjectBriefingContentGaps`
+  rule) and, when a presented project lacks content its slides show, asks first ("Download with
+  gaps?", *Download anyway* / *Cancel*); it then posts `Generate` in the page, so the generation
+  is recorded and the card's PowerPoint line changes to "Today, HH:MM · N slides · up to date".
+  The button is busy until the file arrives; an expired sign-in or a refusal is said in a toast.
+  A Project Officer's deck that a command user can only view is tagged "<name>'s deck · view
+  only" and offers Download (asking about gaps the same way; nothing is recorded) and Duplicate.
+  An old `?generate=1` link only opens the deck: the library no longer leaves the one-time
+  marker the Studio needs to generate from it. **Mine** keeps decks the
   person owns or last edited; search also matches the names of projects in a deck; sort by last
   edited, last generated or name. Filtering runs in the page (`project-briefing-library.js`),
   on the cards' `data-pbd-library-row` hooks.
@@ -940,6 +948,10 @@ library, New deck dialog and simplified Studio).
    keeps `Download` (no generation recorded). The `?generate=1` hand-off stays for old links but
    the library stops using it. Tests: the handler's access and its count against the Studio's for
    the same deck; the card's ask / download / error behaviour (`project-briefing-library.test.js`).
+   Built: as planned, with the library's own reply checks (it loads without the Studio's
+   scripts). The ⋯ menu's Download PowerPoint is gone (the card's Download replaces it); the
+   view-only deck's Download asks too. Checked in the browser: the question, Download anyway, the
+   file, and the card's line updating in place.
 3. **Marking required at creation.** The New deck dialog gets a required Marking choice and the
    server's `Create` rejects a deck without one, with a plain message. The choices come from one
    list (configuration, so a site can match its handling rules without a release); the Studio's

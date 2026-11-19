@@ -675,6 +675,42 @@ public sealed class ProjectBriefingDeckPageHandlerTests
         public List<(string Action, string? DeckId)> Entries { get; } = new();
     }
 
+    // ---- Gaps (the library asks before downloading a deck with gaps) ----------------------------
+
+    // Whoever may see the deck may ask, including a command user looking at an officer's deck
+    // (they can download it); the counts follow the Studio's rule.
+    [Theory]
+    [InlineData(Officer)]
+    [InlineData(Hod)]
+    public async Task Gaps_ForSomeoneWhoMaySeeTheDeck_CountsThePresentedProjects(string userId)
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, Officer, ProjectBriefingDeckScope.Personal);
+
+        var result = await CreatePage(db, userId, ajax: true).OnGetGapsAsync(deck.Id, CancellationToken.None);
+
+        var payload = System.Text.Json.JsonSerializer.SerializeToElement(
+            Assert.IsType<JsonResult>(result).Value,
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        Assert.Equal(2, payload.GetProperty("projects").GetInt32());
+        Assert.Equal(1, payload.GetProperty("projectsWithGaps").GetInt32());
+        Assert.Equal(new[] { "Status remark", "Photograph" },
+            payload.GetProperty("kinds").EnumerateArray().Select(kind => kind.GetString()).ToArray());
+    }
+
+    // A command deck does not exist for a Project Officer; an unknown id is not found either.
+    [Fact]
+    public async Task Gaps_ADeckThePersonCannotSee_IsNotFound()
+    {
+        await using var db = CreateDb();
+        var deck = await SeedAsync(db, Comdt, ProjectBriefingDeckScope.Command);
+        var page = CreatePage(db, Officer, ajax: true);
+
+        Assert.IsType<NotFoundObjectResult>(await page.OnGetGapsAsync(deck.Id, CancellationToken.None));
+        Assert.IsType<NotFoundObjectResult>(await page.OnGetGapsAsync(0, CancellationToken.None));
+        Assert.IsType<NotFoundObjectResult>(await page.OnGetGapsAsync(deck.Id + 99, CancellationToken.None));
+    }
+
     // Add projects lists and its choices are for a deck the person may change: another officer's
     // personal deck is not found, and the selection service (a stub that throws) is never asked
     // (cold review, L8).
@@ -822,8 +858,32 @@ public sealed class ProjectBriefingDeckPageHandlerTests
             _decks = decks;
         }
 
-        public Task<ProjectBriefingDeckVm?> GetDeckAsync(long deckId, string requestingUserId, CancellationToken cancellationToken = default, bool includeFfcFootprintSummary = false)
-            => Task.FromResult<ProjectBriefingDeckVm?>(null);
+        // A deck the person may see: one presented project with two gaps, one without, and one
+        // left out of the PowerPoint (its gaps never count). Anyone else: not found.
+        public async Task<ProjectBriefingDeckVm?> GetDeckAsync(long deckId, string requestingUserId, CancellationToken cancellationToken = default, bool includeFfcFootprintSummary = false)
+        {
+            if (await _decks.GetAccessAsync(deckId, requestingUserId, cancellationToken) == ProjectBriefingDeckAccessLevel.None)
+            {
+                return null;
+            }
+
+            return new ProjectBriefingDeckVm
+            {
+                Id = deckId,
+                Name = "Visit deck",
+                Projects = new[]
+                {
+                    new ProjectBriefingProjectVm { ProjectId = 10 },
+                    new ProjectBriefingProjectVm { ProjectId = 11 },
+                    new ProjectBriefingProjectVm { ProjectId = 12, Presentation = ProjectBriefingItemPresentation.LeftOut }
+                },
+                ContentGaps = new Dictionary<int, IReadOnlyList<string>>
+                {
+                    [10] = new[] { ProjectBriefingContentGaps.Status, ProjectBriefingContentGaps.Photo },
+                    [11] = Array.Empty<string>()
+                }
+            };
+        }
 
         public async Task<ProjectBriefingPresentationData> BuildPresentationDataAsync(long deckId, string requestingUserId, CancellationToken cancellationToken = default)
         {
