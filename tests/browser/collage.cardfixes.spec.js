@@ -4,7 +4,7 @@
 // the Card panel's order, what a poster's panel leaves out, and the custom size box.
 
 const { test, expect } = require('./test');
-const { openFresh, newestDraft } = require('./helpers');
+const { openFresh, startOn, newestDraft } = require('./helpers');
 
 const roles = async (page) => ((await newestDraft(page))?.model?.items || []).filter((item) => item.role).map((item) => ({ id: item.id, role: item.role, hidden: Boolean(item.hidden), x: item.x, width: item.width, sticker: item.sticker }));
 
@@ -33,6 +33,7 @@ async function touch(page) {
 
 test('two logos: removing the first leaves the second as the logo; the roundel widens for two and hides with none', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="regimental"]').click();
   await touch(page);
   const roundelOf = async () => (await roles(page)).find((item) => item.role === 'roundel');
@@ -76,6 +77,7 @@ test('two logos: removing the first leaves the second as the logo; the roundel w
 
 test('the second logo picked is the one Remove takes; the first goes back to the middle', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await touch(page);
   await expect.poll(async () => (await roles(page)).find((item) => item.role === 'logo')?.x).toBeGreaterThan(0);
@@ -94,6 +96,7 @@ test('the second logo picked is the one Remove takes; the first goes back to the
 
 test('the Card panel starts with the words in the order the card reads; a poster leaves out the back and guest list', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const fields = await page.locator('[data-card-field]').evaluateAll((inputs) => inputs.map((input) => input.dataset.cardField));
   expect(fields.slice(0, 5)).toEqual(['host', 'invite', 'guest', 'at', 'occasion']);
@@ -106,6 +109,7 @@ test('the Card panel starts with the words in the order the card reads; a poster
   await page.keyboard.press('Escape');
 
   await openFresh(page);
+  await startOn(page, 'poster');
   await page.locator('[data-start-poster="event"]').click();
   await expect(page.locator('#clgCardTitle')).toHaveText('Poster details');
   await expect(page.locator('[data-card-hint]')).toContainText('words on the poster');
@@ -121,9 +125,11 @@ test('the Card panel starts with the words in the order the card reads; a poster
 
 test('the custom card size box closes with Escape or Cancel, and the menu keeps its size', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   const size = page.locator('[data-card-size]');
   const before = await size.inputValue();
   await size.selectOption('custom');
+  await startOn(page, 'card');
   const box = page.locator('[data-card-custom]');
   await expect(box).toBeVisible();
   await page.keyboard.press('Escape');
@@ -131,6 +137,7 @@ test('the custom card size box closes with Escape or Cancel, and the menu keeps 
   await expect(size).toHaveValue(before);
   await expect(size).toBeFocused();
   await size.selectOption('custom');
+  await startOn(page, 'card');
   await page.locator('[data-card-custom-cancel]').click();
   await expect(box).toBeHidden();
   await expect(size).toHaveValue(before);
@@ -139,13 +146,17 @@ test('the custom card size box closes with Escape or Cancel, and the menu keeps 
 
 test('a custom card smaller than A6 is warned of on the start screen; a larger one is not', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   const size = page.locator('[data-card-size]');
   const hint = page.locator('[data-card-small]');
   await expect(hint).toBeHidden();
   const use = async (width, height) => {
     await size.selectOption('custom');
+    await startOn(page, 'card');
     await page.locator('[data-card-custom-size="width"]').fill(String(width));
+    await startOn(page, 'card');
     await page.locator('[data-card-custom-size="height"]').fill(String(height));
+    await startOn(page, 'card');
     await page.locator('[data-card-custom-use]').click();
   };
   await use(80, 120);
@@ -234,8 +245,10 @@ async function inkChanged(page, a, b) {
 test('every card design saves with its words drawn, the Bilingual Hindi included', async ({ page }) => {
   test.setTimeout(180000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   const keys = await page.locator('[data-start-design]').evaluateAll((buttons) => buttons.map((button) => button.dataset.startDesign));
   expect(keys.length).toBeGreaterThanOrEqual(6);
+  await startOn(page, 'card');
   await page.locator(`[data-start-design="${keys[0]}"]`).click();
   for (const key of keys) {
     await page.locator(`[data-card-design="${key}"]`).click();
@@ -261,6 +274,7 @@ test('every card design saves with its words drawn, the Bilingual Hindi included
 test('No photo: the Ceremonial card offers it while its frame is empty, closes the gap, and saves with nothing left out', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="ceremonial"]').click();
   await expect(page.locator('.clg-card-photo')).toContainText('The photo frame is empty');
   // Save says so, and points to No photo rather than to Layers.
@@ -288,6 +302,7 @@ test('No photo: the Ceremonial card offers it while its frame is empty, closes t
 test('No photo on the talk poster: the points take the photo place and nothing is left out', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'poster');
   await page.locator('[data-start-poster="talk"]').click();
   await page.locator('.clg-card-question [data-card-logo="none"]').click();
   await page.getByRole('button', { name: 'Save as…' }).click();
@@ -303,6 +318,7 @@ test('No photo on the talk poster: the points take the photo place and nothing i
 test('a poster with No logo saves with nothing left out', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'poster');
   await page.locator('[data-start-poster="event"]').click();
   await page.locator('.clg-card-question [data-card-logo="none"]').click();
   await expect(page.locator('[data-card-logo-name]')).toContainText('No logo on this poster');
@@ -314,6 +330,7 @@ test('a poster with No logo saves with nothing left out', async ({ page }) => {
 
 test('a colour set by hand stays when a unit colour changes', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="regimental"]').click();
   await touch(page);
   const host = (await newestDraft(page)).model.items.find((item) => item.field === 'host');
@@ -336,7 +353,9 @@ test('a colour set by hand stays when a unit colour changes', async ({ page }) =
 test('guests with only the side without names saved: one copy a guest, and the result says why', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('fold6');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const list = page.locator('[data-card-guests]');
   await list.fill('Maj A\nCapt B\nLt C');
@@ -419,7 +438,9 @@ function expectPlaced(sheet, expected, turned) {
 test('an A6 card with a back on A4: two cards a sheet where the layout says, backs turned, cut marks on both', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a6p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-side="add"]').click();
   await page.getByRole('button', { name: 'Save as…' }).click();
@@ -457,9 +478,12 @@ test('an A6 card with a back on A4: two cards a sheet where the layout says, bac
 test('every pocket design and every poster saves with its words drawn', async ({ page }) => {
   test.setTimeout(240000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a7p');
+  await startOn(page, 'card');
   const pocket = await page.locator('[data-start-design]').evaluateAll((buttons) => buttons.map((button) => button.dataset.startDesign));
   expect(pocket.length).toBeGreaterThanOrEqual(4);
+  await startOn(page, 'card');
   await page.locator(`[data-start-design="${pocket[0]}"]`).click();
   for (const key of pocket) {
     await page.locator(`[data-card-design="${key}"]`).click();
@@ -469,8 +493,10 @@ test('every pocket design and every poster saves with its words drawn', async ({
     expect(result, key).not.toMatch(/could not/);
   }
   await openFresh(page);
+  await startOn(page, 'poster');
   const posters = await page.locator('[data-start-poster]').evaluateAll((buttons) => buttons.map((button) => button.dataset.startPoster));
   expect(posters.length).toBe(4);
+  await startOn(page, 'poster');
   await page.locator(`[data-start-poster="${posters[0]}"]`).click();
   for (const key of posters) {
     await page.locator(`[data-card-design="${key}"]`).click();
@@ -485,6 +511,7 @@ test('every pocket design and every poster saves with its words drawn', async ({
 test('a guest list from a .csv file: rank and name joined, past 300 counted, a file too large refused', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const rows = ['Rank,Name,Unit', ...Array.from({ length: 302 }, (_, i) => `Maj,"Officer ${i + 1}, SM",5 Sikh`)].join('\n');
   await page.locator('[data-card-guest-file]').setInputFiles({ name: 'guests.csv', mimeType: 'text/csv', buffer: Buffer.from(rows) });
@@ -500,6 +527,7 @@ test('a guest list from a .csv file: rank and name joined, past 300 counted, a f
 
 test('Undo after typing in Card details puts the words back, on the card and in the field', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await touch(page);
   const venue = page.locator('[data-card-field="venue"]');
@@ -514,6 +542,7 @@ test('Undo after typing in Card details puts the words back, on the card and in 
 
 test('a poster asks which logo first, at the top of its panel, and its picture on the start screen is its own', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'poster');
   await page.locator('[data-start-poster="talk"]').click();
   const first = await page.locator('.clg-card-form > *').first().getAttribute('class');
   expect(first).toContain('clg-card-question');
@@ -527,7 +556,9 @@ test('a poster asks which logo first, at the top of its panel, and its picture o
 test('Save offers A4 edge to edge where it fits more cards: 4 A6 touching, no cut marks', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a6p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.getByRole('button', { name: 'Save as…' }).click();
   await page.getByRole('button', { name: 'Printing' }).click();
@@ -546,6 +577,7 @@ test('Save offers A4 edge to edge where it fits more cards: 4 A6 touching, no cu
 
 test('Tab straight after typing in Card details goes to the next field, not to the top of the page', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const active = () => page.evaluate(() => document.activeElement?.dataset?.cardField || document.activeElement?.tagName);
   for (const [field, next] of [['host', 'invite'], ['invite', 'guest'], ['when', 'venue']]) {
@@ -563,6 +595,7 @@ test('Tab straight after typing in Card details goes to the next field, not to t
 
 test('on a Bilingual card an occasion quick pick sets the Hindi occasion too', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="bilingual"]').click();
   await page.locator('[data-card-pick="occasion"][data-value="Farewell Dinner"]').click();
   await expect(page.locator('[data-card-field="occasion"]')).toHaveValue('Farewell Dinner');
@@ -582,6 +615,7 @@ test('looking through designs keeps no drafts; the first change keeps one', asyn
     open.onerror = () => resolve(0);
   }));
   for (const key of ['classic', 'navy', 'regimental']) {
+    await startOn(page, 'card');
     await page.locator(`[data-start-design="${key}"]`).click();
     await page.locator('[data-view="editor"]').waitFor();
     // Longer than the draft's save delay (half a second): proving none is kept needs a wait.
@@ -590,6 +624,7 @@ test('looking through designs keeps no drafts; the first change keeps one', asyn
     await page.locator('[data-view="start"]').waitFor();
   }
   expect(await draftCount()).toBe(0);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await touch(page);
   expect(await draftCount()).toBe(1);
@@ -598,6 +633,7 @@ test('looking through designs keeps no drafts; the first change keeps one', asyn
 
 test('Ctrl+Z in a Card details field undoes the words typed, and Ctrl+Y brings them back', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await touch(page);
   const venue = page.locator('[data-card-field="venue"]');
@@ -614,6 +650,7 @@ test('Ctrl+Z in a Card details field undoes the words typed, and Ctrl+Y brings t
 
 test('deleting the front logo on the page takes the back\'s small logo away too', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-side="add"]').click();
   await page.locator('[data-card-side="front"]').click();
@@ -635,6 +672,7 @@ test('deleting the front logo on the page takes the back\'s small logo away too'
 
 test('Ctrl+Z in the guest list box undoes the list', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const box = page.locator('[data-card-guests]');
   await box.fill('Maj A\nCapt B');
@@ -650,12 +688,15 @@ test('Ctrl+Z in the guest list box undoes the list', async ({ page }) => {
 
 test('a car pass offers no guest list; a reopened card opens on Card details and is listed as a card', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('passl');
   await expect(page.locator('[data-card-pocket-hint]')).toBeHidden();
+  await startOn(page, 'card');
   await page.locator('[data-start-design="pass"]').click();
   await expect(page.locator('[data-card-guests]')).toHaveCount(0);
   await openFresh(page);
   await expect(page.locator('[data-card-pocket-hint]')).toBeVisible();
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await touch(page);
   await page.locator('.clg-editor [data-action="home"], [data-view="editor"] [data-action="home"]').first().click();
@@ -674,7 +715,9 @@ test('a car pass offers no guest list; a reopened card opens on Card details and
 test('A7 cards with a back on an upright A4: backs mirrored across, plain and one for each guest', async ({ page }) => {
   test.setTimeout(120000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a7p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="pocketinvite"]').click();
   await page.locator('[data-card-side="add"]').click();
   await page.locator('[data-card-side="front"]').click();
@@ -712,6 +755,7 @@ test('A7 cards with a back on an upright A4: backs mirrored across, plain and on
 
 test('typing in a right-aligned field keeps its right edge', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await touch(page);
   const right = async () => {
@@ -729,6 +773,7 @@ test('typing in a right-aligned field keeps its right edge', async ({ page }) =>
 
 test('the 2nd and 3rd unit colours reach the parts that follow them', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="regimental"]').click();
   await touch(page);
   for (const [index, value] of [[2, '#3a5f1f'], [3, '#5b1f6e']]) {
@@ -747,6 +792,7 @@ test('the 2nd and 3rd unit colours reach the parts that follow them', async ({ p
 
 test('guest names from a file are text in the panel, never markup', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const file = 'Name\nCol X <b data-probe="1">Retd</b>\n<img data-probe="2" src="/probe.png">\nMaj Y';
   await page.locator('[data-card-guest-file]').setInputFiles({ name: 'guests.txt', mimeType: 'text/plain', buffer: Buffer.from(file) });
@@ -757,6 +803,7 @@ test('guest names from a file are text in the panel, never markup', async ({ pag
 
 test('a guest file saved by a spreadsheet in ANSI (Windows-1252) keeps its accented names', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   // "Name", then "Maj Sébastien" in Windows-1252 (é is one byte, 0xE9).
   const bytes = Buffer.concat([Buffer.from('Name\nMaj S', 'latin1'), Buffer.from([0xe9]), Buffer.from('bastien\n', 'latin1')]);
@@ -769,7 +816,9 @@ test('a guest file saved by a spreadsheet in ANSI (Windows-1252) keeps its accen
 // says so with Undo, and Undo takes the card back to its size and design.
 test('a card changed to a pocket size moves to the pocket invitation, with Undo', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a5p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await touch(page);
   await page.locator('#clgSize').selectOption('a7p');
@@ -786,6 +835,7 @@ test('a card changed to a pocket size moves to the pocket invitation, with Undo'
 // Cold review 5: "at the At Home" is not English; the design's own "at the" becomes "at an" for it.
 test('the At Home pick reads "at an At Home"; another pick puts "at the" back; typed words stay', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const atText = async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'at')?.text;
   await page.locator('[data-card-pick="occasion"][data-value="At Home"]').click();
@@ -805,7 +855,9 @@ test('the At Home pick reads "at an At Home"; another pick puts "at the" back; t
 test('guest sheets: cut marks only round the cards a sheet has; fronts only have no back sheets', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a6p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-side="add"]').click();
   await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
@@ -829,7 +881,9 @@ test('guest sheets: cut marks only round the cards a sheet has; fronts only have
 test('edge to edge is offered only where it fits more cards than A4 with room for cutting', async ({ page }) => {
   const errors = await openFresh(page);
   const edgeOffered = async (size) => {
+    await startOn(page, 'card');
     await page.locator('[data-card-size]').selectOption(size);
+    await startOn(page, 'card');
     await page.locator('[data-start-design="classic"]').click();
     await page.getByRole('button', { name: 'Save as…' }).click();
     await page.getByRole('button', { name: 'Printing' }).click();
@@ -849,7 +903,9 @@ test('edge to edge is offered only where it fits more cards than A4 with room fo
 // line past the border); every line stays inside the border.
 test('typing in a left-aligned field the design centres keeps the block centred, inside the border', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a7p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="programmecard"]').click();
   const programme = page.locator('[data-card-field="programme"]');
   await programme.fill('1900 h · Arrival');
@@ -877,6 +933,7 @@ test('typing in a left-aligned field the design centres keeps the block centred,
 test('the "names left out" note goes with its list: Undo to a shorter list does not show it', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const list = page.locator('[data-card-guests]');
   const hint = page.locator('[data-card-guest-count]');
@@ -897,6 +954,7 @@ test('the "names left out" note goes with its list: Undo to a shorter list does 
 // Cold review 6, H1: Bilingual never prints a Hindi occasion or host that says something else.
 test('Bilingual empties a Hindi line that would contradict typed English, and says so', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const occasion = page.locator('[data-card-field="occasion"]');
   await occasion.fill('Mess Night');
@@ -921,6 +979,7 @@ test('Bilingual empties a Hindi line that would contradict typed English, and sa
 // Cold review 6, L6: the unit colours say what else each colour sets.
 test('unit colours say which words and lines each colour also sets', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="regimental"]').click();
   const uses = page.locator('.clg-card-colours__uses');
   await expect(uses).toContainText('Top: the host');
@@ -945,7 +1004,9 @@ test('a card saved one to a page fills the page; a folded card gets its fold mar
     await page.keyboard.press('Escape');
     return sheets;
   };
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a6p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   for (const sheet of await saveOwnPage()) {
     const [w, h] = sheet.size;
@@ -958,7 +1019,9 @@ test('a card saved one to a page fills the page; a folded card gets its fold mar
     expect(sheet.lines).toBe(0);
   }
   await page.getByRole('button', { name: 'Back to the start' }).click();
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('fold6');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const folded = await saveOwnPage();
   expect(folded).toHaveLength(2);
@@ -972,6 +1035,7 @@ test('a card saved one to a page fills the page; a folded card gets its fold mar
 // Tests review 6, M1: one unit colour changes only the parts that follow it, and never a locked one.
 test('a unit colour changes only its own parts, and leaves a locked part as it is', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="regimental"]').click();
   await touch(page);
   // The occasion (colour 3) locked, through Layers and the Lock button.
@@ -1006,7 +1070,9 @@ test('a unit colour changes only its own parts, and leaves a locked part as it i
 test('a guest name typed on the card is replaced by each guest in the PDF', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a6p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const guest = page.locator('[data-card-field="guest"]');
   await guest.fill('Brig Typed Name');
@@ -1047,6 +1113,7 @@ test('a guest name typed on the card is replaced by each guest in the PDF', asyn
 // waiting logo place is not counted as an empty frame left out.
 test('a poster saved before its logo is chosen saves with nothing reported left out', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'poster');
   await page.locator('[data-start-poster="notice"]').click();
   await expect(page.locator('.clg-card-question')).toBeVisible();
   await page.getByRole('button', { name: 'Save as…' }).click();
@@ -1064,6 +1131,7 @@ test('a poster saved before its logo is chosen saves with nothing reported left 
 // Codex on #3453: a design only opened keeps no draft, but one the user names does.
 test('naming a card opened from a design keeps its draft', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-name]').fill('Signals Raising Day 2026');
   await expect.poll(async () => (await newestDraft(page))?.name || (await newestDraft(page))?.title || '', { timeout: 10000 }).toContain('Signals Raising Day 2026');
@@ -1073,7 +1141,9 @@ test('naming a card opened from a design keeps its draft', async ({ page }) => {
 test('guest cards show their progress, and Esc stops them with nothing saved', async ({ page }) => {
   test.setTimeout(120000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a5p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-guests]').fill(Array.from({ length: 150 }, (_, i) => `Officer ${i + 1}`).join('\n'));
   await page.locator('[data-card-guests]').blur();
@@ -1100,6 +1170,7 @@ test('guest cards show their progress, and Esc stops them with nothing saved', a
 // UX review 7, M4: Save says when a Bilingual card's Hindi line is empty.
 test('Save says when a Bilingual card has an empty Hindi line', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="bilingual"]').click();
   const occasion = page.locator('[data-card-field="occasion"]');
   await occasion.fill('Annual Mess Night of the Corps of Signals');
@@ -1121,7 +1192,9 @@ test('Save says when a Bilingual card has an empty Hindi line', async ({ page })
 test('guest cards follow the list order and print at full resolution', async ({ page }) => {
   test.setTimeout(120000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a6p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   // Each page's picture: a hash of its bytes, and its width in pixels.
   const pictures = async (file) => page.evaluate(async (base64) => {
@@ -1178,6 +1251,7 @@ test('guest cards follow the list order and print at full resolution', async ({ 
 // Codex on #3455: Add a photo after the design's frame was deleted brings back only the frame.
 test('Add a photo after deleting the frame brings back the frame and keeps the user\'s changes', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="ceremonial"]').click();
   await page.locator('.clg-props [data-props-tab="layers"]').click();
   // The occasion in the typewriter font.

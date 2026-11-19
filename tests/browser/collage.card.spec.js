@@ -4,7 +4,7 @@
 // the Card details panel, and changing the design without losing a word.
 
 const { test, expect } = require('./test');
-const { openFresh, newestDraft } = require('./helpers');
+const { openFresh, newestDraft, startOn } = require('./helpers');
 
 /** The words of the field's text item in the newest draft, or null when it has none. */
 async function fieldText(page, field) {
@@ -17,8 +17,10 @@ test('a card starts from a design, its details are typed in the panel, and a new
   const errors = await openFresh(page);
 
   // The start screen offers the designs at the chosen card size, each drawn.
+  await startOn(page, 'card');
   const size = page.locator('[data-card-size]');
   await expect(size).toHaveValue('a5p');
+  await startOn(page, 'card');
   const designs = page.locator('[data-start-design]');
   await expect(designs).toHaveCount(6);
   await expect.poll(() => designs.first().locator('canvas').evaluate((canvas) => {
@@ -30,6 +32,7 @@ test('a card starts from a design, its details are typed in the panel, and a new
   await size.selectOption('a6p');
   await expect(designs.first()).toHaveAttribute('aria-label', /A6 card/);
 
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await expect(page.locator('[data-view="editor"]')).toBeVisible();
   await expect(page.locator('[data-size]')).toHaveValue('a6p');
@@ -76,10 +79,12 @@ test('a card starts from a design, its details are typed in the panel, and a new
 
 test('words typed on the card show in the Card details, and a plain collage has no Card button', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await expect(page.locator('.clg-rail [data-panel="card"]')).toBeHidden();
   await page.getByRole('button', { name: 'Back to the start' }).click();
 
+  await startOn(page, 'card');
   await page.locator('[data-start-design="navy"]').click();
   await expect(page.locator('[data-card-field="venue"]')).toHaveValue('Officers’ Mess, SDD Campus');
   // Select the venue on the page through Layers and type in its Words box.
@@ -98,6 +103,7 @@ test('words typed on the card show in the Card details, and a plain collage has 
 
 test('a design pressed straight after typing in Card details still changes the design', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const occasion = page.locator('[data-card-field="occasion"]');
   // Type, and at once (well inside the pause that records the typing) press another design.
@@ -112,6 +118,7 @@ test('a design pressed straight after typing in Card details still changes the d
 
 test('a quick pick pressed straight after typing words in Settings still fills its field', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   // Select the venue through Layers and type in its Words box, then at once press a quick pick.
   await page.locator('.clg-props [data-props-tab="layers"]').click();
@@ -127,6 +134,7 @@ test('a quick pick pressed straight after typing words in Settings still fills i
 
 test('Regimental takes the unit\'s colours from Card details; Bilingual shows the Hindi fields, Classic does not', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="regimental"]').click();
   const top = page.locator('[data-card-colour="1"]');
   await expect(top).toHaveValue('#7a1f2b');
@@ -155,6 +163,7 @@ test('Regimental takes the unit\'s colours from Card details; Bilingual shows th
 
 test('words typed in Card details show in the selected item\'s Words box at once', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('.clg-props [data-props-tab="layers"]').click();
   await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).click();
@@ -167,6 +176,7 @@ test('words typed in Card details show in the selected item\'s Words box at once
 
 test('emptying the field of a locked item does not delete it', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('.clg-props [data-props-tab="layers"]').click();
   await page.locator('[data-layer-lock]').locator('xpath=..').filter({ hasText: 'Kindly bring this card' }).locator('[data-layer-lock]').click();
@@ -180,6 +190,7 @@ test('emptying the field of a locked item does not delete it', async ({ page }) 
 
 test('Undo straight after a quick pick puts the field back too', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-pick="occasion"][data-value="Barakhana"]').click();
   await expect(page.locator('[data-card-field="occasion"]')).toHaveValue('Barakhana');
@@ -191,6 +202,7 @@ test('Undo straight after a quick pick puts the field back too', async ({ page }
 
 test('a Card field clicked straight after typing words in Settings shows those words', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('.clg-props [data-props-tab="layers"]').click();
   await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).click();
@@ -209,6 +221,7 @@ test('a Card field clicked straight after typing words in Settings shows those w
 test('the user\'s own logo: a see-through PNG keeps the card showing through it, and a removed logo stays off', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await expect(page.locator('[data-card-logo-name]')).toHaveText('SDD');
 
@@ -274,6 +287,7 @@ async function streamBytes(download) {
 
 test('a second logo can be changed: the choices change the logo picked above them', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-logo="second"]').click();
   // With the SDD logo first, the choice of second opens (UX review 8, M4: it used to copy the
@@ -317,6 +331,7 @@ test('a second logo can be changed: the choices change the logo picked above the
 
 test('a locked logo is neither replaced nor removed from Card details', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   // A word typed, so the draft is saved and can be read.
   await page.locator('[data-card-field="venue"]').fill('Sudarshan Hall');
@@ -339,6 +354,7 @@ test('a locked logo is neither replaced nor removed from Card details', async ({
 test('a logo is a photo of the collage: with 60 photos already, Your own logo is refused', async ({ page }) => {
   test.setTimeout(120000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const png = await page.evaluate(() => {
     const canvas = document.createElement('canvas');
@@ -365,6 +381,7 @@ test('crests that arrive after a card is open appear in Card details as logos', 
   const held = new Promise((resolve) => { release = resolve; });
   await page.route('**/api/collage/stickers', async (route) => { await held; await route.continue(); });
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await expect(page.locator('[data-card-logo-use="logo:sdd"]')).toBeVisible();
   await expect(page.locator(`[data-card-logo-use="unit:${crest.id}"]`)).toHaveCount(0);
@@ -376,6 +393,7 @@ test('crests that arrive after a card is open appear in Card details as logos', 
 test('a back with the programme: added and shown, typed from the front, and saved as a two-page PDF', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-side="add"]').click();
   await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
@@ -426,6 +444,7 @@ test('a back with the programme: added and shown, typed from the front, and save
 
 test('a unit colour changed from the front reaches the back too', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="regimental"]').click();
   await page.locator('[data-card-side="add"]').click();
   await page.locator('[data-card-side="front"]').click();
@@ -445,6 +464,7 @@ test('a unit colour changed from the front reaches the back too', async ({ page 
 
 test('the back\'s small logo follows the front\'s: replaced, removed and put back', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-side="add"]').click();
   await page.locator('[data-card-side="front"]').click();
@@ -471,9 +491,12 @@ test('the back\'s small logo follows the front\'s: replaced, removed and put bac
 
 test('pocket sizes offer the pocket cards; a car pass shows its own fields and shares the occasion', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('passl');
   // The visiting-card size offers three: a whole pocket invitation would be too small to read.
+  await startOn(page, 'card');
   await expect(page.locator('[data-start-design]')).toHaveCount(3);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="pass"]').click();
   await expect(page.locator('[data-card-field="passTitle"]')).toHaveValue('CAR PASS');
   await expect(page.locator('[data-card-field="vehicle"]')).toBeVisible();
@@ -490,6 +513,7 @@ test('pocket sizes offer the pocket cards; a car pass shows its own fields and s
 
 test('turning to the back keeps the card\'s own title, from its front', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   const title = page.locator('[data-name]');
   // Once the card has its own name from its words.
@@ -505,7 +529,9 @@ test('turning to the back keeps the card\'s own title, from its front', async ({
 test('a poster asks which logo; Decide later keeps its place; No logo moves the heading up; a logo picked brings its place back', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'poster');
   await expect(page.locator('[data-start-poster]')).toHaveCount(4);
+  await startOn(page, 'poster');
   await page.locator('[data-start-poster="notice"]').click();
   await expect(page.locator('#clgCardTitle')).toHaveText('Poster details');
   await expect(page.locator('.clg-rail [data-panel="card"] span')).toHaveText('Poster');
@@ -534,6 +560,7 @@ test('a poster asks which logo; Decide later keeps its place; No logo moves the 
 
 test('a card can be saved with an empty back showing, since its front has the invitation', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-side="add"]').click();
   await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
@@ -554,7 +581,9 @@ test('a card can be saved with an empty back showing, since its front has the in
 test('a folded card shows Outside and Inside, a fold line on the page only, and saves two sheet pages', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('fold6');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await expect(page.locator('[data-card-side="front"]')).toHaveText('Outside');
   await expect(page.locator('[data-card-side="back"]')).toHaveText('Inside');
@@ -592,6 +621,7 @@ test('a folded card shows Outside and Inside, a fold line on the page only, and 
 test('a logo still being read when the card is turned over stays in the tray, not on the back', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-side="add"]').click();
   await page.locator('[data-card-side="front"]').click();
@@ -624,7 +654,9 @@ test('a logo still being read when the card is turned over stays in the tray, no
 test('a programme card\'s programme is typed in Card details; a folded card prints each guest inside', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a7p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="programmecard"]').click();
   const programme = page.locator('[data-card-field="programme"]');
   await programme.fill('1900 h · Arrival');
@@ -633,7 +665,9 @@ test('a programme card\'s programme is typed in Card details; a folded card prin
   await expect(programme).toHaveValue('1900 h · Arrival');
 
   await page.getByRole('button', { name: 'Back to the start' }).click();
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('fold6');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-guests]').fill('Col D. Nair\nMaj B. Rao');
   await page.locator('[data-card-guests]').blur();
@@ -666,7 +700,9 @@ test('a programme card\'s programme is typed in Card details; a folded card prin
 
 test('a programme card\'s programme typed in Card details is the programme on the card', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a7p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="programmecard"]').click();
   const programme = page.locator('[data-card-field="programme"]');
   await programme.fill('1900 h  Arrival\n1930 h  Dinner');
@@ -680,6 +716,7 @@ test('a programme card\'s programme typed in Card details is the programme on th
 test('Poster details changes the contact line; Remove logo leaves No logo', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
+  await startOn(page, 'poster');
   await page.locator('[data-start-poster="notice"]').click();
   const contact = page.locator('[data-card-field="contact"]');
   // The design's sample contact shows, to be changed.

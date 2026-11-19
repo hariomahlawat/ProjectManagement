@@ -4,10 +4,11 @@
 // panel, and the busy line is announced.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, showLayers, showSettings } = require('./helpers');
+const { openFresh, photoFile, showLayers, showSettings, startOn } = require('./helpers');
 
 test('the settings tabs control one tab panel, named by the tab shown', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'one.jpg' }));
   const panel = page.locator('.clg-props [role="tabpanel"]');

@@ -6,7 +6,7 @@
 // the change log are in wwwroot/js/collage/collage-every-change.test.js.)
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft } = require('./helpers');
+const { openFresh, startOn, photoFile, newestDraft } = require('./helpers');
 
 /**
  * Holds back the draft's own half-second autosave (collage-draft-session.js, SAVE_DELAY_MS) while
@@ -24,6 +24,7 @@ async function holdAutosave(page) {
 }
 
 async function startWithPhoto(page, file = {}) {
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await expect(page.locator('[data-view="editor"]')).toBeVisible();
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'one.jpg', ...file }));
@@ -205,12 +206,14 @@ test('a draft deleted in another tab is written back at once, whole, only when i
   ];
 
   // A first draft, left; then a second, open in this tab.
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await twoPhotos());
   await expect(page.locator('[data-draft-status]')).toHaveText('Draft saved in this browser');
   const leftId = (await newestDraft(page)).id;
   await page.getByRole('button', { name: 'Back to the start' }).click();
   await expect(page.locator('[data-open-draft]')).toHaveCount(1);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await twoPhotos());
   await expect.poll(async () => Object.keys(await stored(page)).length).toBe(2);

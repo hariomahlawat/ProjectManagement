@@ -5,10 +5,11 @@
 // usual ways and must keep working.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft } = require('./helpers');
+const { openFresh, photoFile, newestDraft, startOn } = require('./helpers');
 
 test('the wheel zooms a photo in its frame while it is moved, and the change is kept', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'one.jpg' }));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(1);

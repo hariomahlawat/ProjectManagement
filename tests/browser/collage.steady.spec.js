@@ -5,13 +5,14 @@
 // scrollbars took room, and the page was fitted again, many times a second.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile } = require('./helpers');
+const { openFresh, photoFile, startOn } = require('./helpers');
 
 // Real scrollbars, as in Edge and Chrome on Windows (the test browser hides them by default).
 test.use({ launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] }, viewport: { width: 1920, height: 945 } });
 
 test('with "3 columns" and tall photos on a full-screen window, the page settles and stays still', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^3 columns/ }).click();
   // The shapes of the photos that showed the problem (camera photos, mostly tall).
   const sizes = [[1920, 2460], [1920, 2481], [1920, 1239], [1920, 2954], [1920, 2518], [1920, 1509]];

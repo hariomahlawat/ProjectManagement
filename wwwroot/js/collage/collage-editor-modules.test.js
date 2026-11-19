@@ -860,6 +860,63 @@ test('start: a card for every page size and layout, and the size list of the edi
   assert.equal(dom.$('[data-start-layout]').getAttribute('aria-label'), `${first.label}, ${first.cells.length} photos`);
 });
 
+// docs/ux/collage-usability-plan.md, PR 2: cards, posters or a collage, one section at a time.
+const START_CHOICES_HTML = `<section data-view="start">
+  <div data-start-choices>
+    <button data-start-choice="card" aria-pressed="false"></button>
+    <button data-start-choice="poster" aria-pressed="false"></button>
+    <button data-start-choice="collage" aria-pressed="false"></button>
+  </div>
+  <section data-start-section="card"></section>
+  <section data-start-section="poster" hidden></section>
+  <section data-start-section="collage" hidden></section>
+</section><div data-sizes></div><div data-start-layouts></div><div data-layout-grid></div><select data-size-select></select>`;
+
+function startWithChoices(t, stored) {
+  const dom = page(t, START_CHOICES_HTML);
+  const kept = new Map(stored === undefined ? [] : [['prism-collage-start', stored]]);
+  Object.defineProperty(dom.window, 'localStorage', { configurable: true, value: { getItem: (key) => (kept.has(key) ? kept.get(key) : null), setItem: (key, value) => kept.set(key, String(value)) } });
+  const start = require('./collage-start.js').createStart({ core, $: dom.$, sizeSelect: dom.$('[data-size-select]'), layoutGrid: dom.$('[data-layout-grid]') });
+  const shown = () => [...dom.document.querySelectorAll('[data-start-section]')].filter((s) => !s.hidden).map((s) => s.dataset.startSection);
+  const pressed = () => [...dom.document.querySelectorAll('[data-start-choice]')].filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.dataset.startChoice);
+  return { dom, start, kept, shown, pressed };
+}
+
+test('start choices: cards first; a click shows only its section and is remembered', (t) => {
+  const { dom, kept, shown, pressed } = startWithChoices(t);
+  assert.deepEqual(shown(), ['card']);
+  assert.deepEqual(pressed(), ['card']);
+  // Opening the page does not write a choice the user never made.
+  assert.equal(kept.has('prism-collage-start'), false);
+  dom.$('[data-start-choice="collage"]').click();
+  assert.deepEqual(shown(), ['collage']);
+  assert.deepEqual(pressed(), ['collage']);
+  assert.equal(kept.get('prism-collage-start'), 'collage');
+  dom.$('[data-start-choice="poster"]').click();
+  assert.deepEqual(shown(), ['poster']);
+  assert.equal(kept.get('prism-collage-start'), 'poster');
+});
+
+test('start choices: the remembered choice opens; an unknown one falls back to cards', (t) => {
+  assert.deepEqual(startWithChoices(t, 'poster').shown(), ['poster']);
+  assert.deepEqual(startWithChoices(t, 'collage').pressed(), ['collage']);
+  assert.deepEqual(startWithChoices(t, 'templates').shown(), ['card']);
+  const { choiceOf, CHOICES } = require('./collage-start.js');
+  assert.deepEqual(CHOICES, ['card', 'poster', 'collage']);
+  assert.equal(choiceOf(null), 'card');
+  assert.equal(choiceOf('collage'), 'collage');
+});
+
+test('start choices: storage that throws still opens cards and still switches', (t) => {
+  const dom = page(t, START_CHOICES_HTML);
+  Object.defineProperty(dom.window, 'localStorage', { configurable: true, get() { throw new Error('blocked'); } });
+  require('./collage-start.js').createStart({ core, $: dom.$, sizeSelect: dom.$('[data-size-select]'), layoutGrid: dom.$('[data-layout-grid]') });
+  assert.equal(dom.$('[data-start-section="card"]').hidden, false);
+  dom.$('[data-start-choice="collage"]').click();
+  assert.equal(dom.$('[data-start-section="collage"]').hidden, false);
+  assert.equal(dom.$('[data-start-section="card"]').hidden, true);
+});
+
 test('messages: without the toasts an alert shows in the page and goes when cleared; busy shows its line', async (t) => {
   const dom = page(t, '<p data-announcer></p><div data-alert hidden><span data-alert-text></span></div><div data-busy hidden><span data-busy-text></span></div>');
   const messages = require('./collage-messages.js').createMessages({ $: dom.$, announcer: dom.$('[data-announcer]'), alertBox: dom.$('[data-alert]'), busyBox: dom.$('[data-busy]') });

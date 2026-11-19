@@ -5,7 +5,7 @@
 // guest's name stays readable, and design parts hidden by the design leave no empty outline.
 
 const { test, expect } = require('./test');
-const { openFresh, newestDraft } = require('./helpers');
+const { openFresh, startOn, newestDraft } = require('./helpers');
 
 const LONG_LINE = '1830 h · Guests arrive\n1845 h · Change of Command Parade, Main Parade Ground\n1930 h · Address by the outgoing Commandant\n2000 h · Reception\n2030 h · Dinner';
 
@@ -26,7 +26,9 @@ async function type(page, field, words) {
 
 test('H1: a long programme line typed on the back keeps the block centred and inside the border', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a6p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-card-side="add"]').click();
   await type(page, 'programme', LONG_LINE);
@@ -42,7 +44,9 @@ test('H1: a long programme line typed on the back keeps the block centred and in
 
 test('M2: a folded card asks for "at the" and a front cover title, and the cover follows the occasion', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('fold6');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await expect(page.locator('[data-card-field="at"]')).toBeVisible();
   const cover = page.locator('[data-card-field="coverTitle"]');
@@ -68,7 +72,9 @@ test('M2: a folded card asks for "at the" and a front cover title, and the cover
 
 test('M5: a long guest name typed in Card details stays readable on two lines, its last line on the line', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('a6p');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await type(page, 'guest', 'Col P. Singh');
   await expect.poll(async () => (await sides(page)).front.find((item) => item.field === 'guest')?.text).toBe('Col P. Singh');
@@ -84,6 +90,7 @@ test('M5: a long guest name typed in Card details stays readable on two lines, i
 
 test('L5 and L6: one Your own logo button while a poster asks; no empty outline round the Navy logo', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'poster');
   await page.locator('[data-start-poster="notice"]').click();
   await page.locator('[data-view="editor"]').waitFor();
   await expect(page.locator('[data-card-logo="own"]')).toHaveCount(1);
@@ -91,6 +98,7 @@ test('L5 and L6: one Your own logo button while a poster asks; no empty outline 
   await expect(page.locator('[data-card-logo="own"]')).toHaveCount(1);
   await page.goto('/Tools/Collage');
   await page.locator('[data-view="start"]').waitFor();
+  await startOn(page, 'card');
   await page.locator('[data-start-design="navy"]').click();
   await page.locator('[data-view="editor"]').waitFor();
   await type(page, 'venue', 'Sudarshan Hall');
@@ -103,7 +111,9 @@ test('L5 and L6: one Your own logo button while a poster asks; no empty outline 
 // Codex on #3460: the occasion cleared and typed again: the cover, still following, follows it.
 test('the cover title follows the occasion through clearing it and typing a new one', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('fold6');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await type(page, 'occasion', 'Barakhana');
   await expect.poll(async () => (await sides(page)).front.find((item) => item.field === 'coverTitle')?.text).toBe('Barakhana');
@@ -118,7 +128,9 @@ test('the cover title follows the occasion through clearing it and typing a new 
 // Codex on #3460: the occasion typed in its Words box on the page (inside) takes the cover with it.
 test('the occasion typed on the page in its Words box takes the following cover title with it', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-card-size]').selectOption('fold6');
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await type(page, 'occasion', 'Barakhana');
   await expect.poll(async () => (await sides(page)).front.find((item) => item.field === 'coverTitle')?.text).toBe('Barakhana');

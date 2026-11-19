@@ -5,7 +5,7 @@
 // the layout's frames wait in the tray, and new words do not land on earlier ones.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft, showLayers, showSettings } = require('./helpers');
+const { openFresh, photoFile, newestDraft, showLayers, showSettings, startOn } = require('./helpers');
 
 async function photos(page, count) {
   const files = [];
@@ -15,6 +15,7 @@ async function photos(page, count) {
 
 test('a photo deleted from a layout leaves its frame empty, and the toast brings it back', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 3));
   await expect.poll(async () => (await newestDraft(page))?.model.items.map((i) => i.kind)).toEqual(['photo', 'photo', 'photo']);
@@ -32,6 +33,7 @@ test('a photo deleted from a layout leaves its frame empty, and the toast brings
 
 test('photos past the layout\'s frames wait in the tray, with a message', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 5));
   await expect(page.locator('[data-photo-count]')).toHaveText('5 of 60 photos');
@@ -44,6 +46,7 @@ test('photos past the layout\'s frames wait in the tray, with a message', async 
 
 test('a second heading does not land on the first, and placeholder words do not name the collage', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('.clg-rail [data-panel="text"]').click();
   await page.locator('[data-add-text="heading"]').click();
@@ -61,6 +64,7 @@ test('a second heading does not land on the first, and placeholder words do not 
 
 test('a tray photo clicked when every frame is full says how to make room', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 4));
   await expect(page.locator('[data-remove-photo]')).toHaveCount(1);
@@ -72,6 +76,7 @@ test('a tray photo clicked when every frame is full says how to make room', asyn
 
 test('any photo can have a caption, shown on a strip under it and kept in the draft', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
   await showLayers(page);
@@ -88,6 +93,7 @@ test('any photo can have a caption, shown on a strip under it and kept in the dr
 test('Save starts on WhatsApp, shows the purpose chosen, and remembers it next time', async ({ page }) => {
   const errors = await openFresh(page);
   await page.evaluate(() => { try { localStorage.removeItem('prism-collage-save-purpose'); } catch { /* none */ } });
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
   await page.getByRole('button', { name: 'Save as…' }).click();
@@ -108,6 +114,7 @@ test('Save starts on WhatsApp, shows the purpose chosen, and remembers it next t
 
 test('Preview leaves out the empty frames, as Save does; a white frame gets a shadow', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'slot').length).toBe(2);
@@ -129,6 +136,7 @@ test('Preview leaves out the empty frames, as Save does; a white frame gets a sh
 
 test('settings: rarely used groups are folded and stay open once opened; Layers is a tab', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
   const order = page.locator('.clg-props [data-fold="order"]');
@@ -150,6 +158,7 @@ test('settings: rarely used groups are folded and stay open once opened; Layers 
 
 test('arrow keys on the tabs do not move the selected item; choosing it on the page shows Settings', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
   await expect(page.locator('[data-draft-status]')).toHaveText('Draft saved in this browser');
@@ -172,6 +181,7 @@ test('arrow keys on the tabs do not move the selected item; choosing it on the p
 
 test('rounded corners change the layout and one frame, and both are kept', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 3));
   await expect.poll(async () => (await newestDraft(page))?.model.items.length).toBe(3);

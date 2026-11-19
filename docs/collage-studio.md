@@ -77,15 +77,21 @@ its npm package by hand; the libman entry records the version.
 
 ## What the user can do
 
-- **Start**: pick a layout (2 side by side up to a 12 grid and a mosaic of 7) or a blank page in
-  one of seven sizes: A4 landscape or portrait, A3 poster, Slide 16:9, Square, Phone status 9:16
-  and Banner 3:1. Drafts are listed below, newest first, with Delete (shown on hover or focus, always on
-  touch screens) and a 10-second Undo in PRISM's glass toast.
+- **Start** ([ux/collage-usability-plan.md](ux/collage-usability-plan.md), PR 2): "Make a card,
+  poster or collage". Drafts come first, newest first, with Delete (shown on hover or focus,
+  always on touch screens) and a 10-second Undo in PRISM's glass toast. Under them are three
+  choices: **Invitation card**, **Poster** and **Collage**. Only the chosen one's section shows.
+  Invitation card is open on a first visit, and the last choice is remembered in this browser
+  (`localStorage` key `prism-collage-start`; without it, cards open). On phones the three are one
+  row of compact buttons.
+  - **Collage** offers a layout (2 side by side up to a 12 grid and a mosaic of 7) or a blank
+    page in one of seven sizes: A4 landscape or portrait, A3 poster, Slide 16:9, Square, Phone
+    status 9:16 and Banner 3:1.
 - **Invitation cards** ([ux/invitations-posters.md](ux/invitations-posters.md), PR 5).
   - **Start screen:** "Make an invitation card" shows each ready-made design drawn at the chosen
     **Card size** (A5 at first; any size from the Cards group). Each picture is drawn the way Save
     draws. Clicking a design opens the card in the editor, with the SDD logo and realistic
-    wording, every part editable.
+    wording, every part editable. The pocket cards follow the designs.
   - **Card panel:** a card has a **Card** button at the top of the rail, which opens **Card
     details**. It has:
     - the designs, with the current one pressed;
@@ -119,8 +125,7 @@ its npm package by hand; the libman entry records the version.
   - **Drafts:** a card or poster opened from a design is kept as a draft from its first change,
     so looking through the designs keeps none. Tab after typing in Card details goes to the next
     field: the panel is drawn again only once focus has landed.
-  - **Phones:** the start screen shows cards and posters first, as on a wide screen, each in one
-    row that scrolls sideways. The custom card size box closes with **Cancel** or Escape.
+  - **Phones:** the card and poster designs are each one row that scrolls sideways. The custom card size box closes with **Cancel** or Escape.
   - **Typing:** typing in a field changes the words on the card at once. They're kept in the
     draft, and recorded for Undo when typing pauses, as on the page. Words typed on the card show
     in the field the next time the panel is drawn. A field emptied takes its words off the card;
@@ -445,7 +450,7 @@ its npm package by hand; the libman entry records the version.
 | `wwwroot/js/collage/collage-model.js` | The one way the collage changes: the collage is frozen, and `edit`/`editItem` copy it, make the change on the copy, freeze the result and tell the change log how to keep it (a finished change, one still going on, a quiet one, or none yet while something is dragged) |
 | `wwwroot/js/collage/collage-state.js` | The editor's values as the parts see them: `state` reads them and cannot set them (an assignment throws), each part is handed only the named changes it owns (the tray chooses a photo it placed with `choose(id)`; the page sets its own zoom and scale), and `parts` reaches the parts made later |
 | `wwwroot/js/collage/collage-messages.js` | The live line for screen readers, messages in the toast stack, and the busy line |
-| `wwwroot/js/collage/collage-start.js` | The start screen: blank pages, layouts and their small drawings |
+| `wwwroot/js/collage/collage-start.js` | The start screen: the three choices (cards, posters, collage) and the one remembered, blank pages, layouts and their small drawings |
 | `wwwroot/js/collage/collage-toolbar.js` | The selected item's toolbar (placed where it can be seen, clear of the item) and the angle shown while it turns |
 | `wwwroot/js/collage/collage-add-panels.js` | The Text, Stickers and Background panels, with their own buttons |
 | `wwwroot/js/collage/collage-actions.js` | The actions: toolbar and menu buttons, Undo and Redo, delete with its Undo offer, page size, and the clicks the panels do not answer |
@@ -555,8 +560,8 @@ Photos are decoded straight at their working size, and a picture over 250 millio
 
 ### First use
 
-The start screen shows one row of drafts (with "Show all") so the layouts for a new collage are
-in view. A collage nobody named is called by the first line of its first text (not the words
+The start screen shows one row of drafts (with "Show all") so the three choices and the chosen
+section are in view. A collage nobody named is called by the first line of its first text (not the words
 that only show where to type, such as "Your heading"), or by when it was started; the first time
 its words name it, a short message says so. A frame goes with the Square shape only: with another
 shape the Frame row shows None, and the frame chosen before comes back with Square. Photo

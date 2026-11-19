@@ -198,14 +198,99 @@
     margin: 0 0 0.7rem;
 }
 
-/* Pocket cards on the start screen (UX review 8, M6): one quiet row of small buttons above the
-   invitation designs, each opening its design on its own pocket size. */
+/* Pocket cards on the start screen (UX review 8, M6): one quiet row of small buttons under the
+   invitation designs (docs/ux/collage-usability-plan.md, PR 2), each opening its design on its
+   own pocket size. */
 .clg-pocket-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem 0.75rem;
-    margin: 0 0 0.9rem;
+    margin: 0.9rem 0 0;
+}
+
+/* The start screen's three choices (docs/ux/collage-usability-plan.md, PR 2): cards first, then
+   posters and collages; only the chosen one's section shows under them. */
+.clg-start-choices {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 1.5rem 0 0.25rem;
+}
+
+.clg-start-choice {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    min-width: 0;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--pdft-border);
+    border-radius: 14px;
+    background: var(--pdft-surface);
+    color: var(--bs-body-color);
+    text-align: left;
+    line-height: 1.25;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.clg-start-choice:hover,
+.clg-start-choice:focus-visible {
+    border-color: var(--clg-accent);
+    box-shadow: var(--pdft-shadow);
+}
+
+.clg-start-choice[aria-pressed="true"] {
+    border-color: var(--clg-accent);
+    box-shadow: inset 0 0 0 1px var(--clg-accent);
+}
+
+.clg-start-choice .bi {
+    flex: none;
+    color: var(--clg-accent);
+    font-size: 1.6rem;
+}
+
+.clg-start-choice b {
+    display: block;
+    font-size: 1rem;
+}
+
+.clg-start-choice small {
+    display: block;
+    color: var(--pdft-muted);
+    font-size: 0.8rem;
+}
+
+.clg-start [data-start-section][hidden] {
+    display: none;
+}
+
+/* Phones: one row of three compact buttons, so the chosen section starts on the first screen. */
+@media (max-width: 575.98px) {
+    .clg-start-choices {
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .clg-start-choice {
+        flex-direction: column;
+        justify-content: center;
+        gap: 0.3rem;
+        padding: 0.6rem 0.35rem;
+        text-align: center;
+    }
+
+    .clg-start-choice .bi {
+        font-size: 1.3rem;
+    }
+
+    .clg-start-choice b {
+        font-size: 0.85rem;
+    }
+
+    .clg-start-choice small {
+        display: none;
+    }
 }
 
 .clg-pocket-row[hidden] {

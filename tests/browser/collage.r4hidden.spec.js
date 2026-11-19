@@ -5,7 +5,7 @@
 // not chosen read clearly, and a reopened draft says Undo starts again from there.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft, showLayers } = require('./helpers');
+const { openFresh, photoFile, newestDraft, showLayers, startOn } = require('./helpers');
 
 /** Contrast of an element's text against the first solid background behind it, with opacity. */
 function contrastOf(element) {
@@ -43,6 +43,7 @@ const outlines = (page) => page.evaluate(() => window.Konva.stages[0].find('.hid
   .filter((shape) => shape.isVisible()).map((shape) => ({ dash: shape.dash(), stroke: shape.stroke() })));
 
 async function twoPhotos(page) {
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^2 side by side/ }).click();
   await page.locator('[data-file-input]').setInputFiles([
     await photoFile(page, { name: 'a.jpg', colour: '#2d6a4f' }),

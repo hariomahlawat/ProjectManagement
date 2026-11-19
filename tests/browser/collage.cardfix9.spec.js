@@ -5,7 +5,7 @@
 // keeps its button in view and says when colour runs to the page's edge.
 
 const { test, expect } = require('./test');
-const { openFresh, newestDraft } = require('./helpers');
+const { openFresh, startOn, newestDraft } = require('./helpers');
 
 const LONG_GUEST = 'Lt Gen A. K. Singh, PVSM, AVSM, VSM, ADC and Mrs Sunita Singh';
 
@@ -59,7 +59,9 @@ for (const size of ['a5l', 'a6p']) {
   // Code review 9, M3: the layout tests in Node measure every letter alike; this one uses the fonts.
   test(`a long guest name on Classic ${size} stays on the page and clear of the words and line round it`, async ({ page }) => {
     const errors = await openFresh(page);
+    await startOn(page, 'card');
     await page.locator('[data-card-size]').selectOption(size);
+    await startOn(page, 'card');
     await page.locator('[data-start-design="classic"]').click();
     await page.locator('[data-view="editor"]').waitFor();
     await page.locator('[data-card-guests]').fill(LONG_GUEST);
@@ -94,6 +96,7 @@ for (const size of ['a5l', 'a6p']) {
 test('Save stays in view at 1440 x 900 with a back, a guest list and Printing, and Tab still reaches it', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="navy"]').click();
   await page.locator('[data-view="editor"]').waitFor();
   await page.locator('[data-card-side="add"]').click();
@@ -145,6 +148,7 @@ test('Save stays in view at 1440 x 900 with a back, a guest list and Printing, a
 
 test('Bilingual: Save names every empty Hindi line, and gives no edge hint on its cream paper', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="bilingual"]').click();
   await page.locator('[data-view="editor"]').waitFor();
   for (const [field, words] of [['occasion', 'Change of Command Parade and Reception'], ['host', 'The Commandant and Officers, 50 Bde']]) {
@@ -162,6 +166,7 @@ test('Bilingual: Save names every empty Hindi line, and gives no edge hint on it
 // Code review 9, M2: a first line taken for headings is said, so a guest it held shows.
 test('the guest list says when its first line was read as headings, and when no column held a name', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'card');
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-view="editor"]').waitFor();
   const box = page.locator('[data-card-guests]');

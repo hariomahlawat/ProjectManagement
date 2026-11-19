@@ -4,7 +4,7 @@
 // PR 2): from the start screen while the draft opens, or from another tab.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, showLayers } = require('./helpers');
+const { openFresh, startOn, photoFile, showLayers } = require('./helpers');
 
 /** Draft records and photo counts in the drafts database, by draft id. */
 async function stored(page) {
@@ -27,6 +27,7 @@ async function stored(page) {
 }
 
 async function draftWithPhotos(page, count) {
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await expect(page.locator('[data-view="editor"]')).toBeVisible();
   const files = [];

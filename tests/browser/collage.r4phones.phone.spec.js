@@ -4,12 +4,13 @@
 // photo, adding words does not open the keyboard over the page, and the Hindi hint fits a phone.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft } = require('./helpers');
+const { openFresh, photoFile, newestDraft, startOn } = require('./helpers');
 
 test.use({ viewport: { width: 390, height: 844 } });
 
 test('on a phone the toolbar covers no photo, and a photo under where it used to float can be tapped', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^4 grid/ }).click();
   const files = [];
   for (let i = 0; i < 4; i += 1) files.push(await photoFile(page, { name: `p${i}.jpg`, colour: `hsl(${i * 70}, 55%, 40%)` }));
@@ -46,6 +47,7 @@ test('on a phone the toolbar covers no photo, and a photo under where it used to
 
 test('on a phone, adding words does not put the keyboard over the page, and the Hindi hint speaks of the phone', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('.clg-rail [data-panel="text"]').click();
   // The phone's wording shows, the Windows wording does not.
@@ -60,6 +62,7 @@ test('on a phone, adding words does not put the keyboard over the page, and the 
 
 test('on a phone, the hint for moving a photo in its frame does not cover the docked Done button', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'one.jpg' }));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(1);

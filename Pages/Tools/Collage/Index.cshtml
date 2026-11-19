@@ -50,8 +50,8 @@
     <main class="clg-main">
         @* ---------- Start ---------- *@
         <section class="clg-start" data-view="start" aria-labelledby="clgStartTitle">
-            <h1 id="clgStartTitle" tabindex="-1">Make a collage, card or poster</h1>
-            <p class="clg-lede">Put your photos on a page, turn them to any angle and arrange them as you like. Everything happens in this browser; no photo is sent to PRISM.</p>
+            <h1 id="clgStartTitle" tabindex="-1">Make a card, poster or collage</h1>
+            <p class="clg-lede">Choose what to make. Everything happens in this browser; no photo is sent to PRISM.</p>
             <section class="clg-drafts" data-drafts-section aria-labelledby="clgDraftsTitle" hidden>
                 <div class="clg-drafts__head">
                     <h2 class="clg-start__heading" id="clgDraftsTitle">Your drafts <small data-drafts-count></small></h2>
@@ -61,8 +61,24 @@
                 <p class="clg-hint" data-drafts-empty hidden>No drafts now. Undo brings the deleted one back.</p>
                 <div class="clg-draft-grid" data-drafts></div>
             </section>
+            @* Three choices; only the chosen one's section shows (docs/ux/collage-usability-plan.md, PR 2). *@
+            <div class="clg-start-choices" role="group" aria-labelledby="clgChoicesTitle" data-start-choices>
+                <h2 class="visually-hidden" id="clgChoicesTitle">What would you like to make?</h2>
+                <button type="button" class="clg-start-choice" data-start-choice="card" aria-controls="clgStartCard" aria-pressed="false">
+                    <i class="bi bi-envelope-paper" aria-hidden="true"></i>
+                    <span><b>Invitation card</b><small>Dinners, parades, farewells, with pocket cards</small></span>
+                </button>
+                <button type="button" class="clg-start-choice" data-start-choice="poster" aria-controls="clgStartPoster" aria-pressed="false">
+                    <i class="bi bi-easel" aria-hidden="true"></i>
+                    <span><b>Poster</b><small>Events, notices and talks</small></span>
+                </button>
+                <button type="button" class="clg-start-choice" data-start-choice="collage" aria-controls="clgStartCollage" aria-pressed="false">
+                    <i class="bi bi-images" aria-hidden="true"></i>
+                    <span><b>Collage</b><small>Your photos on one page</small></span>
+                </button>
+            </div>
             @* Invitation cards (docs/ux/invitations-posters.md, PR 5): ready-made designs, every part editable. *@
-            <section class="clg-start-cards" aria-labelledby="clgCardsTitle">
+            <section class="clg-start-cards" id="clgStartCard" data-start-section="card" aria-labelledby="clgCardsTitle">
                 <div class="clg-start-cards__head">
                     <h2 class="clg-start__heading" id="clgCardsTitle">Make an invitation card <small>Opens with the SDD logo; every word and part can be changed</small></h2>
                     <label class="clg-start-cards__size"><span>Card size</span>
@@ -80,16 +96,17 @@
                     </div>
                     <p class="clg-hint clg-custom-size__error" data-card-custom-error role="alert" hidden></p>
                 </div>
-                @* Pocket cards on the start screen (UX review 8, M6): each opens on its own pocket size. *@
+                <p class="clg-hint clg-card-small" data-card-small hidden>This card is smaller than A6: a full invitation's smallest words will print under 1.5 mm tall. Shorten the wording, or choose a larger size.</p>
+                <div class="clg-design-grid" data-start-designs></div>
+                @* Pocket cards on the start screen (UX review 8, M6): each opens on its own pocket size.
+                   Below the designs, so the card designs come first (docs/ux/collage-usability-plan.md, PR 2). *@
                 <div class="clg-pocket-row" data-card-pocket-hint role="group" aria-labelledby="clgPocketTitle">
                     <span class="clg-pocket-row__title" id="clgPocketTitle">Pocket cards <small>to go with it</small></span>
                     <div class="clg-pocket-row__list" data-start-pockets></div>
                 </div>
-                <p class="clg-hint clg-card-small" data-card-small hidden>This card is smaller than A6: a full invitation's smallest words will print under 1.5 mm tall. Shorten the wording, or choose a larger size.</p>
-                <div class="clg-design-grid" data-start-designs></div>
             </section>
             @* Posters (docs/ux/invitations-posters.md, PR 11): no logo until one is picked. *@
-            <section class="clg-start-cards clg-start-posters" aria-labelledby="clgPostersTitle">
+            <section class="clg-start-cards clg-start-posters" id="clgStartPoster" data-start-section="poster" aria-labelledby="clgPostersTitle" hidden>
                 <div class="clg-start-cards__head">
                     <h2 class="clg-start__heading" id="clgPostersTitle">Make a poster <small>You choose the logo, or none; every word and part can be changed</small></h2>
                     <label class="clg-start-cards__size"><span>Poster size</span>
@@ -100,10 +117,12 @@
                 </div>
                 <div class="clg-design-grid" data-start-posters></div>
             </section>
-            <h2 class="clg-start__heading">Start with a layout <small>A4 landscape; the size can be changed later</small></h2>
-            <div class="clg-layouts" data-start-layouts></div>
-            <h2 class="clg-start__heading">Start with a blank page</h2>
-            <div class="clg-sizes" data-sizes></div>
+            <section class="clg-start-collage" id="clgStartCollage" data-start-section="collage" aria-labelledby="clgLayoutsStartTitle" hidden>
+                <h2 class="clg-start__heading" id="clgLayoutsStartTitle">Start with a layout <small>A4 landscape; the size can be changed later</small></h2>
+                <div class="clg-layouts" data-start-layouts></div>
+                <h2 class="clg-start__heading">Start with a blank page</h2>
+                <div class="clg-sizes" data-sizes></div>
+            </section>
             <p class="clg-credits-link"><button type="button" class="btn btn-link btn-sm" data-action="credits">Credits for the fonts, stickers and libraries</button></p>
         </section>
 

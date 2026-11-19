@@ -3,10 +3,11 @@
 // The UX Lows (docs/ux/collage-review-4-fixes.md, PR 7).
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft } = require('./helpers');
+const { openFresh, startOn, photoFile, newestDraft } = require('./helpers');
 const samples = require('./fixtures/collage-api-samples.json');
 
 async function onePhoto(page, layout = /^A4 landscape/) {
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: layout }).click();
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'one.jpg', width: 1600, height: 900 }));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(1);
@@ -63,6 +64,7 @@ test('draft cards have no stray dot, and deleting the last draft says what happe
 
 test('the name looks editable, a crest carries its name, and the Stickers help opens Credits', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await expect(page.locator('[data-name]')).toHaveCSS('border-bottom-style', 'dashed');
   await page.locator('.clg-rail [data-panel="stickers"]').click();
@@ -103,6 +105,7 @@ async function colourAt(page, x, y) {
 
 test('a mirrored photo is shown mirrored round its frame too while it is moved', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^2 side by side/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await twoColourPhoto(page));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(1);
@@ -125,6 +128,7 @@ test('a mirrored photo is shown mirrored round its frame too while it is moved',
 
 test('a draft written while a photo is moved has no faint photo in its picture', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^2 side by side/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await twoColourPhoto(page));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(1);
@@ -146,6 +150,7 @@ test('a draft written while a photo is moved has no faint photo in its picture',
 
 test('hiding a photo while it is moved leaves no faint copy of it', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^2 side by side/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await twoColourPhoto(page));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(1);

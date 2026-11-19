@@ -3,9 +3,10 @@
 // The main Collage Studio flows in a real browser (docs/ux/collage-review-fixes.md, PR 11).
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft, showLayers, fulfillLikePrism } = require('./helpers');
+const { openFresh, photoFile, newestDraft, showLayers, fulfillLikePrism, startOn } = require('./helpers');
 
 async function startBlank(page) {
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await expect(page.locator('[data-view="editor"]')).toBeVisible();
 }
@@ -121,6 +122,7 @@ test('Save by purpose: WhatsApp makes a JPG, printing makes a PDF', async ({ pag
 
 test('a wide photo goes into the wide frame of "1 big, 2 small"', async ({ page }) => {
   await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { width: 1600, height: 1000, name: 'wide.jpg' }));
   await expect.poll(async () => {
@@ -168,6 +170,7 @@ test('From PRISM Photos: ticked photos are read in and fill the empty frames', a
   await page.route('**/Photos/Media/**', (route) => fulfillLikePrism(route, { contentType: 'image/jpeg', body: picture }));
 
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^2 side by side/ }).click();
   await page.getByRole('button', { name: 'From PRISM Photos' }).click();
   const dialog = page.locator('[data-library-dialog]');

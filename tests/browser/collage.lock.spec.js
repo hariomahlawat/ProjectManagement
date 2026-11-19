@@ -4,7 +4,7 @@
 // (docs/ux/collage-review-3-fixes.md, PR 2).
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft, showLayers, showSettings } = require('./helpers');
+const { openFresh, photoFile, newestDraft, showLayers, showSettings, startOn } = require('./helpers');
 
 async function photos(page, count) {
   const files = [];
@@ -14,6 +14,7 @@ async function photos(page, count) {
 
 /** Starts "1 big, 2 small" with three photos and locks the first one, from the toolbar. */
 async function lockedFirst(page) {
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^1 big, 2 small/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 3));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(3);

@@ -5,7 +5,7 @@
 // are small but easy to touch.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft } = require('./helpers');
+const { openFresh, startOn, photoFile, newestDraft } = require('./helpers');
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -30,6 +30,7 @@ async function measure(page) {
 
 test('at 390 px the page is wide, the toolbar is in view and clear of the chosen item', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^4 grid/ }).click();
   const files = [];
   for (let i = 0; i < 4; i += 1) files.push(await photoFile(page, { name: `p${i}.jpg`, colour: `hsl(${i * 60}, 55%, 40%)` }));

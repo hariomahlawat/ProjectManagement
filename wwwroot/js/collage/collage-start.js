@@ -1,4 +1,4 @@
-// PRISM Collage Studio — the start screen: blank pages, layouts and the drafts
+// PRISM Collage Studio — the start screen: the three choices, blank pages, layouts and the drafts
 // Moved out of the editor in docs/ux/collage-review-3-fixes.md, PR 11; collage-app.js creates it
 // once, handing over the few elements and helpers it uses.
 (function (root, factory) {
@@ -9,8 +9,41 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  // What the start screen offers first: cards, posters or a collage (docs/ux/collage-usability-plan.md,
+  // PR 2). Only the chosen one's section shows; the choice is remembered in this browser.
+  const CHOICES = Object.freeze(['card', 'poster', 'collage']);
+  const CHOICE_KEY = 'prism-collage-start';
+  /** A remembered choice, or cards when there is none or it is not one of the three. */
+  const choiceOf = (value) => (CHOICES.includes(value) ? value : 'card');
+
   function createStart(deps) {
     const { core, $, sizeSelect, layoutGrid } = deps;
+
+    const choices = $('[data-start-choices]');
+    const startView = $('[data-view="start"]');
+    function readChoice() {
+      try { return choiceOf(window.localStorage?.getItem(CHOICE_KEY)); } catch { return 'card'; }
+    }
+    /** Shows one section of the start screen; `keep` remembers it for the next visit. */
+    function showChoice(value, { keep = false } = {}) {
+      const chosen = choiceOf(value);
+      choices?.querySelectorAll('[data-start-choice]').forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.dataset.startChoice === chosen));
+      });
+      startView?.querySelectorAll('[data-start-section]').forEach((section) => {
+        section.hidden = section.dataset.startSection !== chosen;
+      });
+      if (keep) {
+        try { window.localStorage?.setItem(CHOICE_KEY, chosen); } catch { /* not kept; fine */ }
+      }
+      return chosen;
+    }
+    choices?.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-start-choice]');
+      if (button) showChoice(button.dataset.startChoice, { keep: true });
+    });
+    showChoice(readChoice());
+
     /** A small drawing of a layout's frames, for its button. */
     function layoutPicture(key) {
       const cells = core.LAYOUTS[key].cells
@@ -89,8 +122,8 @@
       sizeSelect.value = key;
     }
 
-    return { renderStart, showSize };
+    return { renderStart, showSize, showChoice };
   }
 
-  return Object.freeze({ createStart });
+  return Object.freeze({ createStart, choiceOf, CHOICES, CHOICE_KEY });
 });

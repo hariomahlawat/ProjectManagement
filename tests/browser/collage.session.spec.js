@@ -8,7 +8,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft, fulfillLikePrism } = require('./helpers');
+const { openFresh, startOn, photoFile, newestDraft, fulfillLikePrism } = require('./helpers');
 const samples = require('./fixtures/collage-api-samples.json');
 
 const SIGNED_OUT = /Your PRISM session has ended\. Sign in again in another tab/;
@@ -20,6 +20,7 @@ const expectedFailure = (text) => /Failed to load resource: the server responded
 
 /** A collage with one photo from the computer: the work that must be kept. */
 async function startWithOnePhoto(page) {
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^2 side by side/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'kept.jpg' }));
   await expect(page.locator('[data-photo-count]')).toHaveText('1 of 60 photos');
@@ -46,6 +47,7 @@ test('a mocked answer arrives with PRISM\'s production headers', async ({ page }
   const errors = await openFresh(page);
   await page.route('**/api/collage/library-photos**', (route) => fulfillLikePrism(route, { body: samples.libraryOn }));
   const answer = page.waitForResponse('**/api/collage/library-photos**');
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^2 side by side/ }).click();
   await page.getByRole('button', { name: 'From PRISM Photos' }).click();
   const headers = (await answer).headers();

@@ -4,10 +4,11 @@
 // user tripped over, each checked once.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, fulfillLikePrism } = require('./helpers');
+const { openFresh, photoFile, fulfillLikePrism, startOn } = require('./helpers');
 
 test('stickers fit their panel, and stamps with words take two cells', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('.clg-rail [data-panel="stickers"]').click();
   for (const chip of await page.locator('[data-sticker-group]').all()) {
@@ -21,6 +22,7 @@ test('stickers fit their panel, and stamps with words take two cells', async ({ 
 
 test('the plain text starts read as buttons that add words', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('.clg-rail [data-panel="text"]').click();
   await expect(page.getByRole('button', { name: 'Add a heading' })).toBeVisible();
@@ -30,6 +32,7 @@ test('the plain text starts read as buttons that add words', async ({ page }) =>
 
 test('sliders say their unit', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'one.jpg' }));
   await expect(page.locator('.clg-props [data-out="width"]')).toHaveText(/% of the page$/);
@@ -38,6 +41,7 @@ test('sliders say their unit', async ({ page }) => {
 
 test('with PRISM Photos off, its dialog shows only the message', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.getByRole('button', { name: 'From PRISM Photos' }).click();
   const dialog = page.locator('[data-library-dialog]');
@@ -51,6 +55,8 @@ test('a missing editor script is said on the page, not left as a dead page', asy
   await page.route('**/js/collage/collage-save.js**', (route) => fulfillLikePrism(route, { status: 404, body: '' }));
   await page.goto('/Tools/Collage');
   await expect(page.locator('[data-alert-text]')).toContainText('could not load all its parts');
-  // Nothing on the start screen can be used to begin a collage that could not work.
+  // Nothing on the start screen can be used to begin a collage that could not work: no page sizes
+  // are drawn, and the three choices are turned off with the rest.
   await expect(page.locator('[data-start-size]')).toHaveCount(0);
+  for (const choice of await page.locator('[data-start-choice]').all()) await expect(choice).toBeDisabled();
 });

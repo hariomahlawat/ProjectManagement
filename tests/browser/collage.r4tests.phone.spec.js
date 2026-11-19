@@ -5,7 +5,7 @@
 // input (CDP), as a finger would make them.
 
 const { test, expect } = require('./test');
-const { openFresh, photoFile, newestDraft } = require('./helpers');
+const { openFresh, startOn, photoFile, newestDraft } = require('./helpers');
 
 /** The page's zoom as shown, in per cent, and the photo's width on the screen. */
 async function zoomNow(page) {
@@ -33,6 +33,7 @@ const firstPhoto = async (page) => (await newestDraft(page)).model.items.find((i
 
 test('two fingers moving apart zoom the page in; one finger still moves a photo', async ({ page }) => {
   const errors = await openFresh(page);
+  await startOn(page, 'collage');
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'one.jpg', width: 1600, height: 900 }));
   await expect.poll(async () => (await newestDraft(page))?.model.items.filter((i) => i.kind === 'photo').length).toBe(1);
