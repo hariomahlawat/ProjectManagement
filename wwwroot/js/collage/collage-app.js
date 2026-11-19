@@ -396,8 +396,10 @@
     }
     if (designKey && window.PrismCollageDesigns.DESIGNS[designKey]) {
       const designs = window.PrismCollageDesigns;
-      // A poster starts with a poster's wording (PR 11).
-      const details = designs.startDetails(designKey);
+      // A poster starts with a poster's wording (PR 11). The date starts empty, its example a hint
+      // in the box, so a card is never printed with a sample date (docs/ux/collage-usability-plan.md,
+      // round 2, PR 3); the start screen's pictures keep the example.
+      const details = { ...designs.startDetails(designKey), when: '' };
       collage = frozen(designs.applyDesign(collage, designKey, details, { measure: measureText, newId: newItemId }));
     }
     changes.start(collage);

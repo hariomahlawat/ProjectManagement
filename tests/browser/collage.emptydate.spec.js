@@ -1,0 +1,48 @@
+'use strict';
+
+// A new card's date starts empty (docs/ux/collage-usability-plan.md, round 2, PR 3): the example is
+// the box's hint, so a card is never printed with a sample date, and Save says when it is empty.
+
+const { test, expect } = require('./test');
+const { openFresh, startOn, newestDraft } = require('./helpers');
+
+test('a new card opens with the date empty, the example as its hint, and Save names it until typed', async ({ page }, testInfo) => {
+  const errors = await openFresh(page);
+  await startOn(page, 'card');
+  await page.locator('[data-start-design="classic"]').click();
+  const when = page.locator('[data-card-field="when"]');
+  await expect(when).toHaveValue('');
+  await expect(when).toHaveAttribute('placeholder', 'e.g. Friday, 12 December 2026 at 1930 h');
+  await page.locator('.clg-stage').screenshot({ path: testInfo.outputPath('card-without-date.png') });
+
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await expect(page.locator('[data-save-empty]')).toContainText('The date and time are empty: type them in Card details, or save without them.');
+  await page.locator('[data-action="save-close"]').first().click();
+
+  await when.fill('Friday, 9 January 2027 at 1930 h');
+  await when.blur();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'when')?.text).toBe('Friday, 9 January 2027 at 1930 h');
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-empty]')).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('a poster\'s date starts empty too, and Save speaks of Poster details', async ({ page }) => {
+  const errors = await openFresh(page);
+  await startOn(page, 'poster');
+  await page.locator('[data-start-poster="notice"]').click();
+  await expect(page.locator('[data-card-field="when"]')).toHaveValue('');
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-empty]')).toContainText('type them in Poster details');
+  expect(errors).toEqual([]);
+});
+
+test('the start screen\'s card pictures still show an example date', async ({ page }) => {
+  const errors = await openFresh(page);
+  await startOn(page, 'card');
+  // The pictures are drawn from the design's sample wording, date included.
+  const drawn = await page.locator('[data-start-design="classic"] img, [data-start-design="classic"] canvas').count();
+  expect(drawn).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});

@@ -1182,7 +1182,9 @@ test('Save says when a Bilingual card has an empty Hindi line', async ({ page })
   await page.locator('[data-card-field="occasionHi"]').fill('वार्षिक मेस नाइट');
   await page.locator('[data-card-field="occasionHi"]').blur();
   await page.getByRole('button', { name: 'Save as…' }).click();
-  await expect(page.locator('[data-save-empty]')).toBeHidden();
+  // The Hindi note goes; the empty date of a new card is still named (round 2, PR 3).
+  await expect(page.locator('[data-save-empty]')).not.toContainText('Hindi');
+  await expect(page.locator('[data-save-empty]')).toHaveText('The date and time are empty: type them in Card details, or save without them.');
   await page.keyboard.press('Escape');
   expect(errors).toEqual([]);
 });

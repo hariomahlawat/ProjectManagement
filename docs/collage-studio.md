@@ -133,6 +133,12 @@ its npm package by hand; the libman entry records the version.
   - **Drafts:** a card or poster opened from a design is kept as a draft from its first change,
     so looking through the designs keeps none. Tab after typing in Card details goes to the next
     field: the panel is drawn again only once focus has landed.
+  - **Date starts empty** ([ux/collage-usability-plan.md](ux/collage-usability-plan.md), round 2,
+    PR 3): a new card or poster opens with **Date and time** empty, the design's example as the
+    box's grey hint, so a card is never printed with a sample date. Save's note names it while it
+    is empty ("The date and time are empty: type them in Card details, or save without them";
+    `dateLine` in `collage-save.js`). The start screen's pictures keep the example; drafts keep the
+    date they have.
   - **One place to type** ([ux/collage-usability-plan.md](ux/collage-usability-plan.md), PR 5):
     words that come from a Card details field are typed there only. Selected on the page, their
     settings say "These words come from Card details: Venue" with **Edit in Card details**, which

@@ -282,3 +282,8 @@ draft format. Drafts made before keep working: a card opened from a draft keeps 
   existed. #3472, merged 19 Nov 2026.
 - PR 8: guide checked; first-time check done (invitation 8, collage 7, depth 8). Round 2 planned
   above, with the owner's decisions.
+- Round 2, PR 3: the date starts empty. New cards and posters open with Date and time empty, the
+  example as the hint; Save's note names it until it has words. Not done from the plan's first
+  wording: no dotted line on the card where the date goes (the owner's decision did not ask for
+  one; the space shows where it goes), and Save names the empty date in its note rather than
+  asking with Save anyway.
