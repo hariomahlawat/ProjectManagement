@@ -1462,3 +1462,70 @@ test('fitLogoBox grows the white box round two logos and returns it to the desig
   const moved = grown.filter((item) => item.role !== 'logo2').map((item) => (item.role === 'logobox' ? { ...item, x: item.x + 200 } : item));
   assert.equal(designs.fitLogoBox(moved, base), moved);
 });
+
+// Cold review 9 (layout).
+test('a design field keeps the edge its design sets it by: the back\'s programme its middle, a left-set occasion its left', () => {
+  const opts = { measure, newId };
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a6p'), 'classic', {}, opts), opts);
+  assert.equal(designs.fieldAnchor(card, 'programme'), null, 'the programme block is centred');
+  assert.equal(designs.fieldAnchor(card, 'note'), 'right');
+  assert.equal(designs.fieldAnchor(card, 'rsvp'), 'left');
+  assert.equal(designs.fieldAnchor(designs.applyDesign(core.newCollage('a5p'), 'ceremonial', {}, opts), 'occasion'), 'left');
+  assert.equal(designs.fieldAnchor(card, 'title'), null, 'a field the design does not place');
+});
+
+test('a folded card\'s cover title follows the occasion until other words are typed, and stays deleted when deleted', () => {
+  const opts = { measure, newId };
+  const card = designs.applyDesign(core.newCollage('fold6'), 'classic', { occasion: 'Barakhana' }, opts);
+  const cover = card.items.find((item) => item.field === 'coverTitle');
+  assert.equal(cover.text, 'Barakhana');
+  assert.equal(designs.detailsOf(card).coverTitle, '', 'showing the occasion, it follows it');
+  // The occasion changed (inside), then the design changed: the cover shows the new occasion.
+  const inside = { ...card, back: { ...card.back, items: card.back.items.map((item) => (item.field === 'occasion' ? { ...item, text: 'At Home' } : item)) } };
+  assert.equal(designs.applyDesign(inside, 'navy', designs.detailsOf(inside), opts).items.find((item) => item.field === 'coverTitle').text, 'At Home');
+  // Its own words stay its own.
+  const own = { ...card, items: card.items.map((item) => (item.field === 'coverTitle' ? { ...item, text: 'You are invited' } : item)) };
+  assert.equal(designs.detailsOf(own).coverTitle, 'You are invited');
+  assert.equal(designs.applyDesign(own, 'modern', designs.detailsOf(own), opts).items.find((item) => item.field === 'coverTitle').text, 'You are invited');
+  // Deleted on the page: no cover title after a design change.
+  const gone = { ...card, items: card.items.filter((item) => item.field !== 'coverTitle') };
+  assert.ok(!designs.applyDesign(gone, 'regimental', designs.detailsOf(gone), opts).items.some((item) => item.field === 'coverTitle'));
+  // A flat card has no cover title.
+  assert.ok(!designs.fieldsOf('classic', 'a5p').includes('coverTitle'));
+});
+
+test('Save closes a poster\'s empty logo place: "Decide later" prints as No logo, a chosen logo or a card is left as it is', () => {
+  const opts = { measure, newId };
+  const later = designs.applyDesign(core.newCollage('a4p'), 'notice', { ...designs.startDetails('notice'), logoMode: 'later' }, opts);
+  assert.ok(later.items.some((item) => item.role === 'logo' && item.kind === 'slot'));
+  const printed = designs.closeLogoPlace(later, opts);
+  const none = designs.applyDesign(core.newCollage('a4p'), 'notice', { ...designs.startDetails('notice'), logoMode: 'none' }, opts);
+  assert.ok(!printed.items.some((item) => item.role === 'logo'), 'no logo place printed');
+  const y = (c, field) => c.items.find((item) => item.field === field).y;
+  assert.ok(Math.abs(y(printed, 'title') - y(none, 'title')) < 0.5, 'the heading moves up as with No logo');
+  assert.ok(later.items.some((item) => item.role === 'logo'), 'the poster itself keeps its place');
+  const card = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, opts);
+  assert.equal(designs.closeLogoPlace(card, opts), card);
+  const chosen = { ...later, items: later.items.map((item) => (item.role === 'logo' ? core.stickerItem(item.id, 'logo:sdd', { x: item.x, y: item.y, width: item.width, aspect: designs.SDD_ASPECT }, { role: 'logo' }) : item)) };
+  assert.equal(designs.closeLogoPlace(chosen, opts), chosen);
+});
+
+test('no wrapped design line ends with one word alone, on every design at every size it is offered', () => {
+  const opts = { measure, newId };
+  const posterSizes = ['a4p', 'a3p', 'a4l', 'a3l'].filter((size) => core.SIZES[size]);
+  for (const key of Object.keys(designs.DESIGNS)) {
+    const design = designs.DESIGNS[key];
+    const sizes = design.poster ? posterSizes : Object.keys(core.SIZES).filter((size) => designs.designsFor(size).some((each) => each.key === key));
+    for (const size of sizes) {
+      const card = designs.applyDesign(core.newCollage(size), key, designs.startDetails(key), opts);
+      for (const item of [...card.items, ...(card.back?.items || [])].filter((each) => each.kind === 'text' && each.maxLines > 1)) {
+        const size0 = core.layoutText(item, measure).size;
+        for (const text of item.text.split(String.fromCharCode(10)).filter((line) => line.trim().split(/ +/).length > 3)) {
+          const layout = core.layoutText({ ...item, text, size: size0, minSize: size0, maxLines: 99 }, measure);
+          const last = layout.glyphs[layout.glyphs.length - 1].ch.trim();
+          assert.ok(layout.lines < 2 || / /.test(last), `${key} ${size}: ${item.field} ends with "${last}" alone`);
+        }
+      }
+    }
+  }
+});

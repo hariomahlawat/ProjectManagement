@@ -366,16 +366,20 @@
       poster: true,
       sample: { title: 'Annual Medical Examination', subtitle: 'For all ranks of the Division', when: 'Monday, 8 December 2026 · 0900 h to 1300 h', venue: 'Medical Inspection Room, SDD Campus', lines: 'Bring your medical documents' + String.fromCharCode(10) + 'Report fasting for the blood test' + String.fromCharCode(10) + 'Section by section, as listed on the unit notice board', contact: 'Medical Officer · Ext 2205' },
       background: { type: 'color', value: '#ffffff' },
+      // Cold review 9, M3: the words fill the page, a maroon bar at the top and the bottom; with
+      // no logo only the heading's group moves up, so the page stays balanced.
       portrait: [
         block('bar', 0.5, 0.008, 1, 0.016, { fill: MAROON, stroke: '' }),
-        logoPlace(0.5, 0.1, 0.12, 0.6),
-        words('title', 0.5, 0.24, 0.84, 72, { font: 'elegant', color: MAROON, bold: true }, { lines: 2, yNoLogo: 0.12 }),
-        words('subtitle', 0.5, 0.33, 0.84, 30, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2, yNoLogo: 0.21 }),
-        { ...rule('rule', 0.5, 0.385, 0.3, GOLD, 2.5), yNoLogo: 0.265 },
-        words('when', 0.5, 0.46, 0.84, 34, { font: 'clean', color: INK, bold: true }, { lines: 2, yNoLogo: 0.34 }),
-        words('venue', 0.5, 0.53, 0.84, 32, { font: 'clean', color: INK, bold: false }, { lines: 2, yNoLogo: 0.41 }),
-        words('lines', 0.5, 0.68, 0.84, 28, { font: 'clean', color: INK, bold: false }, { lines: 6, yNoLogo: 0.56 }),
-        words('contact', 0.5, 0.93, 0.84, 22, { font: 'clean', color: '#55607a', bold: false }, { lines: 1 })
+        logoPlace(0.5, 0.1, 0.13, 0.6),
+        words('title', 0.5, 0.25, 0.86, 88, { font: 'elegant', color: MAROON, bold: true }, { lines: 2, yNoLogo: 0.18 }),
+        words('subtitle', 0.5, 0.36, 0.84, 36, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2, yNoLogo: 0.3 }),
+        { ...rule('rule', 0.5, 0.415, 0.3, GOLD, 2.5), yNoLogo: 0.36 },
+        words('when', 0.5, 0.49, 0.84, 42, { font: 'clean', color: INK, bold: true }, { lines: 2, yNoLogo: 0.43 }),
+        words('venue', 0.5, 0.56, 0.84, 38, { font: 'clean', color: INK, bold: false }, { lines: 2, yNoLogo: 0.5 }),
+        { ...rule('rule2', 0.5, 0.625, 0.12, GOLD, 1.5), yNoLogo: 0.565 },
+        words('lines', 0.5, 0.745, 0.84, 34, { font: 'clean', color: INK, bold: false }, { lines: 6, yNoLogo: 0.69 }),
+        words('contact', 0.5, 0.94, 0.84, 24, { font: 'clean', color: '#55607a', bold: false }, { lines: 1 }),
+        block('bar2', 0.5, 0.992, 1, 0.016, { fill: MAROON, stroke: '' })
       ]
     }),
     photoposter: Object.freeze({
@@ -406,20 +410,22 @@
       poster: true,
       sample: { title: 'Simulation in Training: Lessons from the Field', subtitle: 'A talk by Col A. Sharma, Simulator Development Division', when: 'Thursday, 4 December 2026 · 1500 h', venue: 'Auditorium, SDD Campus', lines: '22 years of simulator design' + String.fromCharCode(10) + 'Questions after the talk' + String.fromCharCode(10) + 'Tea at 1630 h', contact: 'Training Officer · Ext 2230' },
       background: { type: 'color', value: '#ffffff' },
+      // Cold review 9, M3: the pale panel is the lower quarter and holds the date, venue and
+      // contact in larger type; the heading, speaker and points fill the white above.
       portrait: [
-        block('lower', 0.5, 0.79, 1, 0.42, { fill: '#e9eef6', stroke: '' }),
+        block('lower', 0.5, 0.86, 1, 0.28, { fill: '#e9eef6', stroke: '' }),
         logoPlace(0.88, 0.08, 0.11, 0.6),
-        words('kicker', 0.08, 0.07, 0.66, 22, { font: 'clean', color: NAVY, bold: true, spacing: 16, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('title', 0.08, 0.2, 0.74, 78, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 3, yNoLogo: 0.19 }),
-        words('subtitle', 0.08, 0.33, 0.84, 30, { font: 'clean', color: '#55607a', bold: false, align: 'left' }, { anchor: 'left', lines: 2 }),
-        { ...photo(0.2, 0.47, 0.24, 0.17), radius: 999 },
+        words('kicker', 0.08, 0.07, 0.66, 24, { font: 'clean', color: NAVY, bold: true, spacing: 16, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('title', 0.08, 0.21, 0.74, 78, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 3, yNoLogo: 0.205 }),
+        words('subtitle', 0.08, 0.36, 0.84, 34, { font: 'clean', color: '#55607a', bold: false, align: 'left' }, { anchor: 'left', lines: 2 }),
+        { ...photo(0.21, 0.53, 0.26, 0.19), radius: 999 },
         // With "No photo" (UX review 8) the points take the photo's place, the page's width.
-        { ...vline('photoaccent', 0.08, 0.47, 0.13, NAVY, 4), onlyNoPhoto: true },
-        words('lines', 0.38, 0.47, 0.56, 26, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 5, noPhoto: { x: 0.11, w: 0.81, size: 34 } }),
-        rule('rule', 0.5, 0.64, 0.84, NAVY, 3),
-        words('when', 0.08, 0.69, 0.84, 32, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('venue', 0.08, 0.745, 0.84, 30, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('contact', 0.08, 0.94, 0.84, 22, { font: 'clean', color: '#55607a', bold: false, align: 'left' }, { anchor: 'left', lines: 1 })
+        { ...vline('photoaccent', 0.08, 0.53, 0.15, NAVY, 4), onlyNoPhoto: true },
+        words('lines', 0.4, 0.53, 0.54, 30, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 5, noPhoto: { x: 0.11, w: 0.81, size: 38 } }),
+        rule('rule', 0.13, 0.765, 0.1, NAVY, 4),
+        words('when', 0.08, 0.81, 0.84, 42, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('venue', 0.08, 0.865, 0.84, 36, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('contact', 0.08, 0.94, 0.84, 24, { font: 'clean', color: '#55607a', bold: false, align: 'left' }, { anchor: 'left', lines: 1 })
       ]
     }),
     // Pocket cards (PR 9b): offered for the pocket sizes; each fills from the same Card details.
@@ -694,8 +700,12 @@
     }
     // A cover title showing the occasion's words follows the occasion (empty); one deleted on the
     // page stays deleted (a space), so a design change does not bring it back.
+    // The occasion edited on the page itself counts too: a cover title still showing the occasion
+    // as it was last given follows it.
+    const given = collage?.card?.details || {};
     for (const [field, from] of Object.entries(FALLBACKS)) {
-      if (onCard.has(field) && details[field] === details[from]) details[field] = '';
+      const following = details[field] === details[from] || (given[field] === '' && details[field] === String(given[from] ?? ''));
+      if (onCard.has(field) && following) details[field] = '';
       else if (!onCard.has(field) && (collage?.card?.placed || []).includes(field)) details[field] = ' ';
     }
     return details;
@@ -899,6 +909,8 @@
         const floor = Math.ceil(minSize);
         if (floor > 0) item.minSize = floor;
         if (part.field === 'guest') item.minSize = Math.max(floor, Math.round(item.size * 0.6));
+        // No word left alone on a wrapped line's last line (cold review 9, L1).
+        if (item.maxLines > 1) item.maxWidth = balancedWidth(item, measure);
         const layout = core.layoutText(item, measure);
         item.width = layout.width;
         item.aspect = layout.width / layout.height;
@@ -985,6 +997,32 @@
     // The second logo, placed beside the design's logo, with the user's own items.
     for (const second of seconds) if (!own.some((item) => item.id === second.id)) own.push(second);
     return fitLogoTile([...made, ...own, ...leftOver], { width, height });
+  }
+
+  /**
+   * The width a design's words wrap to so that no line they wrap onto ends with one word alone
+   * ("…company / of", "…Development / Division": cold review 9, L1): a little narrower than
+   * `maxWidth`, as little as will do, with the same number of lines at the same size. Lines the
+   * user broke are kept; a paragraph that is one word is left as it is. Returns `maxWidth` when
+   * nothing is alone or no narrower width keeps the lines and size.
+   */
+  function balancedWidth(item, measure) {
+    const first = core.layoutText(item, measure);
+    if (first.lines < 2) return item.maxWidth;
+    const paragraphs = String(item.text || '').split(String.fromCharCode(10)).filter((line) => line.trim().split(/ +/).length > 3);
+    // A paragraph wrapped at this width ends in a word alone (at the size the words print).
+    const alone = (width) => paragraphs.some((text) => {
+      const layout = core.layoutText({ ...item, text, maxWidth: width, size: first.size, minSize: first.size, maxLines: 99 }, measure);
+      return layout.lines > 1 && !/ /.test(String(layout.glyphs[layout.glyphs.length - 1].ch).trim());
+    });
+    if (!alone(item.maxWidth)) return item.maxWidth;
+    for (let step = 1; step <= 25; step += 1) {
+      const width = item.maxWidth * (1 - step * 0.02);
+      const layout = core.layoutText({ ...item, maxWidth: width }, measure);
+      if (layout.lines !== first.lines || Math.abs(layout.size - first.size) > 0.01) break;
+      if (!alone(width)) return width;
+    }
+    return item.maxWidth;
   }
 
   // The logos each tile goes behind.
@@ -1696,6 +1734,21 @@
     return { ...moved, items: fitLogoTile(moved.items, { width: core.PAGE_WIDTH, height: core.pageHeight(collage.size) }) };
   }
 
+  /**
+   * The poster as Save prints it (cold review 9, M3): with no logo chosen yet ("Decide later", or
+   * the question not answered) its empty logo place would print as a blank strip, so the poster
+   * is laid out as with "No logo", the heading moving up into the space. The poster itself is not
+   * changed: a logo can still be chosen. A place the user locked stays. Anything else: the same
+   * collage.
+   */
+  function closeLogoPlace(collage, opts) {
+    const front = frontOf(collage);
+    if (!DESIGNS[front?.card?.design]?.poster) return collage;
+    const place = front.items.find((item) => item.role === 'logo');
+    if (!place || place.kind !== 'slot' || place.locked || place.hidden) return collage;
+    return asShown(collage, setLogoMode(front, 'none', opts));
+  }
+
   /** Whether the card's design has a photo frame on its front (Ceremonial photo, a photo poster). */
   function hasPhotoFrame(collage) {
     const front = frontOf(collage);
@@ -1863,5 +1916,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, followLogo, roleItemOn, designOnSize, hindiInStep, fieldAnchor, FALLBACKS });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, followLogo, roleItemOn, designOnSize, hindiInStep, fieldAnchor, FALLBACKS, closeLogoPlace });
 });

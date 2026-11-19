@@ -576,7 +576,10 @@
         if (!fits) throw new Error('canvas');
         // A card with a back (docs/ux/invitations-posters.md, PR 8): the sides chosen, front
         // first; a PDF gets a page for each, a picture a file for each.
-        let all = core.pagesOf(getCollage());
+        // A poster with no logo chosen yet prints without the logo's blank strip (cold review 9, M3).
+        let made = 0;
+        const printed = designs?.closeLogoPlace ? designs.closeLogoPlace(getCollage(), { measure: measureText, newId: () => `save${++made}` }) : getCollage();
+        let all = core.pagesOf(printed);
         const { pages, names } = chosenSides(all, all.length > 1 ? (chosen('sides') || 'both') : 'front');
         // One card for each guest (PR 10): the front once a guest, their name on it, then the back.
         const guests = guestCardsOffered(format) && chosen('guests') === 'each' ? getCollage().card.guests : [];

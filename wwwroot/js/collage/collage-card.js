@@ -480,7 +480,7 @@
     function logoName(item) {
       if (!item || item.kind === 'slot') {
         if (!isPoster()) return 'No logo';
-        return designs.detailsOf(state.collage).logoMode === 'none' ? 'No logo on this poster.' : 'No logo chosen yet. Its place on the page is left out of Save.';
+        return designs.detailsOf(state.collage).logoMode === 'none' ? 'No logo on this poster.' : 'No logo chosen yet. Save closes up its place, as with No logo.';
       }
       if (item.kind === 'photo') return `Your own logo (${doc.photos.get(item.photo)?.name || 'picture'})`;
       return stickers.find(item.sticker)?.label || 'Logo';
@@ -815,7 +815,7 @@
       surface.syncAll();
       renderPanel();
       if (mode === 'none') messages.offerUndo('No logo on this poster. The heading moves up into the space.');
-      else messages.announce('The logo can be chosen later. Its place is left out of Save until then.');
+      else messages.announce('The logo can be chosen later. Until then Save closes up its place, as with No logo.');
     }
 
     /**
