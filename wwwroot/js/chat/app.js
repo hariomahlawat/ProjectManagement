@@ -499,6 +499,21 @@
    * only fetches newer messages, so an already-loaded message that was unsent meanwhile would keep
    * its text, and a removed file its card.
    */
+  /**
+   * The answer of an optional catch-up request, or `fallback` when the server has no such
+   * endpoint (404/405: an older server, or the feature switched off since this page loaded).
+   * Without it, one missing list failed the whole catch-up, so it never finished and was
+   * retried for as long as the page stayed open.
+   */
+  async function notThere(pending, fallback) {
+    try {
+      return await pending;
+    } catch (error) {
+      if (error && (error.status === 404 || error.status === 405)) return fallback;
+      throw error;
+    }
+  }
+
   ChatApp.prototype.syncUnsent = async function (done) {
     if (!this.offlineSince || this.stopped) return;
     if (this.unsentRetry) {
@@ -515,14 +530,16 @@
       const ids = [];
       let before = null;
       for (let guard = 0; guard < 200; guard += 1) {
-        const page = await this.request('GET', before ? `${base}&before=${before}` : base);
+        // An older server (or one rolled back) has no such list: nothing to catch up from it.
+        const page = await notThere(this.request('GET', before ? `${base}&before=${before}` : base), { ids: [], hasMore: false });
         ids.push(...page.ids);
         if (!page.hasMore || !page.ids.length) break;
         before = Math.min(...page.ids);
       }
       ids.forEach((id) => this.unsentIds.add(id));
       // A file removed or restored live while these answers were on their way keeps that state.
-      const removed = (this.attachments.enabled ? await this.removedFilesSince(since) : [])
+      // Attachments switched off since this page loaded answer 404: no files to catch up.
+      const removed = (this.attachments.enabled ? await notThere(this.removedFilesSince(since), []) : [])
         .filter((file) => !changedSince(file.attachmentId));
       removed.forEach((file) => {
         this.restoredFiles.delete(file.attachmentId);
@@ -533,7 +550,7 @@
       const fresh = new Set(removed.map((file) => file.attachmentId));
       const remembered = Array.from(this.removedFiles.keys()).filter((id) => !fresh.has(id));
       for (let start = 0; start < remembered.length; start += 500) {
-        const states = await this.request('GET', `/attachments/current?ids=${remembered.slice(start, start + 500).join(',')}`);
+        const states = await notThere(this.request('GET', `/attachments/current?ids=${remembered.slice(start, start + 500).join(',')}`), []);
         states
           .filter((state) => !state.attachment.isRemoved && !changedSince(state.attachment.id))
           .forEach((state) => this.onAttachmentRestored(state));

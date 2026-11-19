@@ -913,12 +913,15 @@ builder.Services.AddScoped<UserNotificationService>();
 builder.Services.AddOptions<ChatOptions>()
     .Bind(builder.Configuration.GetSection(ChatOptions.SectionName));
 builder.Services.AddSingleton<ChatPresenceTracker>();
+builder.Services.AddSingleton<ChatConnectionRegistry>();
+builder.Services.AddScoped<ChatConnectionRevalidator>();
 builder.Services.AddScoped<ChatService>();
 builder.Services.AddScoped<ChatLinkPreviewService>();
 builder.Services.AddScoped<ChatAttachmentService>();
 builder.Services.AddScoped<ChatStorageService>();
 builder.Services.AddSingleton<IChatDiskSpace, ChatDiskSpace>();
 builder.Services.AddHostedService<ChatAttachmentCleanupWorker>();
+builder.Services.AddHostedService<ChatConnectionRevalidationWorker>();
 builder.Services.AddScoped<ChatGroupService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddSingleton<IDocumentPreviewTokenService, DocumentPreviewTokenService>();

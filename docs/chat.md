@@ -292,9 +292,18 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
 - **The browser may invoke only two hub methods, and neither stores anything**: `Typing(peerUserId)`,
   forwarded as `Typing` to that person only and throttled to once per two seconds per tab and
   person on the server, and `SetAway(bool)` for this tab's idle state. The auth cookie is
-  `SameSite=Strict`, so another site cannot open the connection as the user. One tab may signal
+  `SameSite=Strict`, so another site cannot open the connection as the user. Both are ignored
+  once `Chat:Enabled` is switched off, also on connections already open. One tab may signal
   typing to at most 16 conversations within two seconds (`ChatHub.MaxTypingTargets`), which
   bounds what a misbehaving client can make the server remember or look up.
+- **Accounts that may no longer sign in lose their live connection.** A hub connection is
+  authenticated once, when it opens, and the sign-in cookie's periodic re-check never reaches
+  it. `ChatConnectionRegistry` lists the open connections with the security stamp each was
+  opened with, and `ChatConnectionRevalidationWorker` re-checks them on the cookie's interval
+  (`Security:SessionRevalidationMinutes`, one minute by default): connections of accounts
+  deleted, disabled, pending deletion or whose stamp changed (disabling, a password reset, a
+  role change) are closed. The page reconnects by itself; with a valid cookie it is back at
+  once, otherwise the connection is refused. No query runs while no chat tab is open.
 - **Status** (`GET`/`POST /api/chat/status`) and **unsend** (`POST /api/chat/messages/{id}/unsend`)
   are antiforgery-protected like the other writes; changes are pushed as `StatusChanged` (to
   everyone) and `MessageUnsent` (to both people). A check constraint keeps an unsent message's
@@ -308,6 +317,11 @@ everyone; messages are kept indefinitely; administrators cannot read chats.
   blanked too, including older ones already on screen and search results.
   With attachments on it also asks `GET /api/chat/attachments/removed?since=` (paged with
   `before`, only messages the caller may read), so files removed meanwhile show as removed.
+  For groups, both lists leave out messages from before the caller joined, as the live events
+  do. A 404 or 405 from either list (an older server, or attachments switched off since the
+  page loaded) counts as nothing to catch up, so the rest of the catch-up still completes.
+  A message pushed again (a retried send) is counted as unread once, also when no window
+  holds it.
   Files it remembers as removed are checked with `GET /api/chat/attachments/current?ids=` (up
   to 500 at a time), so one restored meanwhile comes back.
 - **Groups** (`/api/chat/groups…`): list, create, get, history (`before`/`after` like direct

@@ -49,6 +49,12 @@ inside the existing backup with no change to the backup scripts.
 
 - The allowance is the **total size of the files a person has sent that are still kept**.
   Unsending or removing a file gives the space back. Receiving files costs nothing.
+- **Removed files still on disk:** a file removed from a sent message stays on disk through the
+  undo window. A person's kept files plus their removed files not yet deleted may take at most
+  **twice the allowance**; beyond that an upload is refused ("Files you removed are kept for a
+  day…") until the clean-up has deleted them. Clearing a full allowance and filling it again
+  still fits; uploading and removing in a loop cannot fill the shared upload disk. An upload
+  that was never sent cannot be restored, so removing it deletes its file at once.
 - **1 GB per person to start**: `Chat:Attachments:AllowanceMb` (default 1024), so it can be
   raised without a release.
 - **One file: at most 100 MB** (`Chat:Attachments:MaxFileMb`), well inside the 256 MiB IIS
@@ -157,7 +163,10 @@ The messages stay: a removed file shows "File removed", "File removed by an admi
   files are not (`private, no-store`); images are shown, everything else is a download.
 - **Clean-up:** `ChatAttachmentCleanupWorker` (every 15 minutes, while attachments are on)
   removes uploads not sent within an hour and deletes the files of removed attachments; each
-  sweep only does what is still to do.
+  sweep only does what is still to do. Files it cannot delete (held open, access denied) stay
+  claimed for the next sweep without holding up the others (up to 10,000 claimed files are
+  looked at per sweep). A retention run that fails is logged, shown as a failure on the
+  workers page and retried on the next sweep; it never stops the clean-up itself.
 - **Thumbnails** are made at most two at a time across all uploads
   (`ChatAttachmentInspector.ThumbnailGate`): a PNG cannot be decoded at a reduced size, so one
   at the 60-megapixel cap takes about 240 MB while it is made. An upright photo is used as

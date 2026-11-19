@@ -53,11 +53,22 @@ public sealed class ChatAttachmentCleanupWorker : BackgroundService
                     using var scope = _scopeFactory.CreateScope();
                     // Retention once a day (and once after each start): files older than the
                     // retention age are removed as one batch, undoable for a day, owners told.
+                    // A retention run that fails is retried on the next sweep, and never stops
+                    // the clean-up below: removed files must still leave the disk.
+                    Exception? retentionError = null;
                     if (DateTimeOffset.UtcNow - _lastRetention >= RetentionInterval)
                     {
-                        var retention = await scope.ServiceProvider.GetRequiredService<ChatStorageService>().ApplyRetentionAsync(stoppingToken);
-                        await ChatApi.PushFileChangesAsync(scope.ServiceProvider.GetRequiredService<IHubContext<ChatHub, IChatClient>>(), retention.Updates);
-                        _lastRetention = DateTimeOffset.UtcNow;
+                        try
+                        {
+                            var retention = await scope.ServiceProvider.GetRequiredService<ChatStorageService>().ApplyRetentionAsync(stoppingToken);
+                            await ChatApi.PushFileChangesAsync(scope.ServiceProvider.GetRequiredService<IHubContext<ChatHub, IChatClient>>(), retention.Updates);
+                            _lastRetention = DateTimeOffset.UtcNow;
+                        }
+                        catch (Exception ex) when (ex is not OperationCanceledException || !stoppingToken.IsCancellationRequested)
+                        {
+                            retentionError = ex;
+                            _logger.LogError(ex, "Chat attachment retention failed; the clean-up still runs, and retention is tried again on the next sweep.");
+                        }
                     }
 
                     var deleted = await scope.ServiceProvider.GetRequiredService<ChatAttachmentService>().CleanUpAsync(stoppingToken);
@@ -66,7 +77,14 @@ public sealed class ChatAttachmentCleanupWorker : BackgroundService
                         _logger.LogInformation("Deleted {Count} removed chat attachment file(s).", deleted);
                     }
 
-                    _status?.MarkSucceeded(WorkerKey, BackgroundJobMessages.Removed(deleted, "chat attachment file", "chat attachment files"));
+                    if (retentionError is null)
+                    {
+                        _status?.MarkSucceeded(WorkerKey, BackgroundJobMessages.Removed(deleted, "chat attachment file", "chat attachment files"));
+                    }
+                    else
+                    {
+                        _status?.MarkFailed(WorkerKey, retentionError);
+                    }
                 }
                 else
                 {
