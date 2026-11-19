@@ -212,6 +212,8 @@ public sealed class ProjectBriefingProjectVm
     // Whether the person viewing may change this project's content (remarks, photos, brief), by
     // ProjectAccessGuard; the Studio offers "Fix in project" only when they may.
     public bool CanFixContent { get; init; }
+    // Whether they may add the external remark the status line comes from (Admin, HoD, Comdt).
+    public bool CanFixStatusRemark { get; init; }
 }
 
 public sealed class ProjectBriefingReadinessVm

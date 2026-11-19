@@ -146,7 +146,9 @@ only slide HTML and writes all other text as text.
     with its fix beside it (*Fix in project*, or *This deck only* for capability text), then Open
     project. *Fix in project* is offered only to those who may change the project (Admin, HoD, or
     its lead Project Officer: `ProjectAccessGuard.CanManageProjectContent`); others read "Ask the
-    project's officer or an HoD to add it." Slide numbers read "Slide 5" or "Slides 5, 6". **More options** (closed by default, open or closed for the session) holds the
+    project's officer or an HoD to add it." The status remark is an external remark, which Admin,
+    HoD and Comdt may add (not a Project Officer), so its link follows that rule; others read "Ask
+    an HoD or the Comdt to add it." Slide numbers read "Slide 5" or "Slides 5, 6". **More options** (closed by default, open or closed for the session) holds the
     choices most decks never change: how the project appears (Own slides / Table row only / Leave
     out), its photograph, speaker notes, this deck's capability text, and Remove from deck (which
     asks first). For other slides, what the slide shows and, for the SDD profile, Role & Charter

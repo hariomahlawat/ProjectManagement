@@ -91,6 +91,11 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    // The status remark is an external remark, which the remarks panel lets Admin, HoD and Comdt
+    // add (ProjectRemarksPanelService: AllowExternal), not a Project Officer, even the lead one.
+    internal static bool CanAddExternalRemark(IReadOnlyCollection<string> roles)
+        => roles.Contains(RoleNames.Admin) || roles.Contains(RoleNames.HoD) || roles.Contains(RoleNames.Comdt);
+
     public async Task<ProjectBriefingDeckVm?> GetDeckAsync(
         long deckId,
         string requestingUserId,
@@ -112,7 +117,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             roles.Contains(RoleNames.Admin),
             roles.Contains(RoleNames.HoD),
             roles.Contains(RoleNames.ProjectOfficer));
-        var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, snapshot.IncludeStageSummary, cancellationToken, CanFix);
+        var projects = await BuildProjectsAsync(snapshot.Items, snapshot.Layout, snapshot.UpdateSheetOptions, snapshot.IncludeStageSummary, cancellationToken, CanFix, CanAddExternalRemark(roles));
         var presentedProjects = projects.Where(project => project.IsPresented).ToArray();
         // The global FFC footprint is only shown in the page's FFC slide editor; in-place saves and
         // preview rebuilds do not need it.
@@ -796,7 +801,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         ProjectBriefingUpdateSheetOptions updateSheetOptions,
         bool includeStageSummary,
         CancellationToken cancellationToken,
-        Func<string?, bool>? canFixContent = null)
+        Func<string?, bool>? canFixContent = null,
+        bool canAddExternalRemark = false)
     {
         if (items.Count == 0)
         {
@@ -909,7 +915,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     IsUpdateSheetCoreFactsReady = updateSheetCoreFactsReady,
                     SortOrder = item.SortOrder,
                     OpenUrl = $"/Projects/Overview/{item.ProjectId}",
-                    CanFixContent = canFixContent?.Invoke(item.LeadPoUserId) ?? false
+                    CanFixContent = canFixContent?.Invoke(item.LeadPoUserId) ?? false,
+                    CanFixStatusRemark = canAddExternalRemark
                 };
             });
 

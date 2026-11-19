@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
+using ProjectManagement.Services.ProjectBriefings;
 using ProjectManagement.Services.Projects;
 using Xunit;
 
@@ -27,6 +28,19 @@ public sealed class ProjectBriefingCanFixContentTests
     public void TheRuleFromPlainValues(string userId, bool isAdmin, bool isHod, bool isOfficer, bool expected)
     {
         Assert.Equal(expected, ProjectAccessGuard.CanManageProjectContent(Lead, userId, isAdmin, isHod, isOfficer));
+    }
+
+    // The status remark is an external remark: the remarks panel lets Admin, HoD and Comdt add it,
+    // not a Project Officer (even the project's lead), so it has its own flag (Codex review on #3475).
+    [Theory]
+    [InlineData(RoleNames.Comdt, true)]
+    [InlineData(RoleNames.HoD, true)]
+    [InlineData(RoleNames.Admin, true)]
+    [InlineData(RoleNames.ProjectOfficer, false)]
+    [InlineData(RoleNames.Mco, false)]
+    public void TheStatusRemarkFollowsTheExternalRemarkRule(string role, bool expected)
+    {
+        Assert.Equal(expected, ProjectBriefingDataService.CanAddExternalRemark(new[] { role }));
     }
 
     // The role lookup the flag reads gives every role a person has, from the Identity tables.

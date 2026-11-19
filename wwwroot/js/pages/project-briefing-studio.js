@@ -795,11 +795,14 @@ if (root) {
       return write;
     }
     if (!gap.href) return null;
-    // Only someone who may change the project's content (its own officer, an HoD or Admin; the
-    // server's canFixContent) is sent there; anyone else is told who can (cold review, 19 Nov 2026).
-    // An older payload without the flag keeps the link.
-    if (project.canFixContent === false) {
-      return el('small', 'pbd-inspector__fix-who', 'Ask the project’s officer or an HoD to add it.');
+    // Only someone who may make the change is sent there; anyone else is told who can (cold review,
+    // 19 Nov 2026). The status remark is an external remark (Admin, HoD, Comdt: canFixStatusRemark);
+    // the rest is the project's content (its own officer, an HoD or Admin: canFixContent). An older
+    // payload without the flags keeps the link.
+    if (key === 'status' ? project.canFixStatusRemark === false : project.canFixContent === false) {
+      return el('small', 'pbd-inspector__fix-who', key === 'status'
+        ? 'Ask an HoD or the Comdt to add it.'
+        : 'Ask the project’s officer or an HoD to add it.');
     }
     const fix = actionLink(FIX_IN_PROJECT, gap.href(project), project.projectId, 'btn btn-sm btn-link pbd-inspector__fix');
     fix.title = 'Opens the project. The change shows in every deck and page.';

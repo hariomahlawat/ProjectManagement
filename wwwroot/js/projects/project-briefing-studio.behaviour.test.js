@@ -658,17 +658,20 @@ test('More options stays as the person left it when moving to another project (f
 
 test('a gap the person cannot fix in the project says who can, instead of a dead-end link', async () => {
   const { window, document, requests } = startStudio();
-  requests[0].answer(payload({
-    projects: PROJECTS.map((item) => (item.projectId === 2 ? { ...item, canFixContent: false } : { ...item }))
-  }));
+  // Alpha: a Comdt (status remark yes, project content no). Bravo: its own officer (the reverse).
+  const flags = { 1: { canFixContent: false, canFixStatusRemark: true }, 2: { canFixContent: true, canFixStatusRemark: false } };
+  requests[0].answer(payload({ projects: PROJECTS.map((item) => ({ ...item, ...(flags[item.projectId] || {}) })) }));
   await settle(window);
-  outlineRow(document, 'Bravo trainer').click();
+  const gap = (key) => document.querySelector(`.pbd-inspector__facts .is-missing[data-pbd-gap="${key}"]`);
 
-  const row = document.querySelector('.pbd-inspector__facts .is-missing[data-pbd-gap="status"]');
-  assert.equal(row.querySelector('a'), null, 'no Fix in project link');
-  assert.match(row.textContent, /Ask the project’s officer or an HoD to add it\./);
-
-  // Someone who may fix it (or an older payload without the flag) still gets the link.
   outlineRow(document, 'Alpha simulator').click();
-  assert.equal(document.querySelector('.pbd-inspector__facts .is-missing[data-pbd-gap="status"] a').textContent.trim(), 'Fix in project');
+  assert.equal(gap('status').querySelector('a').textContent.trim(), 'Fix in project', 'external remarks are the Comdt’s to add');
+  assert.equal(gap('photo').querySelector('a'), null, 'no Fix in project link');
+  assert.match(gap('photo').textContent, /Ask the project’s officer or an HoD to add it\./);
+
+  outlineRow(document, 'Bravo trainer').click();
+  assert.equal(gap('status').querySelector('a'), null);
+  assert.match(gap('status').textContent, /Ask an HoD or the Comdt to add it\./);
+
+  // A payload without the flags keeps every link (the test above).
 });
