@@ -48,10 +48,10 @@
       of the web application even if another imported target widens an item
       glob. This is intentionally repeated alongside DefaultItemExcludes.
     -->
-    <Compile Remove="ProjectManagement.Tests/**;publish/**;artifacts/**;ReadyToReplace/**" />
-    <Content Remove="ProjectManagement.Tests/**;publish/**;artifacts/**;ReadyToReplace/**" />
-    <EmbeddedResource Remove="ProjectManagement.Tests/**;publish/**;artifacts/**;ReadyToReplace/**" />
-    <None Remove="ProjectManagement.Tests/**;publish/**;artifacts/**;ReadyToReplace/**" />
+    <Compile Remove="ProjectManagement.Tests/**;publish/**;artifacts/**;ReadyToReplace/**;test-results/**;playwright-report/**" />
+    <Content Remove="ProjectManagement.Tests/**;publish/**;artifacts/**;ReadyToReplace/**;test-results/**;playwright-report/**" />
+    <EmbeddedResource Remove="ProjectManagement.Tests/**;publish/**;artifacts/**;ReadyToReplace/**;test-results/**;playwright-report/**" />
+    <None Remove="ProjectManagement.Tests/**;publish/**;artifacts/**;ReadyToReplace/**;test-results/**;playwright-report/**" />
   </ItemGroup>
 
   <ItemGroup>

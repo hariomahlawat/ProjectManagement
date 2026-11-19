@@ -172,6 +172,23 @@ test('a guest list makes one card for each guest: on their own pages, or filling
     for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
     return (await window.PDFLib.PDFDocument.load(bytes)).getPages().map((p) => Math.round(p.getSize().width));
   }, (await streamBytes(file)).toString('base64'));
+  // How many different pictures the PDF holds: each guest's card differs only by the name on it,
+  // so a missing name, or the same name on every card, gives fewer.
+  const picturesIn = async (file) => page.evaluate(async (base64) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    const pdf = await window.PDFLib.PDFDocument.load(bytes);
+    const seen = new Set();
+    for (const [, object] of pdf.context.enumerateIndirectObjects()) {
+      if (!object?.dict || String(object.dict.get(window.PDFLib.PDFName.of('Subtype'))) !== '/Image') continue;
+      const contents = object.getContents();
+      let hash = contents.length;
+      for (let i = 0; i < contents.length; i += 7) hash = (hash * 31 + contents[i]) >>> 0;
+      seen.add(`${contents.length}:${hash}`);
+    }
+    return seen.size;
+  }, (await streamBytes(file)).toString('base64'));
 
   await page.getByRole('button', { name: 'Save as…' }).click();
   await page.getByRole('button', { name: 'Printing' }).click();
@@ -180,22 +197,35 @@ test('a guest list makes one card for each guest: on their own pages, or filling
   // Each on its own A6 page.
   let download = page.waitForEvent('download');
   await page.locator('[data-action="save-go"]').click();
-  expect((await pagesOf(await download)).length).toBe(3);
+  let file = await download;
+  expect((await pagesOf(file)).length).toBe(3);
+  // Each on an A6 page, upright: 105 mm wide.
+  expect((await pagesOf(file)).every((width) => Math.abs(width - 105 / 25.4 * 72) < 1)).toBe(true);
+  expect(await picturesIn(file)).toBe(3);
   await expect(page.locator('[data-save-result]')).toContainText('3 guest cards on 3 pages');
   // Two to a turned A4 sheet: two sheets for three guests.
   await page.locator('[data-save-sheet] input[value="a4"]').check();
   download = page.waitForEvent('download');
   await page.locator('[data-action="save-go"]').click();
-  const sheets = await pagesOf(await download);
+  file = await download;
+  const sheets = await pagesOf(file);
   expect(sheets).toEqual([842, 842]);
+  expect(await picturesIn(file)).toBe(3);
   await expect(page.locator('[data-save-result]')).toContainText('3 guest cards on 2 pages');
   await page.keyboard.press('Escape');
 
-  // With a back, Back only still gives one back a guest: three pages, or two A4 sheets.
+  // With a back: each guest's front and the one back they all share, drawn once.
   await page.locator('[data-card-side="add"]').click();
-  await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-card-side="add"]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Save as…' }).click();
   await page.getByRole('button', { name: 'Printing' }).click();
+  await page.locator('[data-save-sheet] input[value="card"]').check();
+  download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  file = await download;
+  expect((await pagesOf(file)).length).toBe(6);
+  expect(await picturesIn(file)).toBe(4);
+  // Back only still gives one back a guest: three pages, or two A4 sheets.
   await page.locator('input[name="sides"][value="back"]').check();
   await page.locator('[data-save-sheet] input[value="card"]').check();
   download = page.waitForEvent('download');
@@ -210,6 +240,13 @@ test('a guest list makes one card for each guest: on their own pages, or filling
   // Cleared, with Undo; Save then offers no guest cards.
   await page.locator('[data-card-guest="clear"]').click();
   await expect(page.locator('[data-card-guests]')).toHaveValue('');
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await expect(page.locator('[data-save-guests]')).toBeHidden();
+  await page.keyboard.press('Escape');
+  await page.locator('[data-prism-toast]').filter({ hasText: 'guest list is cleared' }).getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('[data-card-guests]')).toHaveValue(/Col D\. Nair/);
+  await expect(page.locator('[data-card-guest-count]')).toContainText('3 guests');
   expect(errors).toEqual([]);
 });
 

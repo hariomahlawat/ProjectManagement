@@ -121,7 +121,8 @@
     // Settings panel
     // ---------------------------------------------------------------------------
 
-    const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    // Single quotes too, so text is safe inside any attribute.
+    const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     function renderProps() {
       messages.keepingFocus(() => renderPropsNow());
@@ -190,14 +191,17 @@
     /** A size typed in mm, from 50 to 300 a side (docs/ux/invitations-posters.md, PR 5b). */
     function customSizeFields() {
       const [low, high] = core.CUSTOM_LIMITS.mm;
-      const [w, h] = core.sizeOf(state.collage.size).mm || ['', ''];
+      const size = core.sizeOf(state.collage.size);
+      // The page's own size to start from, when it is one a custom size can be (an A3 poster is not).
+      const [w, h] = size.mm && size.mm.every((side) => side >= low && side <= high) ? size.mm : ['', ''];
       const field = (name, value, label) => `<input type="number" class="form-control form-control-sm" min="${low}" max="${high}" step="0.1" inputmode="decimal" value="${value}" data-custom-size="${name}" aria-label="${label} in mm">`;
-      return `<div class="clg-custom-size" role="group" aria-labelledby="clgCustomSizeLabel">
-            <span class="clg-field__label" id="clgCustomSizeLabel">Custom size, ${low} to ${high} mm a side</span>
-            <div class="clg-custom-size__row">${field('width', w, 'Width')}<span aria-hidden="true">×</span>${field('height', h, 'Height')}<span>mm</span>
+      // Folded away until wanted: open for a page that already has a custom size.
+      return `<details class="clg-custom-size" data-custom-fold${size.group === 'custom' ? ' open' : ''}>
+            <summary class="clg-field__label" id="clgCustomSizeLabel">Custom size, ${low} to ${high} mm a side</summary>
+            <div class="clg-custom-size__row" role="group" aria-labelledby="clgCustomSizeLabel">${field('width', w, 'Width')}<span aria-hidden="true">×</span>${field('height', h, 'Height')}<span>mm</span>
               <button type="button" class="btn btn-outline-secondary btn-sm" data-action-custom-size>Use</button></div>
             <p class="clg-hint clg-custom-size__error" data-custom-size-error role="alert" hidden></p>
-          </div>`;
+          </details>`;
     }
 
     /** Uses the size typed in mm, or says why it cannot be used. */
@@ -233,6 +237,7 @@
           ${customSizeFields()}
           <div class="clg-section">
             <p class="clg-section__title">How to</p>
+            ${state.collage.card ? '<p class="clg-hint">On a card or poster, type the words in Card details; click any words or the logo on the page to move, resize or restyle them.</p>' : ''}
             <ul class="clg-tips clg-for-mouse">
               <li>Click a photo to change it; drag it to move it.</li>
               <li>Drag a corner to resize, or the middle of a side to change the frame's shape. Drag the round handle above it to turn it; it clicks to straight and 45°, and Shift gives 15° steps.</li>
@@ -328,6 +333,13 @@
       isOpen: (key) => openFolds.has(key)
     });
     const { arrangeSections, swatches, textSections, switchRow, finishSections } = settingsHtml;
+    /** A colour the user picks by hand stays: the part no longer follows a unit colour for it. */
+    function untint(item, prop) {
+      if (!item.tint || !(prop in item.tint)) return;
+      const { [prop]: dropped, ...rest } = item.tint;
+      if (Object.keys(rest).length) item.tint = rest;
+      else delete item.tint;
+    }
     const layersSection = () => settingsHtml.layersSection(state.collage, state.selectedId);
 
     /** Puts the cursor in the selected text's words, opening its settings. */
@@ -348,7 +360,7 @@
     ui.props.addEventListener('click', (event) => {
       const set = event.target.closest('[data-text-set]');
       if (set) {
-        selection.changeSelected((item) => { item[set.dataset.textSet] = set.dataset.value; });
+        selection.changeSelected((item) => { item[set.dataset.textSet] = set.dataset.value; untint(item, set.dataset.textSet); });
         return;
       }
       const toggle = event.target.closest('[data-text-toggle]');
@@ -361,7 +373,7 @@
         selection.changeSelected((item) => { item.text = text; }, false);
       } else if (event.target.matches('[data-text-colour]')) {
         const value = event.target.value;
-        selection.changeSelected((item) => { item[event.target.dataset.textColour] = value; }, false);
+        selection.changeSelected((item) => { item[event.target.dataset.textColour] = value; untint(item, event.target.dataset.textColour); }, false);
       }
     });
 

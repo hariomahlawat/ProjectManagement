@@ -12,7 +12,7 @@
   'use strict';
 
   function createDraftsScreen(deps) {
-    const { state, parts, change, core, messages, ui, history, doc, screens, surface } = deps;
+    const { state, parts, change, core, messages, ui, history, doc, screens, surface, untouched = () => false } = deps;
     // ---------------------------------------------------------------------------
     // Drafts (kept in this browser)
     // ---------------------------------------------------------------------------
@@ -32,9 +32,12 @@
         // Parts made by a newer PRISM go back in unchanged (docs/ux/invitations-posters.md, PR 2).
         model: core.draftModel(state.collage),
         size: state.collage.size,
+        kind: state.collage.card ? (window.PrismCollageDesigns?.DESIGNS[state.collage.card.design]?.poster ? 'poster' : 'card') : '',
         photos: parts.keptPhotos(),
         thumbnail: ui.views.editor.hidden ? '' : draftThumbnail(),
-        hasContent: doc.hasContent()
+        // A design opened and not changed yet is not worth a draft (it starts at the first change).
+        // A design only opened is not kept; one the user has named is (Codex on #3453).
+        hasContent: doc.hasContent() && (!untouched() || Boolean(ui.nameInput?.value?.trim()))
       }),
       onStatus: (text, warning) => setDraftStatus(text, warning),
       onUndo: (deleted) => showDraftUndo(deleted),
@@ -103,7 +106,8 @@
       parts.transformer.visible(false);
       parts.guides.visible(false);
       // The faint photo shown while a photo is moved in its frame is not part of the collage.
-      const ghosts = parts.stage.find('.adjust-ghost').filter((node) => node.visible());
+      // Nor the dashed fold of a folded card: it is only a guide on screen.
+      const ghosts = parts.stage.find('.adjust-ghost, .fold').filter((node) => node.visible());
       ghosts.forEach((node) => node.visible(false));
       const width = core.PAGE_WIDTH * state.scale;
       try {
@@ -162,7 +166,10 @@
         const meta = document.createElement('small');
         const size = core.isSize(item.size) ? core.sizeOf(item.size).label : '';
         // Each part stays whole; a narrow card breaks the line only between them.
-        const details = [`Saved ${core.savedAgo(item.saved, Date.now())}`, size, `${item.photoCount} photo${item.photoCount === 1 ? '' : 's'}`].filter(Boolean);
+        // A card or poster says what it is; its photos are counted only when it has some.
+        const kind = item.kind === 'card' ? 'Card' : item.kind === 'poster' ? 'Poster' : '';
+        const photosText = kind && !item.photoCount ? '' : `${item.photoCount} photo${item.photoCount === 1 ? '' : 's'}`;
+        const details = [kind, `Saved ${core.savedAgo(item.saved, Date.now())}`, size, photosText].filter(Boolean);
         details.forEach((part, index) => {
           const span = document.createElement('span');
           span.className = 'clg-draft__meta';
@@ -260,7 +267,8 @@
       screens.refreshTitle();
       ui.showSize(state.collage.size);
       screens.showView('editor');
-      parts.setPanel('photos');
+      // A card or poster reopens on its Card details, as it opened from its design.
+      parts.setPanel(state.collage.card ? 'card' : 'photos');
       surface.syncAll();
       if (unreadable) messages.showAlert(`${unreadable === 1 ? 'One photo' : `${unreadable} photos`} of this draft could not be opened just now and ${unreadable === 1 ? 'shows' : 'show'} grey. ${unreadable === 1 ? 'It keeps its' : 'They keep their'} place in the draft. Close other tabs and open the draft again; Save leaves ${unreadable === 1 ? 'it' : 'them'} out until then.`);
       // Undo steps live only while the collage is open; the user is told once, as it opens

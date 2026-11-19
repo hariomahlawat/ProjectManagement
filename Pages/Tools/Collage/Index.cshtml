@@ -50,7 +50,7 @@
     <main class="clg-main">
         @* ---------- Start ---------- *@
         <section class="clg-start" data-view="start" aria-labelledby="clgStartTitle">
-            <h1 id="clgStartTitle" tabindex="-1">Make a collage</h1>
+            <h1 id="clgStartTitle" tabindex="-1">Make a collage, card or poster</h1>
             <p class="clg-lede">Put your photos on a page, turn them to any angle and arrange them as you like. Everything happens in this browser; no photo is sent to PRISM.</p>
             <section class="clg-drafts" data-drafts-section aria-labelledby="clgDraftsTitle" hidden>
                 <div class="clg-drafts__head">
@@ -76,9 +76,12 @@
                         <input type="number" class="form-control form-control-sm" min="50" max="300" step="0.1" inputmode="decimal" data-card-custom-size="height" aria-label="Height in mm" />
                         <span>mm</span>
                         <button type="button" class="btn btn-outline-secondary btn-sm" data-card-custom-use>Use</button>
+                        <button type="button" class="btn btn-link btn-sm" data-card-custom-cancel>Cancel</button>
                     </div>
                     <p class="clg-hint clg-custom-size__error" data-card-custom-error role="alert" hidden></p>
                 </div>
+                <p class="clg-hint clg-card-pocket-hint" data-card-pocket-hint>Car passes, RSVP cards, programme cards and pocket invitations have their own designs: choose a pocket size in the Card size menu.</p>
+                <p class="clg-hint clg-card-small" data-card-small hidden>This card is smaller than A6: a full invitation's smallest words will print under 1.5 mm tall. Shorten the wording, or choose a larger size.</p>
                 <div class="clg-design-grid" data-start-designs></div>
             </section>
             @* Posters (docs/ux/invitations-posters.md, PR 11): no logo until one is picked. *@
@@ -164,7 +167,7 @@
                     <button type="button" class="clg-sheet-close" data-action="close-drawer" aria-label="Close panel"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                     <section data-drawer-panel="card" aria-labelledby="clgCardTitle" hidden>
                         <h2 class="clg-panel-title" id="clgCardTitle">Card details</h2>
-                        <p class="clg-hint">Type here, or click any words on the card. Changing the design keeps every word.</p>
+                        <p class="clg-hint" data-card-hint>Type here, or click any words on the card. Changing the design keeps every word.</p>
                         <p class="clg-section__title">Design</p>
                         <div class="clg-buttons clg-buttons--two clg-card-designs" data-card-designs role="group" aria-label="Design"></div>
                         <div class="clg-card-form" data-card-form></div>
@@ -342,7 +345,7 @@
                 <fieldset class="clg-options clg-save-sides" data-save-sides hidden>
                     <legend>Sides of the card</legend>
                     <label class="clg-option"><input type="radio" name="sides" value="both" checked>
-                        <span><b>Both sides</b><small>A PDF of two pages, front then back, or two pictures.</small></span></label>
+                        <span><b>Both sides</b><small>A PDF of two pages, front then back, or two pictures. <span data-sides-flip></span></small></span></label>
                     <label class="clg-option"><input type="radio" name="sides" value="front">
                         <span><b>Front only</b></span></label>
                     <label class="clg-option"><input type="radio" name="sides" value="back">
@@ -365,6 +368,8 @@
                         <span><b>A4 sheets</b><small data-sheet-note="a4"></small></span></label>
                     <label class="clg-option"><input type="radio" name="sheet" value="a3">
                         <span><b>A3 sheets</b><small data-sheet-note="a3"></small></span></label>
+                    <label class="clg-option"><input type="radio" name="sheet" value="a4edge">
+                        <span><b>A4 sheets, edge to edge</b><small data-sheet-note="a4edge"></small></span></label>
                 </fieldset>
                 <details class="clg-more" data-save-more>
                 <summary>More options <span class="clg-more__hint">type and quality</span></summary>
@@ -396,7 +401,7 @@
                         <span><b>Screen</b><small>1,920 pixels on the long side. Quicker to share.</small></span></label>
                 </fieldset>
                 </details>
-                <p class="clg-hint" data-save-empty hidden></p>
+                <p class="clg-save-empty" data-save-empty role="note" hidden></p>
                 <p class="clg-save-result" data-save-result role="status" hidden></p>
                 <div class="clg-dialog__foot">
                     <button type="button" class="btn btn-outline-secondary" data-action="save-close">Close</button>
@@ -428,6 +433,7 @@
     <script src="~/lib/pdf-lib/1.17.1/dist/pdf-lib.min.js"></script>
     <script src="~/js/photo-tools/photo-tools-core.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-core.js" asp-append-version="true"></script>
+    <script src="~/js/collage/collage-print.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-draw.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-stickers.js" asp-append-version="true"></script>
     <script src="~/js/collage/collage-designs.js" asp-append-version="true"></script>

@@ -31,9 +31,12 @@
    * More options closed. pixels is { width, height }; paper is the page size's label when it is a
    * paper size (A4, A3), else null; target is a typed "keep it under" size such as "500 KB".
    */
-  function saveSummary({ format, quality, pixels, paper = null, target = null }) {
+  function saveSummary({ format, quality, pixels, paper = null, target = null, sheet = null }) {
     const size = `${pixels.width.toLocaleString('en-IN')} × ${pixels.height.toLocaleString('en-IN')} pixels`;
     const how = quality === 'print' ? 'print quality' : 'screen size';
+    // Cards on a print sheet: how many to which sheet, in print words.
+    // "4 × RSVP card 3.5 × 5 in": a size's name is never made plural.
+    if (format === 'pdf' && sheet) return `A PDF at ${how}: ${sheet.count === 1 ? `one ${paper || 'card'}` : `${sheet.count} × ${paper || 'card'}`} to each ${sheet.label} sheet, at true size.`;
     if (format === 'pdf') return `A PDF at ${how}: ${paper ? `${paper} at its true size, ` : ''}${size}.`;
     const kind = format === 'jpeg' ? 'JPG' : 'PNG';
     return `A ${kind} picture at ${how}: ${size}${format === 'jpeg' && target ? `, kept under ${target}` : ''}.`;
@@ -45,11 +48,97 @@
    */
   function leftOutLine(empty, hidden) {
     const parts = [];
-    if (empty === 1) parts.push('The empty frame is left out of the saved picture.');
-    else if (empty > 1) parts.push(`The ${empty} empty frames are left out of the saved picture.`);
+    if (empty === 1) parts.push('The empty frame is left out of the saved picture, so its place stays blank. Add a photo to it, or remove it in Layers.');
+    else if (empty > 1) parts.push(`The ${empty} empty frames are left out of the saved picture, so their places stay blank. Add photos to them, or remove them in Layers.`);
     if (hidden === 1) parts.push('1 hidden item left out; show it from Layers to keep it.');
     else if (hidden > 1) parts.push(`${hidden} hidden items left out; show them from Layers to keep them.`);
     return parts.join(' ');
+  }
+
+  /**
+   * The pages Save makes for a card (PR 8): the sides chosen, front first, with the name each
+   * file gets. A page with one side is saved as it is.
+   */
+  function chosenSides(all, sides) {
+    if (all.length < 2) return { pages: all, names: [''] };
+    if (sides === 'front') return { pages: [all[0]], names: ['front'] };
+    if (sides === 'back') return { pages: [all[1]], names: ['back'] };
+    return { pages: all, names: ['front', 'back'] };
+  }
+
+  /**
+   * One card for each guest (PR 10): { front, back } pages per guest, the name (by `namePage`)
+   * on the side that holds it, `guestSide` (0 the front, 1 the back or a folded card's inside),
+   * and only the sides chosen (`pages`). When the side with the names is not chosen, the other
+   * side still comes once for each guest, so it matches the named side printed apart, and
+   * `namesLeftOut` says the names were not saved.
+   */
+  function guestCards(all, pages, guests, guestSide, namePage) {
+    if (!guests.length) return { cards: null, namesLeftOut: false };
+    const chosen = (page) => pages.includes(page);
+    const cards = guests.map((name) => {
+      const named = namePage(all[guestSide], name);
+      const front = guestSide === 0 ? named : all[0];
+      const back = guestSide === 1 ? named : (all[1] || null);
+      return { front: chosen(all[0]) ? front : null, back: all[1] && chosen(all[1]) ? back : null };
+    });
+    return { cards, namesLeftOut: !chosen(all[guestSide]) };
+  }
+
+  /**
+   * Guest cards on sheets of `count` (PR 10): for each batch, its sheet of fronts, then its sheet
+   * of backs; `pages[i]` goes in slot i (null leaves it empty).
+   */
+  function guestSheets(cards, count) {
+    const sheets = [];
+    for (let start = 0; start < cards.length; start += count) {
+      const batch = cards.slice(start, start + count);
+      for (const which of ['front', 'back']) {
+        if (batch.some((card) => card[which])) sheets.push({ back: which === 'back', pages: batch.map((card) => card[which] || null) });
+      }
+    }
+    return sheets;
+  }
+
+  /**
+   * A guest's name placed by its design moved as far as the line drawn to write on was moved
+   * (`line` where it is now, `designLine` where the design puts it); as it is without both.
+   */
+  function onTheLine(item, line, designLine) {
+    if (!line || !designLine) return item;
+    return { ...item, x: item.x + line.x - designLine.x, y: item.y + line.y - designLine.y };
+  }
+
+  /**
+   * A guest's name in the design's guest field (PR 10): the field's words become the name,
+   * laid out as `layout` says, and it stays set by the same edge as the field (left, right or
+   * the middle).
+   */
+  /**
+   * A guest's name as it is set in `item` (cold review 5): a name too long for one line breaks
+   * before its "and" or "&" ("Brig P. Singh, VSM / and Mrs Singh") when that takes no more lines
+   * than the words would wrap to anyway. `layout` is core.layoutText.
+   */
+  function guestText(item, name, layout) {
+    const joined = /\s+(and|&)\s+/i;
+    if (!joined.test(name)) return name;
+    const plain = layout({ ...item, text: name });
+    if (plain.lines < 2) return name;
+    const broken = name.replace(joined, (_, word) => `${String.fromCharCode(10)}${word} `);
+    return layout({ ...item, text: broken }).lines <= Math.max(2, plain.lines) ? broken : name;
+  }
+
+  function nameInField(field, name, layout) {
+    const named = { ...field, text: name, width: layout.width, aspect: layout.width / layout.height };
+    // A guest's card shows the name, even where the empty line was hidden.
+    delete named.hidden;
+    // The name's last line sits where the field's last line was, on the line drawn to write on:
+    // a longer name grows upwards, and a one-line name in a field that held two moves down to it.
+    const fieldHeight = field.width / field.aspect;
+    named.y = field.y + fieldHeight / 2 - layout.height / 2;
+    if (field.align === 'left') named.x = field.x - field.width / 2 + layout.width / 2;
+    if (field.align === 'right') named.x = field.x + field.width / 2 - layout.width / 2;
+    return named;
   }
 
   /**
@@ -82,7 +171,8 @@
    */
   function createSaveDialog({
     $, core, draw, stickers, measureText, fontsReady, stickerImage,
-    getCollage, photos, announce, showAlert, collageTitle, hasContent, stopAdjust, flushNudge, designs = null
+    getCollage, photos, announce, showAlert, collageTitle, hasContent, stopAdjust, flushNudge, designs = null,
+    print = window.PrismCollagePrint
   }) {
     const saveDialog = $('[data-save-dialog]');
     const saveResult = $('[data-save-result]');
@@ -99,15 +189,21 @@
       // Sides are offered for a card with a back (PR 8).
       const sidesBox = $('[data-save-sides]');
       if (sidesBox) sidesBox.hidden = !getCollage().back;
+      // Which edge to flip on when printing both sides: a folded card and a landscape card on its
+      // own pages flip on the short edge, everything else on the long edge.
+      const flipNote = $('[data-sides-flip]');
+      if (flipNote && getCollage().back) {
+        const size = core.sizeOf(getCollage().size);
+        const onSheets = Boolean(sheetBoxChoice());
+        const short = size.group === 'folded' || (!onSheets && size.mm && size.mm[0] > size.mm[1]);
+        flipNote.textContent = `To print both on one card, flip on the ${short ? 'short' : 'long'} edge${size.group === 'folded' ? ', then fold down the middle' : ''}.`;
+      }
       // A card with a guest list, as a PDF, can be one card for each guest (PR 10).
       const guestsBox = $('[data-save-guests]');
-      // Only where the design has a place for the guest's name (not a car pass or RSVP card).
-      const guestPlace = Boolean(designs?.fieldsOf(getCollage().card?.design, getCollage().size).includes('guest'));
-      const guestCount = guestPlace ? (getCollage().card?.guests?.length || 0) : 0;
       if (guestsBox) {
-        guestsBox.hidden = !(guestCount && chosen('format') === 'pdf');
+        guestsBox.hidden = !guestCardsOffered(chosen('format'));
         const label = guestsBox.querySelector('[data-guest-label]');
-        if (label) label.textContent = `One card for each guest (${guestCount})`;
+        if (label) label.textContent = `One card for each guest (${getCollage().card?.guests?.length || 0})`;
       }
       // A card printed as a PDF can go several to an A4 or A3 sheet (PR 9).
       const sheetBox = $('[data-save-sheet]');
@@ -115,21 +211,40 @@
         const group = core.sizeOf(getCollage().size).group;
         const isCard = ['card', 'pocket', 'custom'].includes(group);
         sheetBox.hidden = !(isCard && chosen('format') === 'pdf');
-        for (const key of Object.keys(core.SHEETS)) {
-          const layout = core.sheetLayout(getCollage().size, key);
+        const flip = getCollage().back ? '; the back sheet lines up when the printer flips on the long edge' : '';
+        // Where edge to edge fits more on the same paper, the sheet with margins says why it fits fewer
+        // (A5 on A4: one with room for cutting, two edge to edge).
+        const edgeMore = (key, fits) => {
+          const edge = Object.keys(print.SHEETS).find((other) => print.SHEETS[other].edge && print.SHEETS[other].mm.join() === print.SHEETS[key].mm.join());
+          const more = edge ? print.sheetLayout(getCollage().size, edge)?.count || 0 : 0;
+          return more > fits ? ` The margins and gaps for cutting leave room for only ${fits === 1 ? 'one' : fits}; ${print.SHEETS[edge].label} fits ${more}.` : '';
+        };
+        for (const key of Object.keys(print.SHEETS)) {
+          const layout = print.sheetLayout(getCollage().size, key);
           const note = sheetBox.querySelector(`[data-sheet-note="${key}"]`);
           const input = sheetBox.querySelector(`input[name="sheet"][value="${key}"]`);
           const fits = layout?.count || 0;
-          if (note) note.textContent = fits ? `${fits} card${fits === 1 ? '' : 's'} to a sheet, with cut marks${getCollage().back ? '; the back sheet lines up when the printer flips on the long edge' : ''}.` : 'The card is too large for this sheet.';
+          // Edge to edge is offered only where it fits more cards than A4 with room for cutting.
+          const offered = !layout?.edge || fits > (print.sheetLayout(getCollage().size, 'a4')?.count || 0);
+          const option = input?.closest('label');
+          if (option) option.hidden = !offered;
+          if (note) {
+            note.textContent = !fits ? 'The card is too large for this sheet.'
+              : layout.edge ? `${fits} cards touching, no cut marks: cut on the card edges${flip}. It needs a printer that prints to the paper's edge; most office printers leave a margin or shrink the page, so print one sheet to check.`
+              : `${fits} card${fits === 1 ? '' : 's'} to a sheet, with cut marks${flip}.${edgeMore(key, fits)}`;
+          }
           if (input) {
-            input.disabled = !fits;
-            if (!fits && input.checked) sheetBox.querySelector('input[name="sheet"][value="card"]').checked = true;
+            input.disabled = !fits || !offered;
+            if (input.disabled && input.checked) sheetBox.querySelector('input[name="sheet"][value="card"]').checked = true;
           }
         }
       }
       const size = core.sizeOf(getCollage().size);
       const pixels = core.savePixels(getCollage().size, 'print');
-      $('[data-print-note]').textContent = size.mm
+      // A PDF's quality in print words; a picture's in pixels.
+      $('[data-print-note]').textContent = chosen('format') === 'pdf'
+        ? `300 dots per inch: sharp in print.`
+        : size.mm
         ? `${pixels.width.toLocaleString('en-IN')} × ${pixels.height.toLocaleString('en-IN')} pixels, 300 dots per inch on ${size.label} paper.`
         : `${pixels.width.toLocaleString('en-IN')} × ${pixels.height.toLocaleString('en-IN')} pixels.`;
       $('[data-pdf-note]').textContent = size.mm
@@ -139,8 +254,12 @@
       targetRow.hidden = !jpeg;
       targetValue.disabled = !targetOn.checked;
       targetUnit.disabled = !targetOn.checked;
-      const empty = getCollage().items.filter((item) => item.kind === 'slot').length;
-      const hidden = getCollage().items.filter((item) => item.kind !== 'slot' && item.hidden).length;
+      // Both sides of a card are counted. The roundel a design hides while there is no logo is
+      // the design's, not something the user hid.
+      const sides = [...getCollage().items, ...(getCollage().back?.items || [])];
+      // A poster's empty logo place is not a photo frame: its own question says it is left out.
+      const empty = sides.filter((item) => item.kind === 'slot' && item.role !== 'logo').length;
+      const hidden = sides.filter((item) => item.kind !== 'slot' && item.hidden && item.role !== 'roundel').length;
       const emptyLine = $('[data-save-empty]');
       emptyLine.textContent = leftOutLine(empty, hidden);
       emptyLine.hidden = !emptyLine.textContent;
@@ -150,7 +269,8 @@
         quality: chosen('quality'),
         pixels: core.savePixels(getCollage().size, chosen('quality')),
         paper: size.mm ? size.label : null,
-        target: targetOn.checked && typed ? `${typed} ${targetUnit.value}` : null
+        target: targetOn.checked && typed ? `${typed} ${targetUnit.value}` : null,
+        sheet: sheetSummary()
       });
     }
 
@@ -210,6 +330,10 @@
       flushNudge();
       stopAdjust();
       saveResult.hidden = true;
+      // The dialog names what is saved: a card, a poster, or a collage.
+      const design = designs?.DESIGNS?.[getCollage()?.card?.design];
+      const heading = saveDialog.querySelector('#clgSaveTitle');
+      if (heading) heading.textContent = design ? (design.poster ? 'Save the poster' : 'Save the card') : 'Save the collage';
       choosePurpose(rememberedPurpose());
       saveMore.open = rememberedMore();
       syncSaveDialog();
@@ -257,35 +381,65 @@
     }
 
     /**
-     * A side of the card with a guest's name in the guest field (PR 10): the field's words, or,
-     * for a design that leaves a line to write on, the field its design has for the name, on the
-     * side that holds it (a folded card's inside).
+     * A side of the card (the one that holds the guest's name) with a guest's name in the guest
+     * field (PR 10): the field's words, or, for a design that leaves a line to write on, the field
+     * its design has for the name. Null when that side is not part of what is saved.
      */
     function namedPage(page, name) {
       if (!page) return null;
       const linked = page.items.find((item) => item.field === 'guest');
+      const layout = (item) => core.layoutText(item, measureText);
       if (linked) {
-        // The name in the guest field, set by the same edge as the field (left, right or middle).
-        const named = { ...linked, text: name };
-        const layout = core.layoutText(named, measureText);
-        if (named.align === 'left') named.x = linked.x - linked.width / 2 + layout.width / 2;
-        if (named.align === 'right') named.x = linked.x + linked.width / 2 - layout.width / 2;
-        named.width = layout.width;
-        named.aspect = layout.width / layout.height;
+        const text = guestText(linked, name, layout);
+        const named = nameInField(linked, text, layout({ ...linked, text }));
         return { ...page, items: page.items.map((item) => (item === linked ? named : item)) };
       }
       // A design that leaves a line to write on: the name in the place its design has for it.
       let n = 0;
-      const made = designs?.fieldItem(getCollage(), 'guest', { ...designs.detailsOf(getCollage()), guest: name }, { measure: measureText, newId: () => `guest${++n}` });
-      return made ? { ...page, items: [...page.items, made] } : page;
+      const opts = { measure: measureText, newId: () => `guest${++n}` };
+      const makeWith = (guest) => designs?.fieldItem(getCollage(), 'guest', { ...designs.detailsOf(getCollage()), guest }, opts);
+      let made = makeWith(name);
+      if (!made) return page;
+      const text = guestText(made, name, layout);
+      if (text !== name) made = makeWith(text) || made;
+      // On the line drawn to write on, wherever the user moved it: the name moves with it.
+      const line = page.items.find((item) => item.role === 'guestline');
+      const designLine = line && designs.roleItemOn(getCollage(), 'guestline', designs.sideOf(getCollage(), 'guest') || 'front', opts);
+      const placed = onTheLine(made, line, designLine);
+      return { ...page, items: [...page.items, placed] };
     }
 
-    /** Cut marks for a sheet layout onto a PDF page `sh` mm tall. */
-    function drawCutMarks(sheet, layout, sh) {
-      const pt = 72 / 25.4;
+    /**
+     * One sheet page of cards with cut marks (PR 9): `images[i]` goes in slot i (none leaves the
+     * slot empty); a back sheet's cards are placed and turned to line up with the fronts.
+     */
+    function addSheet(pdf, layout, images, back) {
+      const pt = print.PT_PER_MM;
+      const [sw, sh] = layout.sheet;
+      const sheet = pdf.addPage([sw * pt, sh * pt]);
+      print.sheetPlacements(layout, back).forEach((place, i) => {
+        if (images[i]) sheet.drawImage(images[i], { ...place, rotate: window.PDFLib.degrees(place.rotate) });
+      });
       const grey = window.PDFLib.rgb(0.35, 0.35, 0.35);
-      for (const [x1, y1, x2, y2] of core.cutMarks(layout)) {
+      // Marks only round the cards the sheet has (the last sheet of guests may not be full).
+      const filled = { ...layout, cards: layout.cards.filter((_, i) => images[i]) };
+      for (const [x1, y1, x2, y2] of [...print.cutMarks(filled), ...print.foldMarks(getCollage().size, filled)]) {
         sheet.drawLine({ start: { x: x1 * pt, y: (sh - y1) * pt }, end: { x: x2 * pt, y: (sh - y2) * pt }, thickness: 0.4, color: grey });
+      }
+    }
+
+    /** One card on its own PDF page; a folded card has fold marks at the top and bottom of its fold. */
+    function addCardPage(pdf, image) {
+      const size = core.pdfPage(getCollage().size);
+      const page = pdf.addPage([size.width, size.height]);
+      page.drawImage(image, { x: 0, y: 0, width: size.width, height: size.height });
+      const marks = print.foldMarks(getCollage().size);
+      if (!marks.length) return;
+      // The page's own height in mm, from its points, so the marks meet its edges exactly.
+      const pt = size.width / core.sizeOf(getCollage().size).mm[0];
+      const grey = window.PDFLib.rgb(0.35, 0.35, 0.35);
+      for (const [x1, y1, x2, y2] of marks) {
+        page.drawLine({ start: { x: x1 * pt, y: size.height - y1 * pt }, end: { x: x2 * pt, y: size.height - y2 * pt }, thickness: 0.4, color: grey });
       }
     }
 
@@ -296,7 +450,6 @@
      * one at a time, each let go before the next.
      */
     async function guestPdf(pdf, cards, fits, sheetKey) {
-      const pt = 72 / 25.4;
       const shared = new Map();
       const imageOf = async (page) => {
         if (shared.has(page)) return shared.get(page);
@@ -312,31 +465,35 @@
         if (cards.length > 1 && cards.every((card) => card.front === page || card.back === page)) shared.set(page, image);
         return image;
       };
-      const layout = sheetKey ? core.sheetLayout(getCollage().size, sheetKey) : null;
+      const layout = sheetKey ? print.sheetLayout(getCollage().size, sheetKey) : null;
       if (!layout?.count) {
-        const size = core.pdfPage(getCollage().size);
         for (const card of cards) {
-          for (const page of [card.front, card.back].filter(Boolean)) {
-            pdf.addPage([size.width, size.height]).drawImage(await imageOf(page), { x: 0, y: 0, width: size.width, height: size.height });
-          }
+          for (const page of [card.front, card.back].filter(Boolean)) addCardPage(pdf, await imageOf(page));
         }
         return;
       }
-      const backLayout = core.sheetLayout(getCollage().size, sheetKey, { back: true });
-      const [sw, sh] = layout.sheet;
-      for (let start = 0; start < cards.length; start += layout.count) {
-        const batch = cards.slice(start, start + layout.count);
-        for (const [which, slots] of [['front', layout], ['back', backLayout]]) {
-          if (!batch.some((card) => card[which])) continue;
-          const sheet = pdf.addPage([sw * pt, sh * pt]);
-          for (const [i, card] of batch.entries()) {
-            if (!card[which]) continue;
-            const slot = slots.cards[i];
-            sheet.drawImage(await imageOf(card[which]), { x: slot.x * pt, y: (sh - slot.y - slot.h) * pt, width: slot.w * pt, height: slot.h * pt });
-          }
-          drawCutMarks(sheet, layout, sh);
-        }
+      const backLayout = print.sheetLayout(getCollage().size, sheetKey, { back: true });
+      for (const sheet of guestSheets(cards, layout.count)) {
+        const images = [];
+        for (const page of sheet.pages) images.push(page ? await imageOf(page) : null);
+        addSheet(pdf, sheet.back ? backLayout : layout, images, sheet.back);
       }
+    }
+
+    /** The print sheet chosen and how many cards fit on it, for the summary; null for none. */
+    function sheetSummary() {
+      const key = sheetBoxChoice();
+      const layout = key ? print.sheetLayout(getCollage().size, key) : null;
+      return layout?.count ? { count: layout.count, label: print.SHEETS[key].label.replace(', edge to edge', ' (edge to edge)') } : null;
+    }
+
+    /**
+     * Whether Save offers one card for each guest (PR 10): a PDF of a card with a guest list whose
+     * design has a place for the guest's name. The one rule for the dialog and for Save itself.
+     */
+    function guestCardsOffered(format) {
+      const collage = getCollage();
+      return format === 'pdf' && Boolean(collage.card?.guests?.length) && Boolean(designs?.fieldsOnCard(collage).includes('guest'));
     }
 
     /** The sheet chosen for a card's PDF (PR 9), or null for each card on its own page. */
@@ -344,7 +501,7 @@
       const box = $('[data-save-sheet]');
       if (!box || box.hidden) return null;
       const value = chosen('sheet');
-      return core.SHEETS[value] ? value : null;
+      return print.SHEETS[value] ? value : null;
     }
 
     async function saveCollage() {
@@ -374,23 +531,18 @@
         // A card with a back (docs/ux/invitations-posters.md, PR 8): the sides chosen, front
         // first; a PDF gets a page for each, a picture a file for each.
         let all = core.pagesOf(getCollage());
-        const sides = all.length > 1 ? (chosen('sides') || 'both') : 'front';
-        const pages = all.length > 1 ? (sides === 'front' ? [all[0]] : sides === 'back' ? [all[1]] : all) : all;
-        const names = all.length > 1 ? (sides === 'both' ? ['front', 'back'] : [sides]) : [''];
+        const { pages, names } = chosenSides(all, all.length > 1 ? (chosen('sides') || 'both') : 'front');
         // One card for each guest (PR 10): the front once a guest, their name on it, then the back.
-        const guests = format === 'pdf' && !$('[data-save-guests]')?.hidden && chosen('guests') === 'each' ? (getCollage().card?.guests || []) : [];
+        const guests = guestCardsOffered(format) && chosen('guests') === 'each' ? getCollage().card.guests : [];
         // The name goes on the side the design puts the guest's name (a folded card's inside).
         // The side that holds a guest field (one the user locked stays where it is), else the
         // side the design puts it on.
         const holdsGuest = (page) => Boolean(page?.items.some((item) => item.field === 'guest'));
         const guestSide = holdsGuest(all[0]) ? 0 : holdsGuest(all[1]) ? 1 : designs?.sideOf(getCollage(), 'guest') === 'back' ? 1 : 0;
-        const chosenPage = (page) => pages.includes(page);
-        const cards = guests.length ? guests.map((name) => {
-          const named = namedPage(all[guestSide], name);
-          const front = guestSide === 0 ? named : all[0];
-          const back = guestSide === 1 ? named : (all[1] || null);
-          return { front: chosenPage(all[0]) ? front : null, back: all[1] && chosenPage(all[1]) ? back : null };
-        }) : null;
+        // Each name is measured in the card's own fonts, so it keeps its edge: they load first.
+        if (guests.length) await fontsReady?.();
+        // The side that holds the names not being saved: one copy, as it is, and a word why.
+        const { cards, namesLeftOut } = guestCards(all, pages, guests, guestSide, namedPage);
         const stem = core.fileStem(collageTitle());
         saveLeftOut = 0;
         saveStickersLeftOut = 0;
@@ -439,20 +591,14 @@
             files.push({ bytes, type: 'image/jpeg', name: `${stem}${suffix}.jpg` });
           } else {
             const image = await pdf.embedJpg(await renderer.toBytes(canvas, 'image/jpeg', 0.92));
-            const sheetKey = sheetBoxChoice();
-            const layout = sheetKey ? core.sheetLayout(getCollage().size, sheetKey, { back: names[index] === 'back' }) : null;
+            // The sheet chosen when Save was pressed, for every page of this PDF.
+            const sheetKey = pdfSheet;
+            const layout = sheetKey ? print.sheetLayout(getCollage().size, sheetKey, { back: names[index] === 'back' }) : null;
             if (layout?.count) {
-              // As many as fit, with cut marks in the gaps; mm to PDF points, from the bottom.
-              const pt = 72 / 25.4;
-              const [sw, sh] = layout.sheet;
-              const sheet = pdf.addPage([sw * pt, sh * pt]);
-              for (const slot of layout.cards) {
-                sheet.drawImage(image, { x: slot.x * pt, y: (sh - slot.y - slot.h) * pt, width: slot.w * pt, height: slot.h * pt });
-              }
-              drawCutMarks(sheet, layout, sh);
+              // As many as fit, with cut marks in the gaps.
+              addSheet(pdf, layout, layout.cards.map(() => image), names[index] === 'back');
             } else {
-              const page = core.pdfPage(getCollage().size);
-              pdf.addPage([page.width, page.height]).drawImage(image, { x: 0, y: 0, width: page.width, height: page.height });
+              addCardPage(pdf, image);
             }
           }
           renderer.release(canvas);
@@ -465,7 +611,9 @@
         const sizeText = photoTools ? photoTools.formatBytes(total) : `${Math.ceil(total / 1000)} KB`;
         const saved = files.length === 1 ? `Saved “${files[0].name}”` : `Saved ${files.map((file) => `“${file.name}”`).join(' and ')}`;
         const pageNote = cards && cards.length ? `${cards.length} guest cards on ${pageCount} page${pageCount === 1 ? '' : 's'}` : pdf && pages.length > 1 ? `${pages.length} pages` : null;
-        const parts = [saved, pageNote, `${width.toLocaleString('en-IN')} × ${height.toLocaleString('en-IN')} pixels`, sizeText].filter(Boolean);
+        const namesNote = namesLeftOut ? `The guests' names go on the ${designs.isFolded(getCollage().size) ? 'inside' : guestSide ? 'back' : 'front'}, which was not saved, so the ${guestSide ? 'outside' : 'back'} was saved once for each guest, without names` : null;
+        const pixelsNote = pdf ? null : `${width.toLocaleString('en-IN')} × ${height.toLocaleString('en-IN')} pixels`;
+        const parts = [saved, pageNote, namesNote, pixelsNote, sizeText].filter(Boolean);
         let line = `${parts.join(' · ')}.`;
         if (fits.scaled) {
           const dpi = core.paperDpi(getCollage().size, fits.width);
@@ -493,5 +641,5 @@
     });
   }
 
-  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops });
+  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops, chosenSides, guestCards, guestSheets, nameInField, guestText, onTheLine });
 });

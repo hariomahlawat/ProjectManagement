@@ -267,7 +267,8 @@
       if (item.kind === 'slot') {
         node.findOne('.slot-box').setAttrs({ width: item.width, height, cornerRadius: item.radius || 0 });
         const size = Math.max(10, Math.min(item.width, height) * 0.12);
-        node.findOne('.slot-label').setAttrs({ width: item.width, height, fontSize: size, lineHeight: 1.25 });
+        // A poster's logo place says what goes there (cold review fixes).
+        node.findOne('.slot-label').setAttrs({ width: item.width, height, fontSize: size, lineHeight: 1.25, text: item.role === 'logo' ? '＋\nAdd logo' : '＋\nAdd photo' });
         return;
       }
       // A photo is drawn from the model by drawPhotoNode(); it only needs drawing again.

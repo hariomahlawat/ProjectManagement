@@ -391,11 +391,12 @@
     if (designKey && window.PrismCollageDesigns.DESIGNS[designKey]) {
       const designs = window.PrismCollageDesigns;
       // A poster starts with a poster's wording (PR 11).
-      const details = designs.DESIGNS[designKey].poster ? designs.POSTER_DETAILS : designs.DEFAULT_DETAILS;
+      const details = designs.startDetails(designKey);
       collage = frozen(designs.applyDesign(collage, designKey, details, { measure: measureText, newId: newItemId }));
     }
     changes.start(collage);
     // A new draft: it is first stored once it has a photo.
+    openedUntouched = Boolean(designKey);
     session.begin({ id: nextId('d'), off: !room });
     if (!room) setDraftStatus('Not kept as a draft', true);
     nameInput.value = '';
@@ -404,6 +405,9 @@
     showView('editor');
     card?.refresh();
     setPanel(collage.card ? 'card' : 'photos');
+    // A new collage opens its panel at the top (the designs), not where the last one was scrolled.
+    const drawer = document.getElementById('clgDrawer');
+    if (drawer) drawer.scrollTop = 0;
     syncAll();
   }
 
@@ -475,7 +479,9 @@
     flushNudge();
     // Only a page that never had a photo has nothing to lose; a saved draft whose last photo
     // was just removed still has that change to write.
-    if (!draft.created && !hasContent()) return;
+    // A design opened and not changed has nothing to lose either (no draft is kept for it).
+    // A card only opened from a design is not worth keeping, unless the user has named it.
+    if (!draft.created && (!hasContent() || (openedUntouched && !nameInput.value.trim()))) return;
     // Saved as a draft already, and not being written now: nothing is lost by leaving.
     if (draft.created && !session.pending && !session.writing && !session.failed) return;
     session.saveNow();
@@ -500,7 +506,8 @@
     drafts, session, setDraftStatus, scheduleDraft, freshThumbnail, renderDrafts, undoDeleteDraft,
     openDraft
   } = window.PrismCollageDraftsScreen.createDraftsScreen({
-    state, parts: laterParts, change: changesFor('setThumbnail', 'setCollage', 'nextOpenRequest'), core, messages, ui, history, doc, screens, surface
+    state, parts: laterParts, change: changesFor('setThumbnail', 'setCollage', 'nextOpenRequest'), core, messages, ui, history, doc, screens, surface,
+    untouched: () => openedUntouched
   });
   // ---------------------------------------------------------------------------
   // Selection, toolbar and the angle while turning
@@ -704,11 +711,23 @@
   /** A finished change: one Undo step, kept in the draft, and the page and panels redrawn. */
   function commit() {
     changeMadeAfterAlert();
+    // A card's back shows the front's logo, however the front's logo was changed (deleted or
+    // replaced on the page too): kept in the same Undo step.
+    if (collage.card && collage.back) {
+      const followed = window.PrismCollageDesigns.followLogo(collage, { measure: measureText, newId: newItemId });
+      if (followed !== collage) edit(() => followed, 'none');
+    }
     changes.commit();
   }
 
+  // A card or poster just opened from a design and not changed yet: no draft is kept for it, so
+  // looking through the designs does not fill the drafts. The first change keeps it.
+  let openedUntouched = false;
+
   /** After an Undo step is recorded: everything for a commit, the title and buttons otherwise. */
   function afterRecorded(kind) {
+    // Any recorded change (typed words included) means the card is worth a draft now.
+    openedUntouched = false;
     // An unnamed collage's title follows its first words, typed or not.
     refreshTitle();
     updateUndo();
@@ -841,9 +860,9 @@
     stopAdjust(false);
   }
 
-  /** Photos in the tray that are not on the page, in the order they were added. */
+  /** Photos in the tray on neither side of the card, in the order they were added. */
   const sparePhotos = () => {
-    const used = new Set(collage.items.filter((item) => item.kind === 'photo').map((item) => item.photo));
+    const used = new Set([...collage.items, ...(collage.back?.items || [])].filter((item) => item.kind === 'photo').map((item) => item.photo));
     return [...photos.keys()].filter((id) => !used.has(id) && !photos.get(id).removed);
   };
 
@@ -923,12 +942,12 @@
   const saveAs = window.PrismCollageSave.createSaveDialog({
     $, core, draw, stickers, measureText, fontsReady, stickerImage,
     getCollage: () => collage,
-    photos, announce, showAlert, collageTitle, hasContent, stopAdjust, flushNudge, designs: window.PrismCollageDesigns
+    photos, announce, showAlert, collageTitle, hasContent, stopAdjust, flushNudge, designs: window.PrismCollageDesigns, print: window.PrismCollagePrint
   });
 
   // Invitation cards: the start screen's designs and the Card details panel (collage-card.js).
   card = window.PrismCollageCard.createCard({
-    state, core, draw, designs: window.PrismCollageDesigns, stickers, ui, doc, history, messages, surface, selection, screens, parts: laterParts
+    state, core, draw, designs: window.PrismCollageDesigns, print: window.PrismCollagePrint, stickers, ui, doc, history, messages, surface, selection, screens, parts: laterParts
   });
   // The keyboard (shortcuts, nudges, Enter and Esc) and the mouse wheel (collage-keys.js).
   window.PrismCollageKeys.createKeys({

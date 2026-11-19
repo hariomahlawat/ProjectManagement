@@ -89,10 +89,35 @@ its npm package by hand; the libman entry records the version.
   - **Card panel:** a card has a **Card** button at the top of the rail, which opens **Card
     details**. It has:
     - the designs, with the current one pressed;
-    - a field for each part of the wording: occasion (with quick picks such as Raising Day Dinner,
-      Barakhana and Change of Command), host, invitation line, guest's name (empty leaves a line
-      to write it on), the words before the occasion, date and time, venue, dress (with quick
-      picks), R.S.V.P. and the note at the bottom.
+    - first, under **Words**, a field for each part of the wording in the order the card reads:
+      host, invitation line, guest's name (empty leaves a line to write it on), the words before
+      the occasion, occasion (with quick picks such as Raising Day Dinner, Barakhana and Change of
+      Command), date and time, venue, dress (with quick picks, at least 36 px tall on a touch
+      screen), R.S.V.P. and the note at the bottom;
+    - then the logo, the back of the card, the unit colours and the guest list. A poster's panel
+      (**Poster details**) has no back or guest list, and its Save dialog says **Save the
+      poster** (a card's says **Save the card**).
+  - **Posters** ask **Which logo goes on this poster?** at the top of Poster details until it is
+    answered: Your own logo…, No logo or Decide later (or a crest under Logo). Poster details
+    list the words in the order the poster reads, ending with the contact line.
+  - **Bilingual:** an occasion quick pick fills in the Hindi occasion too; the other Hindi fields
+    say they are not translated for the user.
+  - **Guest list** only on a design with a place for the guest's name (not on a car pass, RSVP
+    or programme card); it shows the first three names as they will print. A list's Honours
+    column follows each name after a comma. A visiting-card size does not offer the pocket
+    invitation, which would be too small to read. The start screen says the pocket designs come
+    with a pocket size. A custom size smaller than A6 offers the pocket designs first, then the
+    others. Changing a card to a size its design does not suit (a full invitation to a pocket
+    card) moves it to the nearest design offered (the pocket invitation, or the car pass where
+    that does not fit; a pocket card to Classic ivory), says so, and offers Undo.
+  - **Occasion quick picks** read as English after "at the": Change of Command Parade, Farewell
+    Dinner; At Home makes the words before it "at an" (words typed there stay as typed).
+  - **Drafts** list a card or poster as such, and reopen it on Card details.
+  - **Drafts:** a card or poster opened from a design is kept as a draft from its first change,
+    so looking through the designs keeps none. Tab after typing in Card details goes to the next
+    field: the panel is drawn again only once focus has landed.
+  - **Phones:** the start screen shows cards and posters first, as on a wide screen, each in one
+    row that scrolls sideways. The custom card size box closes with **Cancel** or Escape.
   - **Typing:** typing in a field changes the words on the card at once. They're kept in the
     draft, and recorded for Undo when typing pauses, as on the page. Words typed on the card show
     in the field the next time the panel is drawn. A field emptied takes its words off the card;
@@ -112,38 +137,68 @@ its npm package by hand; the libman entry records the version.
     Changing the design rebuilds both sides and keeps the side showing. **Delete the back**
     offers Undo. In the model the side not showing is in `back` (its background and items), and
     `side: "back"` says the back shows; `core.flipSide` turns the card over and `core.pagesOf`
-    gives the pages front first.
+    gives the pages front first. A draft stores the side that was showing at the top, the other
+    in `back`, and `side: "back"` when the back was showing, as the PRISM before this work does, so
+    each reads the other's drafts the right way round (code review 7); the reader turns it front
+    first. A field is on one
+    side only (`designs.partsFor`): a programme card, which has its programme on the front, gets
+    a back without a second programme. Your own logo still being read when the card is turned
+    over goes to the photo tray, since the logo belongs to the front. Saved with both sides, the
+    dialog says which edge to flip on: the long edge, or the short edge for a folded card or a
+    landscape card on its own pages.
 
     **Print sheets** (PR 9): a card, pocket card or custom size saved as a PDF can go **on A4
-    sheets** or **on A3 sheets**, or each card on its own page. The note says how many fit.
+    sheets** or **on A3 sheets**, or each card on its own page. The note says how many fit, and
+    the summary line says how many cards go to each sheet. Where it fits more, **A4 sheets, edge
+    to edge** packs the cards touching, with no margin, gaps or cut marks (4 A6, 2 A5 or 8 A7 on
+    A4): it needs a printer that prints to the paper's edge, and the note says so.
     - There are 8 mm margins and 4 mm gaps. On A4 that's 2 A6, 4 A7 or 10 visiting-card passes;
       A5 is exactly half of A4, so one A5 goes on an A4 sheet.
     - The sheet is turned whichever way holds more.
-    - Thin cut marks sit in the gaps at each card's corners.
+    - Thin cut marks sit in the gaps at each card's corners. A folded card also has fold marks:
+      short lines just inside the top and bottom edges of the flat card, at its middle, on both
+      sides (a folded card is saved one to a page, so never on a sheet).
     - With a back, the back sheet follows the front sheet, mirrored so each back lands behind
       its front when the printer flips on the long edge: across an upright sheet, top to bottom
-      on a turned one.
+      on a turned one. On a turned sheet each back is also drawn turned 180°, so a cut card
+      turned over like a book page reads upright, as it does from an upright sheet.
 
-    `core.sheetLayout` and `core.cutMarks` work in mm.
+    In `collage-print.js` (print sheets and guest lists, pure and tested in Node), `print.sheetLayout`
+    and `print.cutMarks` work in mm; `print.sheetPlacements` gives each card's
+    place on the PDF page in points, turned or not, for both Save paths.
 
     **Guest list** (PR 10): Card details has a **Guest list**. Names can be pasted or typed one
-    a line, or read from a .txt file (whole lines) or a .csv file (the first column; quotes
-    allowed). A first line "Name" is left out; there are at most 300 names of 120 characters
-    each. **Clear names** offers Undo. The names are kept in the card's `guests`, in the draft in
+    a line, or read from a .txt file (whole lines) or a .csv file. In a CSV whose first row has
+    headings, a guest's name is made from the rank columns, then the name columns (Rank, Name,
+    Unit or Name, Rank give "Brig P. Singh"; First name, Surname gives both). "Officer", "Guest"
+    and "Invitee" head a name column; a rank column with an unknown heading after it takes that
+    column as the name. With no headings, it is the first column. A file may be UTF-8, UTF-16 (a
+    spreadsheet's "Unicode Text") or ANSI (Windows-1252); control characters never print. Quoted cells may hold commas and line breaks; a CSV saved with semicolons is
+    read too. A heading line ("Name", "Guests") is left out; there are at most 300 names of 120
+    characters each, and names past 300 are counted and the user is told how many were left out.
+    If the side that holds the names is not saved (a folded card's outside, or a flat card's
+    back, only), that side still comes once for each guest, so it matches the named side
+    printed apart, and the result says the names were not saved. **Clear names** offers Undo. The names are kept in the card's `guests`, in the draft in
     this browser only, and stay through design changes.
 
     Saved as a PDF, **One card for each guest** puts each guest's name in the guest field (or in
-    the place the design has for it, where it leaves a line), in the list's order. Each card goes
+    the place the design has for it, where it leaves a line), in the list's order. A name too long
+    for one line breaks before its "and" or "&" when that takes no more lines. Each card goes
     on its own page (with the back after it), or fills the chosen A4 or A3 sheets, each sheet of
-    fronts followed by its sheet of backs. Cards are drawn one at a time, so memory stays at one
-    card; the result says how many cards on how many pages.
+    fronts followed by its sheet of backs. Cards are drawn one canvas at a time, each let go before
+    the next, and a page all guests share (the back) is drawn once; each card's picture stays in
+    the PDF until it is saved, so a long list makes a large PDF (300 A5 cards, about 69 MB). The
+    result says how many cards on how many pages.
 
     **Folded cards** (PR 9c): **Folded A6 card** (an A5 sheet) and **Folded A5 card** (an A4
     sheet) are in the size menus' **Folded cards** group. A folded card is always two-sided:
     - its **outside** has the back cover on the left (the note) and the front cover on the right
-      (the logo and the occasion);
-    - its **inside** has the invitation on the left (host, invitation line, guest line) and the
-      details on the right (when, where, dress, R.S.V.P.).
+      (the logo and the host, who sends it);
+    - its **inside** has the invitation on the left (the invitation line and the guest line) and
+      the occasion and details on the right ("at the", the occasion, when, where, dress,
+      R.S.V.P.); a Bilingual card adds its Hindi invitation and occasion.
+
+    Each field is on one side only, so the host is on the cover, not inside again.
 
     Every card design gives it these panels in its own colours. Card details calls the sides
     **Outside** and **Inside**, with no Delete. Inside fields are typed whichever side shows. A
@@ -157,8 +212,12 @@ its npm package by hand; the libman entry records the version.
     - **Your own logo…**: a PNG, JPG or WEBP read in this browser like a photo, kept with the
       draft, never sent to PRISM; a PNG keeps its clear background in the PNG and PDF;
     - **Add a second logo**: beside the first, or the two side by side when the first is in the
-      middle;
-    - **Remove logo**, with Undo.
+      middle. The second logo is named under the choices and has its own **Remove second logo**;
+    - **Remove logo**, with Undo. With two logos it is **Remove first logo**, and the second
+      becomes the card's logo in the logo's place.
+
+    The Regimental design's roundel behind the logo follows it: hidden with no logo, as wide as
+    both logos when there are two.
 
     The logo is the item with `role: "logo"`. Changing the design keeps it (placed and sized by
     the new design), a removed logo stays removed, and a second logo (`role: "logo2"`) stays
@@ -190,10 +249,15 @@ its npm package by hand; the libman entry records the version.
   - A size out of range is refused with the reason.
   - The size is kept as `mm:<width>x<height>` (for example `mm:120x180`). It's read back from
     drafts, listed under **Custom** in the menus, saved at 300 dpi, and its PDF page is that paper
-    size.
+    size. A custom card smaller than A6 (a side under 100 mm, or less paper than 100 × 148 mm) gets
+  a note on the start screen that its smallest words will print under 1.5 mm tall.
 - **Words that fit a width** (PR 4): a text item may carry a `maxWidth`. Its words then wrap onto
-  new lines within it, up to `maxLines` (3 unless set), and if they still don't fit, the letters
-  get smaller, down to 40% of the size. The words typed never change, only how they're laid out.
+  new lines within it, up to `maxLines` (3 unless set, at most 12; lines the user breaks always
+  count), and if they still don't fit, the letters get smaller, down to 40% of the size. A single
+  word too long even then (a long unbroken name) is broken between letters. Text items hold up to
+  1,000 characters (and fit to up to 12 lines). A PRISM older than this one cuts such text to
+  300 characters and 6 lines when it opens the draft, so going back a release shortens long
+  programmes in drafts made since. The words typed never change, only how they're laid out.
   Curved words aren't fitted. Dragging a corner of fitted words makes the width grow with them.
   The card designs (PR 4b) set this, so a long occasion never runs off a card.
 - **Photos**: add up to 60 photos (JPEG, PNG, WEBP, GIF or BMP, at most 50 MB each) by the
@@ -268,7 +332,9 @@ its npm package by hand; the libman entry records the version.
 | `wwwroot/js/collage/collage-core.js` (`window.PrismCollage`) | The collage as plain JSON and every pure rule: sizes, layouts, crop and pan, frames, shapes, looks, text layout, snapping, lining up, Save sizes, reading a draft back safely, undo history |
 | `wwwroot/js/collage/collage-draw.js` (`window.PrismCollageDraw`) | Drawing a photo, text, sticker, shape (line, rectangle, oval) and background on a 2D canvas. The editor uses it inside Konva shapes and Save uses it on its own canvas, so **the saved picture always matches the screen** |
 | `wwwroot/js/collage/collage-designs.js` (`window.PrismCollageDesigns`) | Ready-made card designs as data ([ux/invitations-posters.md](ux/invitations-posters.md), PR 4b and PR 6). There are six:
-  - **Classic ivory** and **Navy and gold**;
+  - **Classic ivory** and **Navy and gold**. These and Regimental set the host in engraved
+    capitals (Cinzel, the Engraved font) and the invitation line in formal script (Pinyon Script,
+    Formal script), on flat and folded cards;
   - **Regimental**: three bands in the unit's colours with the logo in a roundel. The host's words, the dress and the rules follow the same colours, set under **Unit colours** in Card details and kept in the card's `colours` detail. Each part that follows a colour records which in `tint`;
   - **Ceremonial photo**: a frame for the user's own photo, `role: "photo"`. A photo put in it moves to the next design's frame with its crop, or stays as the user's own when that design has none. An emptied frame stays the design's;
   - **Bilingual**: Hindi and English side by side, with `hostHi`, `inviteHi` and `occasionHi`. Card details shows those fields only for this design; it shows only the fields the current design uses;
@@ -345,7 +411,8 @@ sat behind. A text item's font that this page doesn't
 ship keeps its name and draws in the clean font. On opening, the toast says how many parts were
 "made by a newer PRISM" and are kept but not shown. A photo named only inside a kept part stays in
 the draft. The model version stays 1 for such additions; a draft whose version is higher is still
-not opened. Only names a PRISM could write are kept (short, lower case, no markup), up to 500
+not opened. Only names a PRISM could write are kept (short, letters first, no markup; field
+names may be camelCase, as `logoMode` is), up to 500
 items and about 2 million characters.
 
 ### Keys

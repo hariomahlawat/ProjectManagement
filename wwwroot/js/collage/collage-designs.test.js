@@ -110,7 +110,7 @@ test('an unknown design changes nothing; a draft drops a bad card', () => {
   assert.equal(designs.applyDesign(plain, 'nope', {}, { measure, newId }), plain);
   const read = core.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: '<b>', details: { occasion: 'x' } } }, []);
   assert.equal(read.card, undefined);
-  const odd = core.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: { occasion: 7, '<x>': 'y', venue: 'v'.repeat(400) } } }, []);
+  const odd = core.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: { occasion: 7, '<x>': 'y', venue: 'v'.repeat(1200) } } }, []);
   assert.deepEqual(Object.keys(odd.card.details), ['venue']);
   assert.equal(odd.card.details.venue.length, core.TEXT_LIMITS.maxLength);
 });
@@ -146,24 +146,24 @@ test('a field deleted on the page stays empty when the design changes; a duplica
   assert.equal(copy.field, undefined);
   assert.equal(copy.role, undefined);
   assert.equal(copy.text, note.text);
-  assert.deepEqual(designs.fieldsOf('classic', 'a5l').includes('at'), false);
-  assert.deepEqual(designs.fieldsOf('classic', 'a5p').includes('at'), true);
+  assert.deepEqual(designs.fieldsOf('reply', 'a7l').includes('replyCount'), false);
+  assert.deepEqual(designs.fieldsOf('reply', 'a7p').includes('replyCount'), true);
 });
 
 test('a field the design never placed keeps its words when the page is turned', () => {
-  // Classic landscape has no place for "at the"; turned to portrait without a new design, the
-  // words are still the card's, not taken as deleted.
-  const wide = designs.applyDesign(core.newCollage('a5l'), 'classic', { at: 'at the' }, { measure, newId });
-  assert.ok(!wide.items.some((item) => item.field === 'at'));
-  assert.ok(!wide.card.placed.includes('at'));
-  const turned = core.changeSize(wide, 'a5p');
-  assert.equal(designs.detailsOf(turned).at, 'at the');
-  const portrait = designs.applyDesign(turned, 'classic', designs.detailsOf(turned), { measure, newId });
-  assert.equal(portrait.items.find((item) => item.field === 'at').text, 'at the');
+  // The RSVP card landscape has no place for the number attending; turned to portrait without
+  // a new design, its words are still the card's, not taken as deleted.
+  const wide = designs.applyDesign(core.newCollage('a7l'), 'reply', { replyCount: 'Number attending' }, { measure, newId });
+  assert.ok(!wide.items.some((item) => item.field === 'replyCount'));
+  assert.ok(!wide.card.placed.includes('replyCount'));
+  const turned = core.changeSize(wide, 'a7p');
+  assert.equal(designs.detailsOf(turned).replyCount, 'Number attending');
+  const portrait = designs.applyDesign(turned, 'reply', designs.detailsOf(turned), { measure, newId });
+  assert.equal(portrait.items.find((item) => item.field === 'replyCount').text, 'Number attending');
   // A draft keeps the placed fields.
   const read = core.readDraftModel(JSON.parse(JSON.stringify(portrait)), []);
-  assert.ok(read.card.placed.includes('at'));
-  assert.deepEqual(core.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: {}, placed: ['at', '<x>', 7] } }, []).card.placed, ['at']);
+  assert.ok(read.card.placed.includes('replyCount'));
+  assert.deepEqual(core.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'ceremonial', details: {}, placed: ['at', '<x>', 7] } }, []).card.placed, ['at']);
 });
 
 test('a draft keeps the Hindi wording and the unit colours of a card', () => {
@@ -208,7 +208,7 @@ test('the Regimental band takes the unit\'s colours, and the parts that follow t
   assert.ok(!designs.fieldsOf('classic').includes('occasionHi'));
 });
 
-test('a card keeps its logo when the design changes; a removed logo stays removed; a second logo stays put', () => {
+test('a card keeps its logo when the design changes; a removed logo stays removed; a second logo goes beside it', () => {
   const card = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
   // The user's own logo in place of the SDD one, and a second logo beside it.
   const own = card.items.map((item) => (item.role === 'logo' ? { ...core.photoItem(item.id, 'p9', 1.2, item), role: 'logo' } : item));
@@ -218,7 +218,9 @@ test('a card keeps its logo when the design changes; a removed logo stays remove
   const logo = navy.items.find((item) => item.role === 'logo');
   assert.deepEqual([logo.kind, logo.photo, logo.aspect], ['photo', 'p9', 1.2]);
   const logo2 = navy.items.find((item) => item.role === 'logo2');
-  assert.deepEqual([logo2.sticker, logo2.x], ['unit:5', 800], 'the second logo stays where the user put it');
+  const navyLogo = navy.items.find((item) => item.role === 'logo');
+  assert.equal(logo2.sticker, 'unit:5', 'the second logo is kept');
+  assert.ok(Math.abs(logo2.y - navyLogo.y) < 0.5, 'and placed beside the logo of the design');
   // Removed: no logo comes back with the next design.
   const without = { ...card, items: card.items.filter((item) => item.role !== 'logo') };
   const regimental = designs.applyDesign(without, 'regimental', designs.detailsOf(without), { measure, newId });
@@ -237,7 +239,8 @@ test('a card gets a back in its design, turns over, keeps both sides through a d
   const backField = (c, field) => [...c.items, ...(c.back?.items || [])].find((item) => item.field === field);
   assert.equal(backField(two, 'programmeTitle').text, 'Programme');
   assert.match(backField(two, 'programme').text, /Guests arrive/);
-  assert.ok(two.back.items.some((item) => item.role === 'backphoto' && item.kind === 'slot'));
+  // No empty photo frame on the back: one saved empty left a hole (cold review 6).
+  assert.ok(!two.back.items.some((item) => item.kind === 'slot'));
   assert.equal(two.back.items.find((item) => item.role === 'backlogo').sticker, 'logo:sdd', 'the back shows the front\'s logo');
   // Turned over: the back is the side shown and edited; turned again, as it was.
   const over = core.flipSide(two);
@@ -258,7 +261,7 @@ test('a card gets a back in its design, turns over, keeps both sides through a d
   assert.deepEqual(navy.back.background, { type: 'gradient', key: 'navy' }, 'the navy front, now behind');
   assert.equal(navy.back.items.find((item) => item.field === 'occasion').text, 'Raising Day Dinner');
   // A draft keeps both sides and the side showing.
-  const read = core.readDraftModel(JSON.parse(JSON.stringify(navy)), []);
+  const read = core.readDraftModel(JSON.parse(JSON.stringify(core.draftModel(navy))), []);
   assert.equal(read.side, 'back');
   assert.equal(read.back.items.length, navy.back.items.length);
   // Deleted, the card shows its front alone.
@@ -312,7 +315,9 @@ test('deleting the back keeps the programme as it was edited, for a new back', (
 
 // Pocket cards (PR 9b).
 test('pocket sizes are offered the pocket designs, and cards the others', () => {
-  assert.deepEqual(designs.designsFor('passl').map((d) => d.key), ['pass', 'reply', 'programmecard', 'pocketinvite']);
+  // A visiting card is too small for a whole pocket invitation; A7 has all four.
+  assert.deepEqual(designs.designsFor('passl').map((d) => d.key), ['pass', 'reply', 'programmecard']);
+  assert.deepEqual(designs.designsFor('a7p').map((d) => d.key), ['pass', 'reply', 'programmecard', 'pocketinvite']);
   assert.ok(designs.designsFor('a5p').every((d) => !d.pocket));
   assert.ok(designs.designsFor('mm:120x180').every((d) => !d.pocket));
   const pass = designs.applyDesign(core.newCollage('passl'), 'pass', {}, { measure, newId });
@@ -371,7 +376,7 @@ test('posters: no logo until one is chosen, the heading moves up with No logo, e
   assert.deepEqual(designs.designsFor('a3p', 'poster').map((d) => d.key), ['event', 'notice', 'photoposter', 'talk']);
   assert.ok(designs.designsFor('a3p').every((d) => !d.poster), 'posters are not offered as cards');
   for (const key of ['event', 'notice', 'photoposter', 'talk']) {
-    for (const size of ['a3p', 'a4p']) {
+    for (const size of ['a3p', 'a4p', 'a3l', 'a4l']) {
       const poster = designs.applyDesign(core.newCollage(size), key, designs.POSTER_DETAILS, { measure, newId });
       const place = poster.items.find((item) => item.role === 'logo');
       assert.equal(place.kind, 'slot', `${key}: an empty logo place, left out of Save`);
@@ -384,9 +389,14 @@ test('posters: no logo until one is chosen, the heading moves up with No logo, e
       for (let i = 0; i < texts.length; i += 1) for (let j = i + 1; j < texts.length; j += 1) {
         assert.ok(!overlap(box(texts[i]), box(texts[j])), `${key} ${size}: ${texts[i].field} overlaps ${texts[j].field}`);
       }
+      // The logo's place is clear of the words.
+      for (const text of texts) assert.ok(!overlap(box(place), box(text)), `${key} ${size}: the logo place overlaps ${text.field}`);
       const none = designs.applyDesign(core.newCollage(size), key, { ...designs.POSTER_DETAILS, logoMode: 'none' }, { measure, newId });
       assert.ok(!none.items.some((item) => item.role === 'logo'), `${key}: no logo`);
-      assert.ok(none.items.find((item) => item.field === 'title').y <= poster.items.find((item) => item.field === 'title').y, `${key}: the heading does not move down`);
+      // The heading moves up into the logo's space where the design says so, and never down.
+      const moves = [...designs.DESIGNS[key].portrait, ...(designs.DESIGNS[key].landscape || [])].some((part) => part.field === 'title' && part.yNoLogo !== undefined);
+      const [after, before] = [none, poster].map((each) => each.items.find((item) => item.field === 'title').y);
+      assert.ok(moves ? after < before - 1 : after <= before, `${key}: the heading ${moves ? 'moves up' : 'does not move down'}`);
       // A logo put back is placed where the design wants one, even after "No logo".
       assert.ok(designs.roleItem(none, 'logo', { measure, newId }));
     }
@@ -444,8 +454,9 @@ test('a folded card has an outside and an inside in every design, each panel wit
     for (const size of ['fold6', 'fold5']) {
       const card = designs.applyDesign(core.newCollage(size), key, {}, { measure, newId });
       assert.ok(card.back, `${key} ${size}: both sides`);
-      const occasion = card.items.find((item) => item.field === 'occasion');
-      assert.ok(occasion.x > core.PAGE_WIDTH / 2, `${key}: the occasion on the front cover, the right panel`);
+      const host = card.items.find((item) => item.field === 'host');
+      assert.ok(host.x > core.PAGE_WIDTH / 2, `${key}: the host on the front cover, the right panel`);
+      assert.ok(card.back.items.some((item) => item.field === 'occasion'), `${key}: the occasion inside, after "at the"`);
       assert.ok(card.back.items.some((item) => item.field === 'when'), `${key}: the details inside`);
       // No words cross the fold.
       for (const item of [...card.items, ...card.back.items].filter((i) => i.kind === 'text')) {
@@ -470,7 +481,8 @@ test('a field\'s side comes from the design: a programme card\'s programme is on
   assert.equal(designs.fieldItem(card, 'programme', { ...designs.detailsOf(card), programme: '1900 h · Arrival' }, { measure, newId }).text, '1900 h · Arrival');
   const folded = designs.applyDesign(core.newCollage('fold6'), 'classic', {}, { measure, newId });
   assert.equal(designs.sideOf(folded, 'guest'), 'back');
-  assert.equal(designs.sideOf(folded, 'occasion'), 'front');
+  assert.equal(designs.sideOf(folded, 'occasion'), 'back');
+  assert.equal(designs.sideOf(folded, 'host'), 'front');
   assert.ok(designs.fieldsOnCard(folded).includes('when'));
   const flat = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
   assert.equal(designs.sideOf(flat, 'programme'), 'back');
@@ -519,4 +531,447 @@ test('a locked back logo keeps its lock and turn when the card is resized', () =
   const backLogo = resized.back.items.find((item) => item.role === 'backlogo');
   assert.equal(backLogo.locked, true);
   assert.equal(backLogo.angle, 12);
+});
+
+// A draft reopened draws every design's words the same size (a ten-line programme stays ten lines).
+test('every design and its back read back from a draft unchanged, a long programme included', () => {
+  const programme = Array.from({ length: 10 }, (_, i) => `${18 + i}00 h  Item ${i + 1} of the evening`).join('\n');
+  for (const key of Object.keys(designs.DESIGNS).filter((each) => !designs.DESIGNS[each].poster)) {
+    const size = designs.DESIGNS[key].pocket ? pocketSizes[0] : 'a5p';
+    const front = designs.applyDesign(core.newCollage(size), key, { programme }, { measure, newId });
+    const card = designs.DESIGNS[key].pocket ? front : designs.addBack(front, { measure, newId });
+    const read = core.readDraftModel(JSON.parse(JSON.stringify(card)), []);
+    assert.ok(read, `${key}: the draft reads back`);
+    for (const [before, after] of [[card.items, read.items], [card.back?.items || [], read.back?.items || []]]) {
+      for (const item of before.filter((each) => each.kind === 'text')) {
+        const again = after.find((each) => each.id === item.id);
+        assert.ok(again, `${key}: ${item.field} kept`);
+        assert.equal(again.maxLines, item.maxLines, `${key}: ${item.field} keeps its lines`);
+        const was = core.layoutText(item, measure);
+        const now = core.layoutText(again, measure);
+        assert.ok(Math.abs(was.size - now.size) < 0.01, `${key}: ${item.field} drawn at ${now.size}, was ${was.size}`);
+      }
+    }
+  }
+});
+
+// Custom sizes (PR 5b): every card design stays on the page with no words overlapping, and at
+// a card no smaller than A6 (core.smallCard) has letters at least 1.5 mm tall; smaller ones are warned of.
+test('card designs at custom sizes stay on the page, and are readable from A6 up', () => {
+  for (const size of ['mm:300x50', 'mm:50x300', 'mm:50x50', 'mm:300x300', 'mm:200x100', 'mm:100x200', 'mm:100x100', 'mm:105x148', 'mm:148x105']) {
+    const mmWide = core.sizeOf(size).mm[0];
+    const small = core.smallCard(size);
+    for (const key of Object.keys(designs.DESIGNS).filter((each) => !designs.DESIGNS[each].poster && !designs.DESIGNS[each].pocket)) {
+      const card = designs.applyDesign(core.newCollage(size), key, {}, { measure, newId });
+      const height = core.pageHeight(size);
+      for (const item of card.items) {
+        const b = box(item);
+        assert.ok(b.left >= -0.5 && b.right <= core.PAGE_WIDTH + 0.5 && b.top >= -0.5 && b.bottom <= height + 0.5, `${key} ${size}: ${item.role || item.field} off the page`);
+      }
+      const texts = card.items.filter((item) => item.kind === 'text');
+      // A custom card smaller than A6 is warned of on the start screen: its words, kept at least
+      // 6 pt, may crowd; at A6 and up nothing overlaps.
+      if (!small) {
+        for (let i = 0; i < texts.length; i += 1) {
+          for (let j = i + 1; j < texts.length; j += 1) assert.ok(!overlap(box(texts[i]), box(texts[j])), `${key} ${size}: ${texts[i].field} overlaps ${texts[j].field}`);
+        }
+      }
+      if (!small) {
+        const letters = Math.min(...texts.map((item) => core.layoutText(item, measure).size)) * mmWide / core.PAGE_WIDTH;
+        assert.ok(letters >= 1.5, `${key} ${size}: letters ${letters.toFixed(2)} mm`);
+      }
+    }
+  }
+});
+
+// A folded card prints on a landscape sheet folded down the middle (PR 9c): the outside's right
+// half is the front cover (the logo and host), its left half the back; inside, the invitation
+// reads on the left panel and the occasion and details on the right. No part crosses the fold.
+test('folded cards: the cover is the outside sheet\'s right half, and inside reads left to right', () => {
+  for (const size of ['fold6', 'fold5']) {
+    for (const key of Object.keys(designs.DESIGNS).filter((each) => !designs.DESIGNS[each].poster && !designs.DESIGNS[each].pocket)) {
+      const card = designs.applyDesign(core.newCollage(size), key, {}, { measure, newId });
+      const half = core.PAGE_WIDTH / 2;
+      const outside = card.items;
+      const inside = card.back.items;
+      for (const role of ['logo']) assert.ok(outside.find((item) => item.role === role).x > half, `${key} ${size}: the ${role} on the cover`);
+      assert.ok(outside.find((item) => item.field === 'host').x > half, `${key} ${size}: the host on the cover`);
+      assert.ok(inside.find((item) => item.field === 'invite').x < half, `${key} ${size}: the invitation on the left panel`);
+      for (const field of ['occasion', 'when', 'venue']) assert.ok(inside.find((item) => item.field === field).x > half, `${key} ${size}: ${field} on the right panel`);
+      for (const item of [...outside, ...inside].filter((each) => each.kind === 'text')) {
+        const b = box(item);
+        assert.ok(b.right <= half + 0.5 || b.left >= half - 0.5, `${key} ${size}: ${item.field} crosses the fold`);
+      }
+    }
+  }
+});
+
+// The logo keeps clear of the bands and rules around it (a car pass's logo touched its band).
+test('at every size, the logo keeps at least 10 units clear of any band or rule it is not inside', () => {
+  for (const key of Object.keys(designs.DESIGNS).filter((each) => !designs.DESIGNS[each].poster)) {
+    for (const size of designs.DESIGNS[key].pocket ? pocketSizes : cardSizes) {
+      const card = designs.applyDesign(core.newCollage(size), key, {}, { measure, newId });
+      const logo = card.items.find((item) => item.role === 'logo');
+      // A logo in a roundel (Regimental) sits over the colour band by design.
+      if (!logo || card.items.some((item) => item.role === 'roundel')) continue;
+      const l = box(logo);
+      for (const shape of card.items.filter((item) => item.kind === 'shape' && item.role !== 'roundel')) {
+        const s = box(shape);
+        const inside = s.left <= l.left && s.right >= l.right && s.top <= l.top && s.bottom >= l.bottom;
+        if (inside) continue;
+        const gap = Math.max(s.left - l.right, l.left - s.right, s.top - l.bottom, l.top - s.bottom);
+        assert.ok(gap >= 10, `${key} ${size}: the logo is ${gap.toFixed(1)} from ${shape.role}`);
+      }
+    }
+  }
+});
+
+// Words big enough to read (cold review 2): every design's words print at 6 pt or more, on every
+// size it is offered for, both sides, after fitting.
+test('every design prints its words at 6 pt or more at every size it is offered for', () => {
+  const sizes = Object.keys(core.SIZES).filter((key) => ['card', 'pocket', 'folded'].includes(core.SIZES[key].group));
+  for (const size of sizes) {
+    const mmPerUnit = core.sizeOf(size).mm[0] / core.PAGE_WIDTH;
+    for (const design of designs.designsFor(size, 'card')) {
+      const card = designs.applyDesign(core.newCollage(size), design.key, {}, { measure, newId });
+      for (const item of [...card.items, ...(card.back?.items || [])].filter((each) => each.kind === 'text')) {
+        const pt = core.layoutText(item, measure).size * mmPerUnit * 72 / 25.4;
+        assert.ok(pt >= 5.99, `${design.key} ${size}: ${item.field} prints at ${pt.toFixed(1)} pt`);
+        // Script and italic lines start at 7 pt, before fitting to their width.
+        if (['script', 'formal'].includes(item.font) || item.italic) assert.ok(item.size * mmPerUnit * 72 / 25.4 >= 6.99, `${design.key} ${size}: ${item.field} starts below 7 pt`);
+      }
+    }
+  }
+});
+
+// Logos (cold review 2): a card with no logo gets no empty roundel when it changes to Regimental;
+// a wide unit logo keeps the place's area, so it is not squeezed to a sliver, and the roundel
+// grows round it.
+test('Regimental with no logo hides its roundel; a wide logo keeps the place\'s area and the roundel fits it', () => {
+  const classic = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
+  const noLogo = { ...classic, items: classic.items.filter((item) => item.role !== 'logo') };
+  const regimental = designs.applyDesign(noLogo, 'regimental', designs.detailsOf(noLogo), { measure, newId });
+  assert.equal(regimental.items.find((item) => item.role === 'roundel').hidden, true);
+
+  // A logo four times as wide as tall, in place of the SDD logo.
+  const wide = { ...classic, items: classic.items.map((item) => (item.role === 'logo' ? { ...item, kind: 'photo', photo: 'p1', sticker: undefined, aspect: 4 } : item)) };
+  const sdd = classic.items.find((item) => item.role === 'logo');
+  const applied = designs.applyDesign(wide, 'regimental', designs.detailsOf(wide), { measure, newId });
+  const logo = applied.items.find((item) => item.role === 'logo');
+  const sddPlace = designs.applyDesign(classic, 'regimental', designs.detailsOf(classic), { measure, newId }).items.find((item) => item.role === 'logo');
+  const area = (item) => item.width * core.itemHeight(item);
+  assert.ok(Math.abs(area(logo) - area(sddPlace)) / area(sddPlace) < 0.05 || logo.width >= sddPlace.width * 2.39, 'the same area, or as wide as allowed');
+  assert.ok(logo.width > sdd.width * 1.5, 'wider than the crest place');
+  const roundel = applied.items.find((item) => item.role === 'roundel');
+  assert.ok(!roundel.hidden && roundel.width > logo.width, 'the roundel goes round the wide logo');
+  assert.equal(designs.logoWidth(100, 0.5, 0.5), 100, 'a logo the place\'s shape keeps its width');
+});
+
+// A long guest's name (cold review 2) shrinks only so far, then takes a second line: it never
+// prints smaller than 6 pt or 60% of the design's size.
+test('a long guest name keeps a readable size and takes a second line', () => {
+  const long = 'Lieutenant General Rajendra Kumar Mehta, PVSM, AVSM, VSM and Mrs Mehta';
+  const card = designs.applyDesign(core.newCollage('a6p'), 'classic', { guest: long }, { measure, newId });
+  const guest = card.items.find((item) => item.field === 'guest');
+  const layout = core.layoutText(guest, measure);
+  const pt = layout.size * core.sizeOf('a6p').mm[0] / core.PAGE_WIDTH * 72 / 25.4;
+  assert.ok(pt >= 5.99, `prints at ${pt.toFixed(1)} pt`);
+  assert.ok(layout.size >= guest.size * 0.6 - 0.01);
+  assert.ok(layout.lines >= 2, 'on two lines');
+  // It grows upwards, so its last line is not cut by the line drawn to write on.
+  const line = card.items.find((item) => item.role === 'guestline');
+  assert.ok(guest.y + core.itemHeight(guest) / 2 <= line.y + core.itemHeight(line) / 2 + 2, 'the name stays on its line');
+  assert.ok(layout.width <= guest.maxWidth + 0.5);
+  // It is kept by a draft.
+  const read = core.readDraftModel(JSON.parse(JSON.stringify(card)), []);
+  assert.equal(read.items.find((item) => item.field === 'guest').minSize, guest.minSize);
+});
+
+test('a design named like an object\'s own property is no design', () => {
+  const plain = core.newCollage('a5p');
+  for (const name of ['constructor', 'toString', '__proto__']) {
+    assert.equal(designs.applyDesign(plain, name, {}, { measure, newId }), plain, name);
+    assert.equal(designs.DESIGNS[name], undefined, name);
+  }
+});
+
+test('a design change keeps the guest list, and the back keeps the front logo', () => {
+  const card = designs.addBack({ ...designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }) }, { measure, newId });
+  const withGuests = { ...card, card: { ...card.card, guests: ['Maj A', 'Capt B'] } };
+  const navy = designs.applyDesign(withGuests, 'navy', designs.detailsOf(withGuests), { measure, newId });
+  assert.deepEqual(navy.card.guests, ['Maj A', 'Capt B']);
+  const front = navy.items.find((item) => item.role === 'logo');
+  const back = navy.back.items.find((item) => item.role === 'backlogo');
+  assert.equal(back.sticker, front.sticker, 'the back shows the front logo');
+});
+
+// One field, one place (cold review 3): a programme card's programme is on its front, so its back
+// does not carry a second programme; parts and details a newer PRISM keeps survive a design change.
+test('a programme card with a back has its programme once; newer parts and details survive a design change', () => {
+  const front = designs.applyDesign(core.newCollage('a7p'), 'programmecard', {}, { measure, newId });
+  const card = designs.addBack(front, { measure, newId });
+  const fields = (items) => items.filter((item) => item.kind === 'text').map((item) => item.field);
+  const onFront = fields(card.items);
+  assert.ok(onFront.includes('programme'));
+  assert.ok(!fields(card.back.items).some((field) => onFront.includes(field)), 'no field on both sides');
+  assert.equal(designs.sideOf(card, 'programme'), 'front');
+
+  const kept = { ...card, card: { ...card.card, details: { ...card.card.details, futureField: 'x' } }, back: { ...card.back, kept: { items: [{ at: 0, item: { id: 'h', kind: 'hologram' } }], order: [] } } };
+  const changed = designs.applyDesign(kept, 'pocketinvite', designs.detailsOf(kept), { measure, newId });
+  assert.equal(changed.card.details.futureField, 'x');
+  assert.equal(core.keptCount(changed), 1);
+  const resized = designs.applyDesign(core.changeSize(kept, 'a7l'), 'programmecard', designs.detailsOf(kept), { measure, newId });
+  assert.equal(core.keptCount(resized), 1);
+});
+
+// Two logos through a design change (cold review 3): the second goes beside the design's logo,
+// as tall as it, the pair centred where the design centres its logo.
+test('a second logo is placed beside the design\'s logo, as tall, through a design change', () => {
+  for (const key of ['classic', 'navy', 'regimental', 'modern', 'bilingual', 'ceremonial']) {
+    const card = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
+    const logo = card.items.find((item) => item.role === 'logo');
+    const withTwo = { ...card, items: [...card.items, { ...logo, id: 'second', role: 'logo2', kind: 'photo', photo: 'p', sticker: undefined, width: logo.width * 3, aspect: 2, x: 900, y: 1300 }] };
+    const changed = designs.applyDesign(withTwo, key, designs.detailsOf(withTwo), { measure, newId });
+    const first = changed.items.find((item) => item.role === 'logo');
+    const second = changed.items.find((item) => item.role === 'logo2');
+    assert.ok(second, key);
+    assert.ok(Math.abs(core.itemHeight(second) - core.itemHeight(first)) < 0.5, `${key}: as tall as the logo`);
+    assert.ok(Math.abs(second.y - first.y) < 0.5, `${key}: in line with it`);
+    const apart = Math.abs(second.x - first.x) - (first.width + second.width) / 2;
+    assert.ok(apart > 0, `${key}: side by side, not overlapping`);
+  }
+});
+
+// The back's small logo is the front's, or none (cold review 3).
+test('a card whose front has no logo gets a back with no logo, through a design change', () => {
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
+  assert.ok(card.back.items.some((item) => item.role === 'backlogo'));
+  const noLogo = { ...card, items: card.items.filter((item) => item.role !== 'logo') };
+  const changed = designs.applyDesign(noLogo, 'navy', designs.detailsOf(noLogo), { measure, newId });
+  assert.equal(changed.back.items.some((item) => item.role === 'backlogo'), false);
+});
+
+// The back's small logo follows the front's however it changes (cold review 4).
+test('the back logo follows the front: replaced, removed, kept off when deleted, back when chosen', () => {
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
+  const backLogo = (c) => (c.side === 'back' ? c.items : c.back.items).find((item) => item.role === 'backlogo');
+  assert.equal(designs.followLogo(card, { measure, newId }), card, 'nothing to change');
+  const replaced = { ...card, items: card.items.map((item) => (item.role === 'logo' ? { ...item, kind: 'photo', photo: 'p1', sticker: undefined, aspect: 2 } : item)) };
+  assert.equal(backLogo(designs.followLogo(replaced, { measure, newId })).photo, 'p1');
+  const removed = { ...card, items: card.items.filter((item) => item.role !== 'logo') };
+  assert.equal(backLogo(designs.followLogo(removed, { measure, newId })), undefined);
+  // Turned over, the same.
+  assert.equal(backLogo(designs.followLogo(core.flipSide(removed), { measure, newId })), undefined);
+  // A back logo the user deleted stays off, unless a logo is chosen in Card details.
+  const deleted = { ...card, back: { ...card.back, items: card.back.items.filter((item) => item.role !== 'backlogo') } };
+  assert.equal(designs.followLogo(deleted, { measure, newId }), deleted);
+  assert.ok(backLogo(designs.followLogo(deleted, { measure, newId }, { add: true })));
+});
+
+test('roleItemOn finds where the design puts a part on either side', () => {
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
+  assert.ok(designs.roleItemOn(card, 'guestline', 'front', { measure, newId }));
+  assert.ok(designs.roleItemOn(card, 'backlogo', 'back', { measure, newId }));
+  const folded = designs.applyDesign(core.newCollage('fold6'), 'classic', {}, { measure, newId });
+  assert.ok(designs.roleItemOn(folded, 'guestline', 'back', { measure, newId }), 'a folded card\'s line is inside');
+});
+
+// The back logo the user hid or locked stays so (cold review 5); the front's lock is its own.
+test('a hidden back logo stays hidden and a locked one stays as it is through a design change', () => {
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId }), { measure, newId });
+  const setBack = (c, change) => ({ ...c, back: { ...c.back, items: c.back.items.map((item) => (item.role === 'backlogo' ? { ...item, ...change } : item)) } });
+  const backLogo = (c) => c.back.items.find((item) => item.role === 'backlogo');
+  assert.equal(backLogo(designs.applyDesign(setBack(card, { hidden: true }), 'navy', designs.detailsOf(card), { measure, newId })).hidden, true);
+  const locked = setBack(card, { locked: true, x: 123 });
+  const kept = backLogo(designs.applyDesign(locked, 'navy', designs.detailsOf(card), { measure, newId }));
+  assert.equal(kept.locked, true);
+  assert.equal(kept.x, 123);
+  // A locked and hidden front logo does not make a new back logo locked or hidden.
+  const front = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, { measure, newId });
+  const lockedFront = { ...front, items: front.items.map((item) => (item.role === 'logo' ? { ...item, locked: true, hidden: true } : item)) };
+  const withBack = designs.addBack(lockedFront, { measure, newId });
+  assert.equal(backLogo(withBack).locked, undefined);
+  assert.equal(backLogo(withBack).hidden, undefined);
+});
+
+// Backs and folded insides with full wording (cold review 5): an eight-line programme and a long
+// guest's name stay on the page with no words overlapping.
+test('backs and folded insides keep long wording on the page without overlaps', () => {
+  const programme = Array.from({ length: 8 }, (_, i) => `${18 + i}00 h  Item ${i + 1} of the evening`).join(String.fromCharCode(10));
+  const wording = { programme, guest: 'Lt Gen R. K. Mehta, PVSM, AVSM and Mrs Mehta' };
+  const sizes = Object.keys(core.SIZES).filter((key) => ['card', 'folded'].includes(core.SIZES[key].group));
+  for (const size of sizes) {
+    for (const design of designs.designsFor(size, 'card')) {
+      let card = designs.applyDesign(core.newCollage(size), design.key, wording, { measure, newId });
+      if (!card.back) card = designs.addBack(card, { measure, newId });
+      const height = core.pageHeight(size);
+      const back = card.back.items;
+      for (const item of back) {
+        const b = box(item);
+        assert.ok(b.left >= -0.5 && b.right <= core.PAGE_WIDTH + 0.5 && b.top >= -0.5 && b.bottom <= height + 0.5, `${design.key} ${size}: ${item.role || item.field} off the back`);
+      }
+      const texts = back.filter((item) => item.kind === 'text');
+      for (let i = 0; i < texts.length; i += 1) {
+        for (let j = i + 1; j < texts.length; j += 1) assert.ok(!overlap(box(texts[i]), box(texts[j])), `${design.key} ${size}: ${texts[i].field} overlaps ${texts[j].field} on the back`);
+      }
+    }
+  }
+});
+
+// A size change keeps a design the new size offers, or moves to the nearest one (cold review 5).
+test('a card on a size its design does not suit moves to the nearest design offered', () => {
+  assert.equal(designs.designOnSize('classic', 'a5p'), 'classic');
+  assert.equal(designs.designOnSize('classic', 'a7p'), 'pocketinvite');
+  assert.equal(designs.designOnSize('navy', 'passl'), 'pass');
+  assert.equal(designs.designOnSize('pocketinvite', 'passl'), 'pass');
+  assert.equal(designs.designOnSize('reply', 'a5p'), 'classic');
+  assert.equal(designs.designOnSize('event', 'a7p'), 'event', 'a poster keeps its design');
+});
+
+test('a custom size smaller than A6 offers the pocket designs first, then the others', () => {
+  const small = core.customKey(80, 120).key;
+  const keys = designs.designsFor(small).map((design) => design.key);
+  assert.equal(designs.DESIGNS[keys[0]].pocket, true);
+  assert.ok(keys.includes('classic'));
+  assert.ok(keys.includes('pocketinvite'));
+  assert.equal(designs.designOnSize('classic', small), 'classic');
+  const big = core.customKey(150, 200).key;
+  assert.ok(designs.designsFor(big).every((design) => !design.pocket));
+});
+
+// Cold review 5 (tests M1): a tall logo on a poster stays inside its place, and on the page,
+// through design changes.
+test('a tall own logo on a poster stays no taller than its place through design changes', () => {
+  const opts = { measure, newId };
+  for (const size of ['a4p', 'a3p', 'a4l', 'a3l']) {
+    let poster = designs.applyDesign(core.newCollage(size), 'event', designs.POSTER_DETAILS, opts);
+    const place = poster.items.find((item) => item.role === 'logo');
+    const tall = { ...core.photoItem('mine', 'p1', 0.5, { x: place.x, y: place.y, width: place.width / 2 }), role: 'logo' };
+    poster = { ...poster, items: poster.items.map((item) => (item.role === 'logo' ? tall : item)) };
+    for (const key of ['notice', 'photoposter', 'talk', 'event']) {
+      poster = designs.applyDesign(poster, key, designs.detailsOf(poster), opts);
+      const logo = poster.items.find((item) => item.role === 'logo');
+      const slot = designs.roleItem(poster, 'logo', opts);
+      const h = core.itemHeight(logo);
+      assert.ok(h <= core.itemHeight(slot) + 1e-6, `${size} ${key}: no taller than its place`);
+      assert.ok(logo.y - h / 2 >= -1e-6, `${size} ${key}: inside the top edge`);
+    }
+  }
+  assert.equal(designs.posterLogoWidth(100, 0.6, 0.5), 100 / 0.6 * 0.5);
+  assert.equal(designs.posterLogoWidth(100, 0.6, 2), designs.logoWidth(100, 0.6, 2), 'a wide logo keeps its area');
+});
+
+// Tests review 5, L1: the size rules at their limits.
+test('long words shrink to the 6 pt floor and no further, at the smallest sizes', () => {
+  const long = 'Annual Regimental Raising Day Dinner and Ceremonial Parade of the Battalion '.repeat(3);
+  for (const size of ['a7p', 'passl', 'a6p', 'fold6']) {
+    const mmPerUnit = core.sizeOf(size).mm[0] / core.PAGE_WIDTH;
+    for (const design of designs.designsFor(size, 'card')) {
+      const wording = Object.fromEntries(designs.FIELDS.filter((field) => !/Hi$|colours|logoMode/.test(field)).map((field) => [field, long]));
+      const card = designs.applyDesign(core.newCollage(size), design.key, wording, { measure, newId });
+      const texts = [...card.items, ...(card.back?.items || [])].filter((each) => each.kind === 'text');
+      let shrank = false;
+      for (const item of texts) {
+        const layout = core.layoutText(item, measure);
+        const pt = layout.size * mmPerUnit * 72 / 25.4;
+        assert.ok(pt >= 5.99, `${design.key} ${size}: ${item.field} prints at ${pt.toFixed(1)} pt`);
+        if (layout.size < item.size - 0.5) shrank = true;
+      }
+      assert.ok(shrank, `${design.key} ${size}: long words did shrink, so the floor was reached for`);
+    }
+  }
+});
+
+test('a guest name\'s floor is 60% of its design size; a wide logo is at most 2.4 times its place', () => {
+  for (const size of ['a5p', 'a6p']) {
+    const card = designs.applyDesign(core.newCollage(size), 'classic', { guest: 'Maj A' }, { measure, newId });
+    const guest = card.items.find((item) => item.field === 'guest');
+    assert.ok(Math.abs(guest.minSize - Math.max(Math.ceil(designs.minTextUnits ? designs.minTextUnits(size) : 0), Math.round(guest.size * 0.6))) <= 1, `${size}: floor ${guest.minSize} for ${guest.size}`);
+  }
+  assert.equal(designs.logoWidth(100, 1, 100), 240, 'a very wide logo stops at 2.4 times the place');
+  assert.ok(designs.logoWidth(100, 1, 2) < 240);
+});
+
+// Cold review 6, H1: Bilingual never prints Hindi that says something else than the English.
+test('the Hindi follows an occasion quick pick and is emptied where it would contradict the English', () => {
+  const picks = { 'Regimental Dinner': 'रेजिमेंटल रात्रिभोज' };
+  const base = { ...designs.DEFAULT_DETAILS };
+  // A quick pick: its Hindi.
+  assert.equal(designs.hindiInStep({ ...base, occasion: 'Regimental Dinner' }, picks).occasionHi, 'रेजिमेंटल रात्रिभोज');
+  // Typed English: the sample Hindi (or a quick pick's) is emptied.
+  assert.equal(designs.hindiInStep({ ...base, occasion: 'Mess Night' }, picks).occasionHi, '');
+  assert.equal(designs.hindiInStep({ ...base, occasion: 'Mess Night', occasionHi: 'रेजिमेंटल रात्रिभोज' }, picks).occasionHi, '');
+  // Hindi the user typed stays.
+  assert.equal(designs.hindiInStep({ ...base, occasion: 'Mess Night', occasionHi: 'मेस नाइट' }, picks).occasionHi, 'मेस नाइट');
+  // The host and invitation line: the sample's Hindi goes when the English is someone else's.
+  const typed = designs.hindiInStep({ ...base, host: 'Lt Gen R.K. Sharma, AVSM', invite: 'requests the pleasure of' }, picks);
+  assert.equal(typed.hostHi, '');
+  assert.equal(typed.inviteHi, '');
+  // The sample as it is keeps its Hindi.
+  const sample = designs.hindiInStep(base, picks);
+  assert.equal(sample.hostHi, base.hostHi);
+  assert.equal(sample.occasionHi, base.occasionHi);
+});
+
+// Cold review 6, M1 and M2: No logo leaves no empty band; a poster's top line lines up with its
+// heading whether or not a logo is chosen.
+test('No logo on the Notice moves its details up with the heading; the Event top line starts on the heading edge', () => {
+  const opts = { measure, newId };
+  const at = (c, field) => c.items.find((item) => item.field === field);
+  const withLogo = designs.applyDesign(core.newCollage('a4p'), 'notice', designs.POSTER_DETAILS, opts);
+  const none = designs.applyDesign(core.newCollage('a4p'), 'notice', { ...designs.POSTER_DETAILS, logoMode: 'none' }, opts);
+  const gap = (c) => (at(c, 'when').y - core.itemHeight(at(c, 'when')) / 2) - (at(c, 'subtitle').y + core.itemHeight(at(c, 'subtitle')) / 2);
+  assert.ok(gap(none) <= gap(withLogo) + 1, 'the gap under the subtitle is no bigger without a logo');
+  assert.ok(at(none, 'when').y < at(withLogo, 'when').y);
+  const event = designs.applyDesign(core.newCollage('a4p'), 'event', designs.POSTER_DETAILS, opts);
+  const left = (item) => item.x - item.width / 2;
+  assert.ok(Math.abs(left(at(event, 'subtitle')) - left(at(event, 'title'))) < 2, 'top line and heading start together');
+});
+
+// Codex on #3453: locked logos and typed Hindi are left alone.
+test('a locked back logo stays when the front logo goes; a second logo sits beside a locked centred first', () => {
+  const opts = { measure, newId };
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, opts), opts);
+  const locked = { ...card, back: { ...card.back, items: card.back.items.map((item) => (item.role === 'backlogo' ? { ...item, locked: true } : item)) } };
+  const noFront = { ...locked, items: locked.items.filter((item) => item.role !== 'logo') };
+  assert.ok(designs.followLogo(noFront, opts).back.items.some((item) => item.role === 'backlogo'));
+  // A centred first logo locked, a second added, the design changed: side by side, not on top.
+  const front = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, opts);
+  const first = front.items.find((item) => item.role === 'logo');
+  const withTwo = { ...front, items: [...front.items.map((item) => (item.role === 'logo' ? { ...item, locked: true } : item)), { ...first, id: 'second', role: 'logo2', locked: false }] };
+  const changed = designs.applyDesign(withTwo, 'navy', designs.detailsOf(withTwo), opts);
+  const [a, b] = ['logo', 'logo2'].map((role) => changed.items.find((item) => item.role === role));
+  const apart = Math.abs(a.x - b.x) >= (a.width + b.width) / 2;
+  assert.ok(apart, 'the two logos do not overlap');
+});
+
+test('Hindi the user typed stays through unrelated edits; a stock Hindi follows a quick pick', () => {
+  const picks = { 'Regimental Dinner': 'रेजिमेंटल रात्रिभोज' };
+  const typed = { ...designs.DEFAULT_DETAILS, occasion: 'Regimental Dinner', occasionHi: 'रेजिमेंट का भोज' };
+  assert.equal(designs.hindiInStep(typed, picks).occasionHi, 'रेजिमेंट का भोज');
+  const stock = { ...designs.DEFAULT_DETAILS, occasion: 'Regimental Dinner' };
+  assert.equal(designs.hindiInStep(stock, picks).occasionHi, 'रेजिमेंटल रात्रिभोज');
+});
+
+// Codex on #3453: a roundel the user hid stays hidden through a size or design change; one hidden
+// for want of a logo comes back with a logo.
+test('a roundel the user hid stays hidden; one hidden for want of a logo comes back with one', () => {
+  const opts = { measure, newId };
+  const card = designs.applyDesign(core.newCollage('a5p'), 'regimental', {}, opts);
+  const hid = { ...card, items: card.items.map((item) => (item.role === 'roundel' ? { ...item, hidden: true } : item)) };
+  const turned = designs.applyDesign({ ...hid, size: 'a5l' }, 'regimental', designs.detailsOf(hid), opts);
+  assert.equal(turned.items.find((item) => item.role === 'roundel').hidden, true, 'the user\'s hiding is kept');
+  // No logo: hidden for want of one; a logo put back brings it back.
+  const noLogo = { ...card, items: card.items.filter((item) => item.role !== 'logo') };
+  const bare = designs.applyDesign(noLogo, 'regimental', designs.detailsOf(noLogo), opts);
+  const roundel = bare.items.find((item) => item.role === 'roundel');
+  assert.equal(roundel.hidden, true);
+  const logo = card.items.find((item) => item.role === 'logo');
+  const items = [...bare.items.map((item) => ({ ...item })), { ...logo }];
+  designs.fitRoundel(items, { width: roundel.width, aspect: roundel.aspect }, { hadLogo: false });
+  assert.ok(!items.find((item) => item.role === 'roundel').hidden);
+  // An earlier PRISM's roundel, hidden without the mark while there was no logo, comes back too.
+  const old = [{ ...roundel, autoHidden: undefined, hidden: true }, { ...logo }];
+  designs.fitRoundel(old, { width: roundel.width, aspect: roundel.aspect }, { hadLogo: false });
+  assert.ok(!old[0].hidden);
 });

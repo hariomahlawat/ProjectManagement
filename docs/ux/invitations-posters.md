@@ -40,7 +40,7 @@ it through a local web server, not as a file, so that the logo and fonts load.
 | Pocket cards for the same function | **Entry card or car pass**, **RSVP card** and **programme card** designs. Each fills from the same Card details, so the function's wording is typed once | "Pocket size" covers both a small invitation and the small cards that go with it |
 | Poster sizes | A3 portrait (exists) and A4 portrait (exists). **Not A2 or larger** | Save draws a picture, and an A3 at 300 dpi is already near the browser's canvas limit |
 | Front and back | **Both, optional.** A card starts with the front. "Add a back" makes the back (programme, route sketch or venue photo, RSVP), which the user can delete | Most formal cards have a programme on the back. Some don't need one |
-| Printing | Save gains **cards per sheet**: as many as fit on A4 or A3 with room for cutting (for example 2 A6 on A4, 8 A7 on A4, 10 visiting-card passes on A4), or fewer if the user chooses. Thin cut marks are added. The back is placed so that it lines up when the printer flips on the long edge | Units print on office printers on card stock, not at a press |
+| Printing | Save gains **cards per sheet**: as many as fit on A4 or A3 with room for cutting (for example 2 A6 on A4, 4 A7 on A4, 10 visiting-card passes on A4, with 8 mm margins and 4 mm gaps for cutting), or fewer if the user chooses. Thin cut marks are added. The back is placed so that it lines up when the printer flips on the long edge | Units print on office printers on card stock, not at a press |
 | Bleed for a press | **Not in the first version.** It can come later as one tick box | Not needed for office printing |
 | Guest names | **A blank line to write in** by default. **From a guest list** makes one PDF with a card per guest | Writing names by hand is common. A list saves hours for 100+ guests |
 | Guest list input | Paste names, one a line (a column copied from Excel pastes this way), or pick a .csv or .txt file. **No .xlsx reader** | No new library. Copy and paste from Excel covers the same need |
@@ -102,8 +102,9 @@ Cards and posters are drafts like any collage. They're listed under Drafts with 
 ### Card editor
 
 - **Card details** opens on the left (on a phone, as a sheet from the rail). It holds:
-  - occasion, with quick picks for Raising Day Dinner, Regimental Dinner, Change of Command,
-    Farewell, Barakhana, At Home, Ladies' Night and Passing Out Parade;
+  - occasion, with quick picks for Raising Day Dinner, Regimental Dinner, Change of Command
+    Parade, Farewell Dinner, Barakhana, At Home ("at an At Home"), Ladies' Night and Passing Out
+    Parade;
   - host and invitation line;
   - guest's name, either a blank line or from a guest list;
   - date, time and venue;
@@ -196,10 +197,12 @@ All of it runs in the browser. **There's no server change, no migration and no n
   page that does not understand a part can never delete it by saving the draft again. The editor
   shows "Some parts were made by a newer PRISM and are kept but not shown." That PR is deployed
   for at least one release before any PR that writes the new parts.
-- **Print sheets and guest cards**: `collage-print.js` places 1, 2 or 4 cards on a sheet, with cut
-  marks, and turns the back's order for a long-edge flip. It writes the PDF with the vendored
-  pdf-lib. Guest cards draw one card at a time from the originals, put it in the PDF and let the
-  canvas go.
+- **Print sheets and guest cards**: `print.sheetLayout` (in `collage-print.js`, with the guest list reading) places as many
+  cards as fit on an A4 or A3 sheet inside 8 mm margins with 4 mm gaps, `print.cutMarks` gives the
+  cut marks, and the back's sheet is mirrored for a long-edge flip. `collage-save.js` writes the
+  PDF with the vendored pdf-lib. Guest cards are drawn one at a time from the originals and each
+  canvas is let go before the next; each card's JPEG stays in the PDF until it is saved, so the
+  PDF itself grows with the number of guests (300 A5 cards made a PDF of about 69 MB).
 - **Fonts**: Cinzel and Pinyon Script are added to `wwwroot/fonts/collage/` with `OFL.txt`, and to
   `collage-fonts.css` and the Credits dialog.
 
@@ -241,15 +244,31 @@ comes with tests that fail without it.
   - PR 9b was split into 9b (pocket cards) and 9c (folded cards);
   - 10 (guest list) and 11 (posters) were built before 9c, being of more use;
   - the custom card size moved to its own PR, 5b.
+  - PR 10 was built without the size estimate, the preview of the first three and the
+    browser memory test in its "Done when". Canvases are let go one at a time, but each card's
+    picture stays in the PDF, so a long list makes a large PDF (300 A5 cards, about 69 MB, 13 s).
+    The estimate and preview are left for later.
 - **Fonts (owner approved, 19 Nov):** Cinzel (Engraved) and Pinyon Script (Formal script) were
   downloaded from @fontsource 5.3.0 and shipped to master on their own (#3447).
+- **Fonts in the designs (19 Nov):** after #3447 merged, Classic ivory, Navy and gold and
+  Regimental set the host in Engraved (Cinzel) and the invitation line in Formal script (Pinyon
+  Script, a size larger as its letters run small), on flat and folded cards.
 - **Sheet counts:** on A4, with 8 mm margins and 4 mm gaps, 2 A6, 4 A7 or 10 car passes fit;
   A5 is exactly half of A4, so one fits.
 - **Release order (owner agreed, 19 Nov):** PR 2 reaches production a release before PR 3 and
   later (see Deployment). If they went in one release, a user on a cached tab during the
   change-over could lose a card's shapes from a draft.
-- **After the last PR:** a cold, independent review (PR 13), with fixes until it scores 8.5 or
-  above.
+- **Cold review, 19 Nov:** UX 6.5, code and tests 7. Fixed on top of the stack in three parts:
+  sides taken from the design, guest names on the right side, locks and both sides (part 1);
+  logos, the Card panel's order, posters, phones and wording (part 2); long words, long
+  programmes, small custom cards, and tests for drafts, guest PDFs, every design's save, posters
+  without a logo and folded sides (part 3). Then a fresh review, until it scores 8.5 or above.
+- **Cold review 2, 19 Nov:** UX 7, code 7.5, tests 7.5. Fixed in parts 6 to 9: backs turned on
+  turned print sheets; words at 6 pt or more on every size; "at the" on Navy and Modern; logos
+  (wide logos by area, the roundel, locks, the picked logo removed); long guest names on two
+  lines; guest lists from spreadsheets (rank and name joined, headings, pasted columns); A4 edge
+  to edge; posters asking first; Save's print rules as tested pure functions and a test reading
+  sheet PDFs back; damaged drafts read safely. Then review 3.
 
 | PR | What | Done when |
 | --- | --- | --- |
@@ -290,6 +309,14 @@ comes with tests that fail without it.
     collages with their photos, text and logos. Shapes and the back page are kept in the draft
     but not shown, and come back if the feature returns.
   - Reverting PR 2 as well is not advised once cards exist, for the reason above.
+  - What a rollback still loses (cold review 6), as a page reads the values it knows with its own
+    limits:
+    - a text longer than the older page allows (300 characters before the cold review fixes,
+      1000 after) is cut to its limit, and an autosave writes the cut text back: a long
+      programme on a card's back is the likely case;
+    - a card size the older page does not know (a folded or pocket size, a size in mm) opens as
+      the default page size, A4 landscape, and is saved so.
+    Such a card is best saved as a PDF before the rollback, and made again at its size after.
   - A finished card is never only in a draft: Save makes the PNG, JPG or PDF, which no version
     change affects. The guide tells users to save the PDF of a card they need to keep.
 

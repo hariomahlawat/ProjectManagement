@@ -13,6 +13,15 @@
 })(typeof self !== 'undefined' ? self : typeof globalThis !== 'undefined' ? globalThis : this, function (core) {
   'use strict';
 
+  // Tables looked up by a name from a draft or a file have no prototype (core.lookupTable).
+  const { lookupTable } = core;
+
+  // A card with its back showing is worked on from its front, then shown as it was: frontOf gives
+  // the front's point of view, asShown turns the result back when the back was showing.
+  const showsBack = (collage) => Boolean(collage?.side === 'back' && collage.back);
+  const frontOf = (collage) => (showsBack(collage) ? core.flipSide(collage) : collage);
+  const asShown = (collage, front) => (showsBack(collage) ? core.flipSide(front) : front);
+
   /** The wording a new card starts with: realistic, and every word can be changed. */
   const DEFAULT_DETAILS = Object.freeze({
     host: 'The Commandant and Officers\nSimulator Development Division',
@@ -20,7 +29,7 @@
     at: 'at the',
     occasion: 'Raising Day Dinner',
     when: 'Friday, 12 December 2026 at 1930 h',
-    venue: "Officers' Mess, SDD Campus",
+    venue: 'Officers’ Mess, SDD Campus',
     dress: 'Dress: Lounge Suit',
     rsvp: 'R.S.V.P. The Adjutant · Ext 2241',
     note: 'Kindly bring this card',
@@ -52,7 +61,7 @@
     logoMode: ''
   });
   /** What a new poster starts with: the same fields, a poster's wording. */
-  const POSTER_DETAILS = Object.freeze({ ...DEFAULT_DETAILS, when: '20 – 22 January 2027 · 0700 h onwards', venue: 'Unit Sports Ground' });
+  const POSTER_DETAILS = Object.freeze({ ...DEFAULT_DETAILS, when: '20 – 22 December 2026 · 0700 h onwards', venue: 'Unit Sports Ground' });
   /** The fields on the back of the card. */
   const BACK_FIELDS = Object.freeze(['programmeTitle', 'programme', 'backNote']);
   /** Fields that are not words on the card: they set something else about it. */
@@ -90,7 +99,10 @@
   const NAVY = '#1d2c55';
   const GREY = '#55607a';
 
-  const DESIGNS = Object.freeze({
+  // The designs set in engraved capitals and formal script (Cinzel and Pinyon Script, #3447).
+  const FORMAL_DESIGNS = Object.freeze(['classic', 'navy', 'regimental']);
+
+  const DESIGNS = lookupTable({
     classic: Object.freeze({
       key: 'classic',
       label: 'Classic ivory',
@@ -100,8 +112,8 @@
         border('border', 0.035, GOLD, 3),
         border('border2', 0.05, GOLD, 1.2),
         logo(0.5, 0.135, 0.11),
-        words('host', 0.5, 0.29, 0.76, 28, { font: 'elegant', color: INK, bold: true, spacing: 6 }, { lines: 3 }),
-        words('invite', 0.5, 0.385, 0.8, 34, { font: 'script', color: GOLD, bold: false }),
+        words('host', 0.5, 0.29, 0.76, 28, { font: 'engraved', color: INK, bold: true, spacing: 6 }, { lines: 3 }),
+        words('invite', 0.5, 0.385, 0.8, 39, { font: 'formal', color: GOLD, bold: false }),
         rule('guestline', 0.5, 0.46, 0.62, INK, 1.5),
         words('guest', 0.5, 0.445, 0.62, 34, { font: 'script', color: INK, bold: false }, { lines: 1 }),
         words('at', 0.5, 0.515, 0.4, 24, { font: 'elegant', color: INK, bold: false, italic: true }),
@@ -118,11 +130,12 @@
         border('border2', 0.05, GOLD, 1.2),
         logo(0.16, 0.5, 0.14),
         rule('divider', 0.29, 0.5, 0.0, GOLD, 1.2),
-        words('host', 0.6, 0.17, 0.58, 26, { font: 'elegant', color: INK, bold: true, spacing: 6 }, { lines: 2 }),
-        words('invite', 0.6, 0.29, 0.6, 32, { font: 'script', color: GOLD, bold: false }),
+        words('host', 0.6, 0.17, 0.58, 26, { font: 'engraved', color: INK, bold: true, spacing: 6 }, { lines: 2 }),
+        words('invite', 0.6, 0.29, 0.6, 37, { font: 'formal', color: GOLD, bold: false }),
         rule('guestline', 0.6, 0.38, 0.46, INK, 1.5),
         words('guest', 0.6, 0.36, 0.46, 32, { font: 'script', color: INK, bold: false }, { lines: 1 }),
-        words('occasion', 0.6, 0.5, 0.6, 50, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+        words('at', 0.6, 0.425, 0.4, 20, { font: 'elegant', color: INK, bold: false, italic: true }),
+        words('occasion', 0.6, 0.51, 0.6, 48, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
         words('when', 0.6, 0.63, 0.6, 23, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
         words('venue', 0.6, 0.7, 0.6, 22, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
         words('dress', 0.6, 0.765, 0.6, 21, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
@@ -139,11 +152,12 @@
         border('border', 0.04, PALE_GOLD, 1.5),
         border('border2', 0.055, PALE_GOLD, 0.8),
         logo(0.5, 0.14, 0.115),
-        words('host', 0.5, 0.3, 0.76, 26, { font: 'elegant', color: PALE_GOLD, bold: false, spacing: 10 }, { lines: 3 }),
-        words('invite', 0.5, 0.395, 0.8, 34, { font: 'script', color: IVORY, bold: false }),
+        words('host', 0.5, 0.3, 0.76, 26, { font: 'engraved', color: PALE_GOLD, bold: false, spacing: 10 }, { lines: 3 }),
+        words('invite', 0.5, 0.395, 0.8, 39, { font: 'formal', color: IVORY, bold: false }),
         rule('guestline', 0.5, 0.47, 0.6, IVORY, 1.2),
         words('guest', 0.5, 0.455, 0.6, 34, { font: 'script', color: IVORY, bold: false }, { lines: 1 }),
-        words('occasion', 0.5, 0.575, 0.82, 60, { font: 'elegant', color: PALE_GOLD, bold: true }, { lines: 2 }),
+        words('at', 0.5, 0.515, 0.4, 22, { font: 'elegant', color: IVORY, bold: false, italic: true }),
+        words('occasion', 0.5, 0.58, 0.82, 60, { font: 'elegant', color: PALE_GOLD, bold: true }, { lines: 2 }),
         rule('rule', 0.5, 0.65, 0.22, PALE_GOLD, 1.5),
         words('when', 0.5, 0.705, 0.82, 25, { font: 'clean', color: IVORY, bold: true }, { lines: 2 }),
         words('venue', 0.5, 0.752, 0.82, 24, { font: 'clean', color: IVORY, bold: false }, { lines: 2 }),
@@ -155,11 +169,12 @@
         border('border', 0.04, PALE_GOLD, 1.5),
         border('border2', 0.055, PALE_GOLD, 0.8),
         logo(0.16, 0.5, 0.14),
-        words('host', 0.6, 0.17, 0.58, 24, { font: 'elegant', color: PALE_GOLD, bold: false, spacing: 10 }, { lines: 2 }),
-        words('invite', 0.6, 0.29, 0.6, 32, { font: 'script', color: IVORY, bold: false }),
+        words('host', 0.6, 0.17, 0.58, 24, { font: 'engraved', color: PALE_GOLD, bold: false, spacing: 10 }, { lines: 2 }),
+        words('invite', 0.6, 0.29, 0.6, 37, { font: 'formal', color: IVORY, bold: false }),
         rule('guestline', 0.6, 0.38, 0.46, IVORY, 1.2),
         words('guest', 0.6, 0.36, 0.46, 32, { font: 'script', color: IVORY, bold: false }, { lines: 1 }),
-        words('occasion', 0.6, 0.5, 0.6, 54, { font: 'elegant', color: PALE_GOLD, bold: true }, { lines: 2 }),
+        words('at', 0.6, 0.42, 0.4, 20, { font: 'elegant', color: IVORY, bold: false, italic: true }),
+        words('occasion', 0.6, 0.51, 0.6, 54, { font: 'elegant', color: PALE_GOLD, bold: true }, { lines: 2 }),
         words('when', 0.6, 0.63, 0.6, 23, { font: 'clean', color: IVORY, bold: true }, { lines: 1 }),
         words('venue', 0.6, 0.7, 0.6, 22, { font: 'clean', color: IVORY, bold: false }, { lines: 1 }),
         words('dress', 0.6, 0.765, 0.6, 21, { font: 'clean', color: PALE_GOLD, bold: true }, { lines: 1 }),
@@ -178,7 +193,7 @@
         block('band3', 0.5, 0.0875, 1, 0.035, { fill: 'band3', stroke: '' }),
         roundel('roundel', 'ellipse', 0.5, 0.135, 0.17, 0.72, { fill: '#ffffff', stroke: 'band2', strokeWidth: 3 }),
         logo(0.5, 0.135, 0.1),
-        words('host', 0.5, 0.29, 0.8, 26, { font: 'clean', color: 'band1', bold: true, spacing: 8 }, { lines: 3 }),
+        words('host', 0.5, 0.29, 0.8, 26, { font: 'engraved', color: 'band1', bold: true, spacing: 8 }, { lines: 3 }),
         words('invite', 0.5, 0.375, 0.8, 24, { font: 'elegant', color: INK, bold: false, italic: true }),
         rule('guestline', 0.5, 0.45, 0.62, INK, 1.5),
         words('guest', 0.5, 0.435, 0.62, 34, { font: 'script', color: INK, bold: false }, { lines: 1 }),
@@ -197,11 +212,12 @@
         block('band3', 0.5, 0.125, 1, 0.05, { fill: 'band3', stroke: '' }),
         roundel('roundel', 'ellipse', 0.16, 0.52, 0.2, 0.72, { fill: '#ffffff', stroke: 'band2', strokeWidth: 3 }),
         logo(0.16, 0.52, 0.12),
-        words('host', 0.61, 0.25, 0.6, 24, { font: 'clean', color: 'band1', bold: true, spacing: 8 }, { lines: 2 }),
+        words('host', 0.61, 0.25, 0.6, 24, { font: 'engraved', color: 'band1', bold: true, spacing: 8 }, { lines: 2 }),
         words('invite', 0.61, 0.36, 0.6, 22, { font: 'elegant', color: INK, bold: false, italic: true }),
         rule('guestline', 0.61, 0.44, 0.46, INK, 1.5),
         words('guest', 0.61, 0.42, 0.46, 30, { font: 'script', color: INK, bold: false }, { lines: 1 }),
-        words('occasion', 0.61, 0.54, 0.62, 48, { font: 'elegant', color: 'band3', bold: true }, { lines: 2 }),
+        words('at', 0.61, 0.48, 0.4, 18, { font: 'elegant', color: INK, bold: false, italic: true }),
+        words('occasion', 0.61, 0.555, 0.62, 44, { font: 'elegant', color: 'band3', bold: true }, { lines: 2 }),
         words('when', 0.61, 0.65, 0.62, 22, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
         words('venue', 0.61, 0.715, 0.62, 21, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
         words('dress', 0.61, 0.775, 0.62, 20, { font: 'clean', color: 'band1', bold: true }, { lines: 1 }),
@@ -256,15 +272,17 @@
       portrait: [
         border('border', 0.03, GOLD, 1.5),
         logo(0.5, 0.11, 0.09),
-        vline('divider', 0.5, 0.42, 0.42, GOLD, 1.2),
-        words('hostHi', 0.26, 0.27, 0.42, 24, { font: 'hindiFormal', color: INK, bold: false }, { lines: 3 }),
-        words('inviteHi', 0.26, 0.37, 0.42, 22, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
-        words('occasionHi', 0.26, 0.48, 0.42, 38, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
-        words('host', 0.74, 0.27, 0.42, 20, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
-        words('invite', 0.74, 0.37, 0.42, 20, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
-        words('occasion', 0.74, 0.48, 0.42, 34, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
-        rule('guestline', 0.5, 0.7, 0.62, INK, 1.5),
-        words('guest', 0.5, 0.685, 0.62, 32, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+        vline('divider', 0.5, 0.3, 0.17, GOLD, 1.2),
+        words('hostHi', 0.26, 0.26, 0.42, 22, { font: 'hindiFormal', color: INK, bold: false }, { lines: 3 }),
+        words('inviteHi', 0.26, 0.35, 0.42, 20, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
+        words('host', 0.74, 0.26, 0.42, 19, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
+        words('invite', 0.74, 0.35, 0.42, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
+        rule('guestline', 0.5, 0.45, 0.62, INK, 1.5),
+        words('guest', 0.5, 0.435, 0.62, 30, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+        words('at', 0.5, 0.5, 0.3, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
+        vline('divider2', 0.5, 0.6, 0.1, GOLD, 1.2),
+        words('occasionHi', 0.26, 0.6, 0.42, 34, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 3 }),
+        words('occasion', 0.74, 0.6, 0.42, 30, { font: 'elegant', color: MAROON, bold: true }, { lines: 3 }),
         words('when', 0.5, 0.76, 0.84, 24, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
         words('venue', 0.5, 0.8, 0.84, 22, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
         words('dress', 0.5, 0.84, 0.84, 21, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
@@ -274,18 +292,23 @@
       landscape: [
         border('border', 0.03, GOLD, 1.5),
         logo(0.5, 0.14, 0.11),
-        vline('divider', 0.5, 0.47, 0.36, GOLD, 1.2),
-        words('hostHi', 0.27, 0.3, 0.4, 22, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
-        words('inviteHi', 0.27, 0.42, 0.4, 20, { font: 'hindiFormal', color: INK, bold: false }, { lines: 1 }),
-        words('occasionHi', 0.27, 0.54, 0.4, 34, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
-        words('host', 0.73, 0.3, 0.4, 19, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
-        words('invite', 0.73, 0.42, 0.4, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
-        words('occasion', 0.73, 0.54, 0.4, 31, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
-        words('when', 0.5, 0.72, 0.84, 21, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
-        words('venue', 0.5, 0.78, 0.84, 20, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
-        words('dress', 0.5, 0.835, 0.84, 19, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
-        words('rsvp', 0.08, 0.91, 0.42, 16, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('note', 0.92, 0.91, 0.38, 16, { font: 'elegant', color: INK, bold: false, italic: true, align: 'right' }, { anchor: 'right', lines: 1 })
+        vline('divider', 0.5, 0.355, 0.17, GOLD, 1.2),
+        words('hostHi', 0.27, 0.29, 0.4, 20, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
+        words('inviteHi', 0.27, 0.4, 0.4, 18, { font: 'hindiFormal', color: INK, bold: false }, { lines: 1 }),
+        words('host', 0.73, 0.29, 0.4, 18, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
+        words('invite', 0.73, 0.4, 0.4, 18, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
+        // The guest's name across both columns, then "at the" before the occasion, as in portrait.
+        rule('guestline', 0.5, 0.49, 0.5, INK, 1.2),
+        words('guest', 0.5, 0.473, 0.5, 24, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+        words('at', 0.73, 0.535, 0.3, 16, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
+        vline('divider2', 0.5, 0.635, 0.1, GOLD, 1.2),
+        words('occasionHi', 0.27, 0.635, 0.4, 26, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
+        words('occasion', 0.73, 0.635, 0.4, 24, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+        words('when', 0.5, 0.75, 0.84, 20, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
+        words('venue', 0.5, 0.805, 0.84, 19, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
+        words('dress', 0.5, 0.855, 0.84, 18, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
+        words('rsvp', 0.08, 0.925, 0.42, 15, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
+        words('note', 0.92, 0.925, 0.38, 15, { font: 'elegant', color: INK, bold: false, italic: true, align: 'right' }, { anchor: 'right', lines: 1 })
       ]
     }),
     // Posters (PR 11): offered in the Posters row, A3 or A4, a logo only when the user picks one.
@@ -297,8 +320,8 @@
       poster: true,
       background: { type: 'color', value: '#0f2c5c' },
       portrait: [
-        logoPlace(0.12, 0.09, 0.13, 0.6),
-        words('subtitle', 0.24, 0.07, 0.7, 26, { font: 'clean', color: '#e8b020', bold: true, spacing: 14, align: 'left' }, { anchor: 'left', lines: 1, yNoLogo: 0.06 }),
+        logoPlace(0.88, 0.09, 0.13, 0.6),
+        words('subtitle', 0.08, 0.07, 0.7, 26, { font: 'clean', color: '#e8b020', bold: true, spacing: 14, align: 'left' }, { anchor: 'left', lines: 1, yNoLogo: 0.06 }),
         words('title', 0.08, 0.34, 0.86, 140, { font: 'poster', color: '#ffffff', bold: false, align: 'left' }, { anchor: 'left', lines: 3, yNoLogo: 0.29 }),
         { ...block('band', 0.5, 0.61, 1.2, 0.07, { fill: '#e8b020', stroke: '' }), angle: -4 },
         { ...words('when', 0.5, 0.61, 0.84, 46, { font: 'poster', color: '#0f2c5c', bold: false }, { lines: 1 }), angle: -4 },
@@ -312,16 +335,17 @@
       label: 'Notice',
       note: 'Plain and official',
       poster: true,
+      sample: { title: 'Annual Medical Examination', subtitle: 'For all ranks of the Division', when: 'Monday, 8 December 2026 · 0900 h to 1300 h', venue: 'Medical Inspection Room, SDD Campus', lines: 'Bring your medical documents' + String.fromCharCode(10) + 'Report fasting for the blood test' + String.fromCharCode(10) + 'Section by section, as listed on the unit notice board', contact: 'Medical Officer · Ext 2205' },
       background: { type: 'color', value: '#ffffff' },
       portrait: [
         block('bar', 0.5, 0.008, 1, 0.016, { fill: MAROON, stroke: '' }),
         logoPlace(0.5, 0.1, 0.12, 0.6),
         words('title', 0.5, 0.24, 0.84, 72, { font: 'elegant', color: MAROON, bold: true }, { lines: 2, yNoLogo: 0.12 }),
         words('subtitle', 0.5, 0.33, 0.84, 30, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2, yNoLogo: 0.21 }),
-        rule('rule', 0.5, 0.385, 0.3, GOLD, 2.5),
-        words('when', 0.5, 0.46, 0.84, 34, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
-        words('venue', 0.5, 0.53, 0.84, 32, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
-        words('lines', 0.5, 0.68, 0.84, 28, { font: 'clean', color: INK, bold: false }, { lines: 6 }),
+        { ...rule('rule', 0.5, 0.385, 0.3, GOLD, 2.5), yNoLogo: 0.265 },
+        words('when', 0.5, 0.46, 0.84, 34, { font: 'clean', color: INK, bold: true }, { lines: 2, yNoLogo: 0.34 }),
+        words('venue', 0.5, 0.53, 0.84, 32, { font: 'clean', color: INK, bold: false }, { lines: 2, yNoLogo: 0.41 }),
+        words('lines', 0.5, 0.68, 0.84, 28, { font: 'clean', color: INK, bold: false }, { lines: 6, yNoLogo: 0.56 }),
         words('contact', 0.5, 0.93, 0.84, 22, { font: 'clean', color: '#55607a', bold: false }, { lines: 1 })
       ]
     }),
@@ -330,6 +354,7 @@
       label: 'With a photo',
       note: 'Farewell or felicitation',
       poster: true,
+      sample: { title: 'Farewell', subtitle: 'Col R. K. Verma, on superannuation', when: 'Friday, 19 December 2026 · 1830 h', venue: 'Officers’ Mess, SDD Campus', contact: 'Adjutant · Ext 2241' },
       background: { type: 'color', value: '#f6efe3' },
       portrait: [
         logoPlace(0.5, 0.07, 0.1, 0.6),
@@ -346,6 +371,7 @@
       label: 'Talk or seminar',
       note: 'Speaker and topic',
       poster: true,
+      sample: { title: 'Simulation in Training: Lessons from the Field', subtitle: 'A talk by Col A. Sharma, Simulator Development Division', when: 'Thursday, 4 December 2026 · 1500 h', venue: 'Auditorium, SDD Campus', lines: '22 years of simulator design' + String.fromCharCode(10) + 'Questions after the talk' + String.fromCharCode(10) + 'Tea at 1630 h', contact: 'Training Officer · Ext 2230' },
       background: { type: 'color', value: '#ffffff' },
       portrait: [
         block('lower', 0.5, 0.79, 1, 0.42, { fill: '#e9eef6', stroke: '' }),
@@ -370,7 +396,7 @@
       background: { type: 'color', value: '#ffffff' },
       portrait: [
         block('band1', 0.5, 0.03, 1, 0.06, { fill: NAVY, stroke: '' }),
-        logo(0.5, 0.16, 0.16),
+        logo(0.5, 0.175, 0.15),
         words('passTitle', 0.5, 0.34, 0.86, 64, { font: 'clean', color: MAROON, bold: true, spacing: 8 }, { lines: 1 }),
         words('occasion', 0.5, 0.46, 0.86, 40, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
         words('when', 0.5, 0.58, 0.86, 30, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
@@ -431,7 +457,7 @@
         logo(0.5, 0.11, 0.1),
         words('occasion', 0.5, 0.24, 0.8, 34, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
         words('programmeTitle', 0.5, 0.33, 0.8, 26, { font: 'elegant', color: GOLD, bold: false, italic: true }, { lines: 1 }),
-        words('programme', 0.5, 0.58, 0.84, 30, { font: 'clean', color: INK, bold: false }, { lines: 10 }),
+        words('programme', 0.5, 0.58, 0.84, 30, { font: 'clean', color: INK, bold: false, align: 'left' }, { lines: 10 }),
         words('when', 0.5, 0.88, 0.8, 22, { font: 'clean', color: INK, bold: true }, { lines: 2 })
       ],
       landscape: [
@@ -439,11 +465,12 @@
         logo(0.14, 0.5, 0.12),
         words('occasion', 0.6, 0.18, 0.66, 30, { font: 'elegant', color: MAROON, bold: true }, { lines: 1 }),
         words('programmeTitle', 0.6, 0.31, 0.66, 22, { font: 'elegant', color: GOLD, bold: false, italic: true }, { lines: 1 }),
-        words('programme', 0.6, 0.6, 0.66, 19, { font: 'clean', color: INK, bold: false }, { lines: 10 }),
+        words('programme', 0.6, 0.6, 0.66, 19, { font: 'clean', color: INK, bold: false, align: 'left' }, { lines: 10 }),
         words('when', 0.6, 0.88, 0.66, 16, { font: 'clean', color: INK, bold: true }, { lines: 1 })
       ]
     }),
     pocketinvite: Object.freeze({
+      notFor: Object.freeze(['passl', 'passp']),
       key: 'pocketinvite',
       label: 'Pocket invitation',
       note: 'The invitation, small',
@@ -453,11 +480,14 @@
         border('border', 0.04, GOLD, 2.5),
         border('border2', 0.06, GOLD, 1),
         logo(0.5, 0.13, 0.11),
-        words('host', 0.5, 0.29, 0.8, 22, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
-        words('invite', 0.5, 0.39, 0.8, 24, { font: 'script', color: GOLD, bold: false }, { lines: 2 }),
-        words('occasion', 0.5, 0.52, 0.84, 40, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
-        words('when', 0.5, 0.66, 0.84, 22, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
-        words('venue', 0.5, 0.74, 0.84, 21, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
+        words('host', 0.5, 0.26, 0.8, 21, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
+        words('invite', 0.5, 0.34, 0.8, 21, { font: 'script', color: GOLD, bold: false }, { lines: 1 }),
+        rule('guestline', 0.5, 0.445, 0.64, INK, 1.2),
+        words('guest', 0.5, 0.425, 0.64, 22, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+        words('at', 0.5, 0.49, 0.4, 17, { font: 'elegant', color: INK, bold: false, italic: true }),
+        words('occasion', 0.5, 0.56, 0.84, 36, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+        words('when', 0.5, 0.675, 0.84, 21, { font: 'clean', color: INK, bold: true }, { lines: 2 }),
+        words('venue', 0.5, 0.75, 0.84, 20, { font: 'clean', color: INK, bold: false }, { lines: 2 }),
         words('dress', 0.5, 0.81, 0.84, 20, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
         words('rsvp', 0.5, 0.89, 0.84, 17, { font: 'clean', color: INK, bold: false }, { lines: 2 })
       ],
@@ -465,9 +495,12 @@
         border('border', 0.04, GOLD, 2.5),
         border('border2', 0.06, GOLD, 1),
         logo(0.17, 0.5, 0.13),
-        words('host', 0.62, 0.17, 0.6, 19, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
-        words('invite', 0.62, 0.3, 0.6, 21, { font: 'script', color: GOLD, bold: false }, { lines: 1 }),
-        words('occasion', 0.62, 0.45, 0.62, 34, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
+        words('host', 0.62, 0.14, 0.6, 17, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
+        words('invite', 0.62, 0.245, 0.6, 18, { font: 'script', color: GOLD, bold: false }, { lines: 1 }),
+        rule('guestline', 0.62, 0.375, 0.5, INK, 1.2),
+        words('guest', 0.62, 0.35, 0.5, 20, { font: 'script', color: INK, bold: false }, { lines: 1 }),
+        words('at', 0.62, 0.425, 0.4, 15, { font: 'elegant', color: INK, bold: false, italic: true }),
+        words('occasion', 0.62, 0.5, 0.62, 30, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
         words('when', 0.62, 0.62, 0.62, 19, { font: 'clean', color: INK, bold: true }, { lines: 1 }),
         words('venue', 0.62, 0.71, 0.62, 18, { font: 'clean', color: INK, bold: false }, { lines: 1 }),
         words('dress', 0.62, 0.8, 0.62, 17, { font: 'clean', color: GOLD, bold: true }, { lines: 1 }),
@@ -486,7 +519,8 @@
         words('invite', 0.1, 0.22, 0.8, 21, { font: 'clean', color: GREY, bold: false, align: 'left' }, { anchor: 'left' }),
         rule('guestline', 0.45, 0.305, 0.7, INK, 1.5),
         words('guest', 0.1, 0.29, 0.7, 28, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('occasion', 0.1, 0.43, 0.82, 66, { font: 'clean', color: NAVY, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('at', 0.1, 0.35, 0.5, 20, { font: 'clean', color: GREY, bold: false, italic: true, align: 'left' }, { anchor: 'left' }),
+        words('occasion', 0.1, 0.435, 0.82, 66, { font: 'clean', color: NAVY, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
         rule('rule', 0.2, 0.535, 0.2, NAVY, 4),
         words('when', 0.1, 0.61, 0.82, 26, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
         words('venue', 0.1, 0.66, 0.82, 25, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 2 }),
@@ -501,7 +535,8 @@
         words('invite', 0.07, 0.26, 0.7, 19, { font: 'clean', color: GREY, bold: false, align: 'left' }, { anchor: 'left' }),
         rule('guestline', 0.34, 0.365, 0.54, INK, 1.5),
         words('guest', 0.07, 0.345, 0.54, 26, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
-        words('occasion', 0.07, 0.49, 0.84, 56, { font: 'clean', color: NAVY, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
+        words('at', 0.07, 0.415, 0.5, 18, { font: 'clean', color: GREY, bold: false, italic: true, align: 'left' }, { anchor: 'left' }),
+        words('occasion', 0.07, 0.505, 0.84, 56, { font: 'clean', color: NAVY, bold: true, align: 'left' }, { anchor: 'left', lines: 2 }),
         words('when', 0.07, 0.66, 0.84, 22, { font: 'clean', color: INK, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
         words('venue', 0.07, 0.725, 0.84, 21, { font: 'clean', color: INK, bold: false, align: 'left' }, { anchor: 'left', lines: 1 }),
         words('dress', 0.07, 0.785, 0.84, 20, { font: 'clean', color: NAVY, bold: true, align: 'left' }, { anchor: 'left', lines: 1 }),
@@ -535,6 +570,15 @@
     return made.items.find((item) => item.role === role) || null;
   }
 
+  /** Where the design puts the part with `role` on one side ('front' or 'back') of the card. */
+  function roleItemOn(collage, role, side, opts) {
+    if (side !== 'back') return roleItem(collage, role, opts);
+    const key = collage?.card?.design;
+    if (!DESIGNS[key] || !collage.back) return null;
+    const front = frontOf(collage);
+    return backPage(front, key, detailsOf(front), opts).items.find((item) => item.role === role) || null;
+  }
+
   /** The unit's three colours from the details ("#7a1f2b #c9a54a #1d2c55"), each checked. */
   function colourList(text) {
     const given = String(text || '').trim().split(/[\s,]+/);
@@ -542,11 +586,38 @@
     return [0, 1, 2].map((i) => (/^#[0-9a-f]{6}$/i.test(given[i] || '') ? given[i].toLowerCase() : fallback[i]));
   }
 
-  /** The designs offered for a size: the pocket designs for a pocket card, the others otherwise. */
+  /** What a new card or poster in this design starts with: the general wording, then the design's own. */
+  function startDetails(designKey) {
+    const design = DESIGNS[designKey];
+    if (!design) return DEFAULT_DETAILS;
+    return { ...(design.poster ? POSTER_DETAILS : DEFAULT_DETAILS), ...(design.sample || {}) };
+  }
+
+  /**
+   * The designs offered for a size: the pocket designs for a pocket card, the others otherwise.
+   * A custom size smaller than A6 is offered both, the pocket designs first (cold review 5).
+   */
   function designsFor(sizeKey, kind) {
     if (kind === 'poster') return Object.values(DESIGNS).filter((design) => design.poster);
-    const pocket = core.sizeOf(sizeKey).group === 'pocket';
-    return Object.values(DESIGNS).filter((design) => !design.poster && Boolean(design.pocket) === pocket);
+    const size = core.sizeOf(sizeKey);
+    // A design may not suit some sizes (a full pocket invitation on a visiting card is too small to read).
+    const cards = Object.values(DESIGNS).filter((design) => !design.poster && !(design.notFor || []).includes(sizeKey));
+    if (size?.group === 'custom' && core.smallCard(sizeKey)) return [...cards.filter((design) => design.pocket), ...cards.filter((design) => !design.pocket)];
+    const pocket = size?.group === 'pocket';
+    return cards.filter((design) => Boolean(design.pocket) === pocket);
+  }
+
+  /**
+   * The design a card keeps on a new size: its own when that size offers it, or the nearest one
+   * offered (an invitation becomes the pocket invitation, a pocket card the classic invitation).
+   */
+  function designOnSize(designKey, sizeKey) {
+    const design = DESIGNS[designKey];
+    if (!design || design.poster) return designKey;
+    const offered = designsFor(sizeKey).map((each) => each.key);
+    if (offered.includes(designKey)) return designKey;
+    const nearest = design.pocket ? ['classic'] : ['pocketinvite', 'pass'];
+    return nearest.find((key) => offered.includes(key)) || offered[0] || designKey;
   }
 
   /** Whether a design follows the unit's colours: a part's colour is one of 'band1' to 'band3'. */
@@ -586,9 +657,14 @@
     if (!design) return { front: [], back: [] };
     if (isFolded(sizeKey)) return { front: foldedParts(designKey, 'outside'), back: foldedParts(designKey, 'inside') };
     const front = isPortrait(sizeKey) ? design.portrait : (design.landscape || design.portrait);
-    return { front, back: backParts(designKey, isPortrait(sizeKey)) };
+    // A field the front already shows (a programme card's programme) is not on the back as well:
+    // one field, one place, so the words typed are the words printed.
+    const onFront = new Set(fieldsIn(front));
+    return { front, back: backParts(designKey, isPortrait(sizeKey)).filter((part) => part.kind !== 'text' || !onFront.has(part.field)) };
   }
-  const fieldsIn = (parts) => [...new Set(parts.filter((part) => part.kind === 'text').map((part) => part.field))];
+  function fieldsIn(parts) {
+    return [...new Set(parts.filter((part) => part.kind === 'text').map((part) => part.field))];
+  }
 
   /** Which side of the card a field is on, from the design: 'front', 'back', or null when it has none. */
   function sideOf(collage, field) {
@@ -625,18 +701,11 @@
   }
 
   /**
-   * The collage with `designKey` applied: its background, and a new set of design parts, made
-   * from the details, in place of the parts of any design applied before. Items the user added
-   * (photos, stickers, their own words: anything without a `role`) stay where they are, in front.
-   * A field left empty has no item. `measure(text, font)` sizes the words as the page does;
-   * `newId()` gives each new item its id. The page size never changes.
-   */
-  /**
    * One side's items: the design's parts for it, made from the wording, then the user's own
    * items (and a second logo) from `items`, the side as it was. A photo in the side's frame
    * (`frameRole`) goes into the new frame, or stays as the user's own when there is none.
    */
-  function makePage(items, parts, { width, height, unit, wording, measure, newId, isCard, frameRole, lockedElsewhere = new Set() }) {
+  function makePage(items, parts, { width, height, unit, minSize = 0, wording, measure, newId, isCard, frameRole, lockedElsewhere = new Set() }) {
     // The unit's colours for the Regimental band: 'band1' to 'band3' in a look stand for them.
     const colours = colourList(wording.colours);
     const tinted = (look) => {
@@ -680,9 +749,19 @@
       if (lockedElsewhere.has(part.role)) continue;
       const before = made.length;
       if (part.kind === 'logoplace') {
-        const w = part.w * 1000 * unit;
-        if (chosenLogo) made.push({ ...chosenLogo, id: newId(), x: part.x * width, y: part.y * height, width: w, angle: 0 });
-        else if (!noLogo) made.push({ ...core.slotItem(newId(), { x: part.x * width, y: part.y * height, width: w, aspect: part.aspect }), role: 'logo' });
+        // The place starts inside the page's top edge, with a little room: on a landscape page,
+        // where it would run over the edge, it is made smaller and keeps its bottom where it was,
+        // clear of the heading.
+        const room = height * 0.015;
+        const full = part.w * 1000 * unit;
+        const bottom = part.y * height + full / part.aspect / 2;
+        const w = Math.min(full, (bottom - room) * part.aspect);
+        const y = bottom - w / part.aspect / 2;
+        // The chosen logo sized for its shape, never taller than the place (cold review 5: a tall
+        // logo grew past the poster's top edge on a design change).
+        const own = chosenLogo ? chosenLogo.width / core.itemHeight(chosenLogo) : 0;
+        if (chosenLogo) made.push({ ...chosenLogo, id: newId(), x: part.x * width, y, width: posterLogoWidth(w, part.aspect, own), angle: 0 });
+        else if (!noLogo) made.push({ ...core.slotItem(newId(), { x: part.x * width, y, width: w, aspect: part.aspect }), role: 'logo' });
         continue;
       }
       const look = part.look ? tinted(part.look) : {};
@@ -714,7 +793,9 @@
         // sized by this design; a card whose logo was removed stays without one (PR 7).
         const logo = (items || []).find((item) => item.role === 'logo');
         if (logo) {
-          const w = part.w * 1000 * unit;
+          // Sized by area for its own shape: a wide unit logo is not squeezed into a crest's width.
+          const own = logo.kind === 'slot' ? part.aspect : logo.width / core.itemHeight(logo);
+          const w = logoWidth(part.w * 1000 * unit, part.aspect || SDD_ASPECT, own);
           made.push({ ...logo, id: newId(), x: part.x * width, y: part.y * height, width: w, angle: 0 });
         }
       } else if (part.kind === 'sticker') {
@@ -725,15 +806,23 @@
         if (!text.trim()) continue;
         const item = core.textItem(newId(), text, { x: part.x * width, y: part.y * height }, {
           ...look,
-          size: Math.round(part.size * unit),
+          // Script and italic lines are harder to read small: 7 pt for them, 6 pt for the rest.
+          size: Math.max(Math.round(part.size * unit), Math.ceil(['script', 'formal'].includes(look.font) || look.italic ? minSize * 7 / 6 : minSize)),
           maxWidth: part.w * width,
           maxLines: part.lines || 1,
           field: part.field,
           role: part.role
         });
+        // Words fitted to their width never go below 6 pt; past it they take another line. A
+        // guest's name stops at 60% of its size.
+        const floor = Math.ceil(minSize);
+        if (floor > 0) item.minSize = floor;
+        if (part.field === 'guest') item.minSize = Math.max(floor, Math.round(item.size * 0.6));
         const layout = core.layoutText(item, measure);
         item.width = layout.width;
         item.aspect = layout.width / layout.height;
+        // A guest's name on two lines grows upwards, off the line drawn under it.
+        if (part.field === 'guest' && layout.lines > 1) item.y -= (layout.height - core.layoutText({ ...item, text: 'X' }, measure).height) / 2;
         if (part.anchor === 'left') item.x = part.x * width + layout.width / 2;
         if (part.anchor === 'right') item.x = part.x * width - layout.width / 2;
         made.push(item);
@@ -746,15 +835,78 @@
         if (part.radius && (item.kind === 'slot' || item.kind === 'photo')) item.radius = Math.min(part.radius, core.LAYOUT_LIMITS.radiusMax);
       }
     }
+    // A logo in a white box (Ceremonial) fits inside it with a margin, whatever its shape.
+    const box = made.find((item) => item.role === 'logobox');
+    const boxed = made.find((item) => item.role === 'logo');
+    if (box && boxed && !boxed.locked) {
+      const aspect = boxed.width / core.itemHeight(boxed);
+      boxed.width = Math.min(boxed.width, box.width * 0.84, core.itemHeight(box) * 0.86 * aspect);
+      boxed.x = box.x;
+      boxed.y = box.y;
+    }
+    // A logo inside a border keeps clear of its line (a very wide card squeezes the logo up to it):
+    // made smaller about its middle until it is 12 units inside the frame.
+    const frame = made.find((item) => item.role === 'border' && item.kind === 'shape');
+    const framedLogo = made.find((item) => item.role === 'logo');
+    if (frame && framedLogo && !framedLogo.locked) {
+      const top = frame.y - core.itemHeight(frame) / 2 + 12;
+      const half = core.itemHeight(framedLogo) / 2;
+      if (framedLogo.y - half < top && framedLogo.y > top) framedLogo.width *= (framedLogo.y - top) / half;
+    }
+    // A poster's logo place ends above the words below it (on a landscape page the heading comes
+    // up close): made smaller, keeping its top, so it never covers the heading (cold review 5).
+    const posterLogo = parts.some((part) => part.kind === 'logoplace') ? made.find((item) => item.role === 'logo' && !item.locked) : null;
+    if (posterLogo) {
+      const logoTop = posterLogo.y - core.itemHeight(posterLogo) / 2;
+      const left = posterLogo.x - posterLogo.width / 2;
+      const right = posterLogo.x + posterLogo.width / 2;
+      const below = made.filter((item) => item.kind === 'text' && !item.hidden).map(itemBox).filter((b) => b.top > logoTop && b.left < right && b.right > left);
+      const limit = Math.min(...below.map((b) => b.top)) - height * 0.01;
+      const tall = core.itemHeight(posterLogo);
+      if (Number.isFinite(limit) && logoTop + tall > limit && limit - logoTop > tall * 0.3) {
+        posterLogo.width *= (limit - logoTop) / tall;
+        posterLogo.y = logoTop + core.itemHeight(posterLogo) / 2;
+      }
+    }
+    // A second logo the user added goes beside the design's logo, as tall as it: the two share
+    // the middle where the design centres its logo, or face each other across the card.
+    const designLogo = made.find((item) => item.role === 'logo');
+    const seconds = (items || []).filter((item) => item.role === 'logo2').map((item) => {
+      if (!designLogo || item.locked) return item;
+      const height = core.itemHeight(designLogo);
+      const w2 = height * (item.width / core.itemHeight(item));
+      const placed = { ...item, width: w2, y: designLogo.y, angle: 0 };
+      const centred = Math.abs(designLogo.x - width / 2) < width * 0.05;
+      if (centred && !designLogo.locked) {
+        const gap = designLogo.width * 0.35;
+        const left = width / 2 - (designLogo.width + gap + w2) / 2;
+        designLogo.x = left + designLogo.width / 2;
+        placed.x = left + designLogo.width + gap + w2 / 2;
+      } else if (centred) {
+        // A locked centred first logo stays put; the second goes beside it, on the right if it
+        // fits, else on the left (Codex on #3453).
+        const gap = designLogo.width * 0.35;
+        const right = designLogo.x + designLogo.width / 2 + gap + w2 / 2;
+        placed.x = right + w2 / 2 <= width ? right : designLogo.x - designLogo.width / 2 - gap - w2 / 2;
+      } else {
+        placed.x = width - designLogo.x;
+      }
+      return placed;
+    });
+    // The roundel behind the logo follows it: hidden with none, wide enough for a wide logo or two.
+    const roundel = made.find((item) => item.role === 'roundel');
+    if (roundel) fitRoundel([...made, ...seconds], { width: roundel.width, aspect: roundel.aspect }, { hadLogo: (items || []).some((item) => item.role === 'logo' && item.kind !== 'slot') });
     // Photos from the last design's frame with no frame here become the user's own.
     const leftOver = framed.map(({ role, ...item }) => item);
     // The user's own items, and a second logo they added, stay where they are.
-    const own = (items || []).filter((item) => !item.role || item.role === 'logo2' || (item.locked && !placedLocked.has(item.id)));
+    const own = (items || []).filter((item) => !item.role || (item.locked && !placedLocked.has(item.id))).map((item) => seconds.find((second) => second.id === item.id) || item);
+    // The second logo, placed beside the design's logo, with the user's own items.
+    for (const second of seconds) if (!own.some((item) => item.id === second.id)) own.push(second);
     return [...made, ...own, ...leftOver];
   }
 
   /** The look of a design's back: its background and the colours of the title, rule and words. */
-  const BACK_LOOKS = Object.freeze({
+  const BACK_LOOKS = lookupTable({
     classic: { background: { type: 'color', value: '#fbf7ee' }, title: MAROON, accent: GOLD, ink: INK },
     navy: { background: { type: 'gradient', key: 'navy' }, title: PALE_GOLD, accent: PALE_GOLD, ink: IVORY },
     regimental: { background: { type: 'color', value: '#ffffff' }, title: 'band1', accent: 'band2', ink: INK },
@@ -766,14 +918,15 @@
   /** The back's parts for a design: the programme, a frame for a route sketch or venue photo, a note. */
   function backParts(designKey, portrait) {
     const look = BACK_LOOKS[designKey] || BACK_LOOKS.classic;
-    const backPhoto = (x, y, w, h) => ({ role: 'backphoto', kind: 'slot', x, y, w, h });
+    // No empty photo frame (cold review 6: one saved empty left a hole): the programme has the
+    // page, and a photo the user adds from Photos goes on it as their own; a photo from an older
+    // back's frame stays on the back as theirs.
     return portrait
       ? [
         border('backborder', 0.04, look.accent, 1.2),
-        words('programmeTitle', 0.5, 0.11, 0.7, 40, { font: 'elegant', color: look.title, bold: true }, { lines: 1 }),
-        rule('backrule', 0.5, 0.165, 0.2, look.accent, 2),
-        words('programme', 0.5, 0.33, 0.8, 31, { font: 'clean', color: look.ink, bold: false }, { lines: 10 }),
-        backPhoto(0.5, 0.63, 0.76, 0.22),
+        words('programmeTitle', 0.5, 0.13, 0.7, 40, { font: 'elegant', color: look.title, bold: true }, { lines: 1 }),
+        rule('backrule', 0.5, 0.19, 0.2, look.accent, 2),
+        words('programme', 0.5, 0.46, 0.8, 32, { font: 'clean', color: look.ink, bold: false, align: 'left' }, { lines: 12 }),
         words('backNote', 0.5, 0.82, 0.8, 20, { font: 'clean', color: look.ink, bold: false, italic: true }, { lines: 2 }),
         { ...logo(0.5, 0.91, 0.045), role: 'backlogo' }
       ]
@@ -781,8 +934,7 @@
         border('backborder', 0.04, look.accent, 1.2),
         words('programmeTitle', 0.5, 0.14, 0.6, 36, { font: 'elegant', color: look.title, bold: true }, { lines: 1 }),
         rule('backrule', 0.5, 0.23, 0.16, look.accent, 2),
-        words('programme', 0.29, 0.54, 0.46, 26, { font: 'clean', color: look.ink, bold: false }, { lines: 10 }),
-        backPhoto(0.73, 0.54, 0.4, 0.5),
+        words('programme', 0.5, 0.54, 0.7, 27, { font: 'clean', color: look.ink, bold: false, align: 'left' }, { lines: 10 }),
         words('backNote', 0.5, 0.88, 0.84, 18, { font: 'clean', color: look.ink, bold: false, italic: true }, { lines: 1 })
       ];
   }
@@ -797,36 +949,98 @@
    */
   function foldedParts(designKey, side) {
     const look = BACK_LOOKS[designKey] || BACK_LOOKS.classic;
+    // The formal designs set the host in engraved capitals and the invitation in formal script.
+    const formal = FORMAL_DESIGNS.includes(designKey);
     const panelBorder = (role, cx) => ({ role, kind: 'shape', form: 'rect', x: cx, y: 0.5, w: 0.44, h: 0.88, look: { stroke: look.accent, strokeWidth: 1.2, fill: '' } });
     if (side === 'outside') {
       return [
         panelBorder('coverborder', 0.75),
-        logo(0.75, 0.24, 0.13),
-        words('occasion', 0.75, 0.52, 0.38, 46, { font: 'elegant', color: look.title, bold: true }, { lines: 3 }),
-        rule('coverrule', 0.75, 0.66, 0.12, look.accent, 2),
+        logo(0.75, 0.26, 0.13),
+        words('host', 0.75, 0.52, 0.38, 24, { font: formal ? 'engraved' : 'elegant', color: look.title, bold: true, spacing: 6 }, { lines: 3 }),
+        rule('coverrule', 0.75, 0.64, 0.12, look.accent, 2),
         words('note', 0.25, 0.82, 0.36, 18, { font: 'elegant', color: look.ink, bold: false, italic: true }, { lines: 2 })
       ];
     }
+    // The Bilingual design keeps its Hindi inside: the invitation and the occasion in Hindi too.
+    const hindi = designKey === 'bilingual' ? [
+      words('inviteHi', 0.25, 0.44, 0.38, 22, { font: 'hindiFormal', color: look.accent, bold: false }, { lines: 2 }),
+      words('occasionHi', 0.75, 0.405, 0.38, 24, { font: 'hindiFormal', color: look.title, bold: true }, { lines: 1 })
+    ] : [];
     return [
       panelBorder('innerborder', 0.25),
       panelBorder('innerborder2', 0.75),
-      words('host', 0.25, 0.24, 0.38, 22, { font: 'elegant', color: look.ink, bold: true }, { lines: 3 }),
-      words('invite', 0.25, 0.38, 0.38, 26, { font: 'script', color: look.accent, bold: false }, { lines: 2 }),
+      words('invite', 0.25, 0.36, 0.38, formal ? 30 : 26, { font: formal ? 'formal' : 'script', color: look.accent, bold: false }, { lines: 2 }),
       rule('guestline', 0.25, 0.53, 0.32, look.ink, 1.5),
       words('guest', 0.25, 0.51, 0.32, 28, { font: 'script', color: look.ink, bold: false }, { lines: 1 }),
-      words('when', 0.75, 0.3, 0.38, 22, { font: 'clean', color: look.ink, bold: true }, { lines: 2 }),
-      words('venue', 0.75, 0.42, 0.38, 21, { font: 'clean', color: look.ink, bold: false }, { lines: 2 }),
-      words('dress', 0.75, 0.54, 0.38, 20, { font: 'clean', color: look.accent, bold: true }, { lines: 1 }),
-      words('rsvp', 0.75, 0.72, 0.38, 18, { font: 'clean', color: look.ink, bold: false }, { lines: 2 })
+      words('at', 0.75, 0.2, 0.3, 19, { font: 'elegant', color: look.ink, bold: false, italic: true }, { lines: 1 }),
+      words('occasion', 0.75, 0.32, 0.38, 34, { font: 'elegant', color: look.title, bold: true }, { lines: 2 }),
+      words('when', 0.75, 0.47, 0.38, 21, { font: 'clean', color: look.ink, bold: true }, { lines: 2 }),
+      words('venue', 0.75, 0.57, 0.38, 20, { font: 'clean', color: look.ink, bold: false }, { lines: 2 }),
+      words('dress', 0.75, 0.66, 0.38, 19, { font: 'clean', color: look.accent, bold: true }, { lines: 1 }),
+      words('rsvp', 0.75, 0.77, 0.38, 17, { font: 'clean', color: look.ink, bold: false }, { lines: 2 }),
+      ...hindi
     ];
   }
 
-  /** The fields on a folded card's inside, so the panel knows which side holds them. */
-  const INSIDE_FIELDS = Object.freeze(['host', 'invite', 'guest', 'when', 'venue', 'dress', 'rsvp']);
+  /**
+   * The width a logo of this shape (`aspect`, width over height) gets in a place made for one
+   * `placeWidth` wide and `placeAspect` in shape: the same area, so a wide unit logo is not
+   * squeezed to a sliver where a tall crest fits, and at most 2.4 times as wide as the place.
+   */
+  function logoWidth(placeWidth, placeAspect, aspect) {
+    if (!(aspect > 0) || !(placeAspect > 0)) return placeWidth;
+    return Math.min(placeWidth * 2.4, Math.sqrt(placeWidth * (placeWidth / placeAspect) * aspect));
+  }
+
+  /**
+   * A poster's logo width: as logoWidth, but never taller than its place, which sits near the
+   * poster's top edge.
+   */
+  function posterLogoWidth(placeWidth, placeAspect, aspect) {
+    const width = logoWidth(placeWidth, placeAspect, aspect);
+    return aspect > 0 && placeAspect > 0 ? Math.min(width, placeWidth / placeAspect * aspect) : width;
+  }
+
+  /**
+   * The roundel behind the logo (Regimental) follows the logos, in `items` (changed in place):
+   * hidden with no logo; around one logo, at least the design's size (`base`) and wide enough for
+   * a wide logo; around two side by side. A locked roundel stays as it is.
+   */
+  function fitRoundel(items, base, { hadLogo = true } = {}) {
+    const roundel = items.find((item) => item.role === 'roundel' && !item.locked);
+    if (!roundel || !base) return;
+    const logos = items.filter((item) => (item.role === 'logo' && item.kind !== 'slot') || item.role === 'logo2');
+    // Hidden for want of a logo is marked so (autoHidden), and only that comes back with a logo:
+    // a roundel the user hid stays hidden (Codex on #3453). One hidden while the card had no
+    // logo (as an earlier PRISM hid it) counts as hidden for want of a logo.
+    if (!logos.some((item) => item.role === 'logo')) {
+      if (!roundel.hidden) { roundel.hidden = true; roundel.autoHidden = true; }
+      return;
+    }
+    if (roundel.autoHidden || !hadLogo) { delete roundel.hidden; delete roundel.autoHidden; }
+    const left = Math.min(...logos.map((item) => item.x - item.width / 2));
+    const right = Math.max(...logos.map((item) => item.x + item.width / 2));
+    const height = base.width / base.aspect;
+    const width = Math.max(base.width, right - left + base.width * 0.35);
+    roundel.x = logos.length > 1 ? (left + right) / 2 : logos[0].x;
+    roundel.width = width;
+    roundel.aspect = width / height;
+  }
+
+  /** The smallest a design's words print, in points: smaller is hard to read on a card. */
+  const MIN_PRINT_PT = 6;
+
+  /** MIN_PRINT_PT in page units on a page of this size (0 for a page with no paper size). */
+  function minTextUnits(sizeKey) {
+    const size = core.sizeOf(sizeKey);
+    // A custom card smaller than A6 is warned of instead: its words could not all keep the floor.
+    if (!size?.mm || (size.group === 'custom' && core.smallCard(sizeKey))) return 0;
+    return MIN_PRINT_PT * 25.4 / 72 * core.PAGE_WIDTH / size.mm[0];
+  }
 
   /** The measures one side of a card of this size is built with. */
   function pageContext(collage, wording, { measure, newId }, extra) {
-    return { width: core.PAGE_WIDTH, height: core.pageHeight(collage.size), unit: unitOf(collage.size), wording, measure, newId, ...extra };
+    return { width: core.PAGE_WIDTH, height: core.pageHeight(collage.size), unit: unitOf(collage.size), minSize: minTextUnits(collage.size), wording, measure, newId, ...extra };
   }
 
   /**
@@ -836,25 +1050,17 @@
   function backPage(collage, designKey, details, opts, items = []) {
     const look = BACK_LOOKS[designKey] || BACK_LOOKS.classic;
     const wording = { ...DEFAULT_DETAILS, ...(details || {}) };
-    // A folded card's inside comes from its own panels; any other back leaves out the fields its
-    // front already shows (a programme card's programme).
-    const onFront = new Set(fieldsOf(designKey, collage.size));
-    const parts = isFolded(collage.size)
-      ? foldedParts(designKey, 'inside')
-      : backParts(designKey, isPortrait(collage.size)).filter((part) => part.kind !== 'text' || !onFront.has(part.field));
+    const parts = partsFor(designKey, collage.size).back;
+    // A part locked on the front is not made again on the back (Codex on #3452).
     const lockedOnFront = new Set((collage.items || []).filter((item) => item.role && item.locked).map((item) => item.role));
     const made = makePage(items, parts, pageContext(collage, wording, opts, { isCard: false, frameRole: 'backphoto', lockedElsewhere: lockedOnFront }));
     // The back's small logo is the front's logo (the SDD logo, a crest or the user's own), or
     // none when the front has none. `collage` here shows its front.
     const front = (collage.items || []).find((item) => item.role === 'logo');
     const at = made.findIndex((item) => item.role === 'backlogo');
-    // A back logo the user locked stays exactly as it is, turn and all (Codex on #3452); the front
-    // logo's own lock and hiding are its own, not the back's.
-    if (at >= 0 && !made[at].locked) {
-      if (front) {
-        const { locked, hidden, ...picture } = front;
-        made.splice(at, 1, { ...picture, id: made[at].id, x: made[at].x, y: made[at].y, width: made[at].width, angle: 0, role: 'backlogo', ...(made[at].hidden ? { hidden: true } : {}) });
-      } else made.splice(at, 1);
+    if (at >= 0) {
+      if (front) made.splice(at, 1, backLogoFrom(front, made[at]));
+      else if (!made[at].locked) made.splice(at, 1);
     }
     return { background: { ...look.background }, items: made };
   }
@@ -870,19 +1076,18 @@
   function applyDesign(collage, designKey, details, opts) {
     const design = DESIGNS[designKey];
     if (!design) return collage;
-    const showingBack = collage.side === 'back' && collage.back;
-    const card = showingBack ? core.flipSide(collage) : collage;
+    const card = frontOf(collage);
     const wording = { ...DEFAULT_DETAILS, ...(details || {}) };
-    // A poster has one arrangement, used for either shape.
-    // A folded card has its own outside and inside (PR 9c); a poster one arrangement for any shape.
+    // A folded card has its own outside and inside (PR 9c); any other the design's arrangement for
+    // the page's shape (a poster has only one, used for either).
     const parts = isFolded(card.size) ? foldedParts(designKey, 'outside') : isPortrait(card.size) ? design.portrait : (design.landscape || design.portrait);
     const applied = {
       ...card,
       background: { ...design.background },
       layout: null,
       items: makePage(card.items, parts, pageContext(card, wording, opts, { isCard: Boolean(card.card), frameRole: 'photo', lockedElsewhere: new Set((card.back?.items || []).filter((item) => item.role && item.locked).map((item) => item.role)) })),
-      // The guest list stays with the card through a design change (PR 10).
-      card: { ...(card.card?.guests ? { guests: card.card.guests } : {}), design: designKey, details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) }
+      // The guest list, and fields a newer PRISM keeps on the card, stay through a design change.
+      card: { ...(card.card || {}), design: designKey, details: { ...(card.card?.details || {}), ...Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) } }
     };
     // A folded card always has both sides.
     if (card.back || isFolded(card.size)) {
@@ -892,7 +1097,7 @@
     }
     // The fields this design put on the card, both sides, so a missing one is known to be deleted.
     applied.card.placed = placedOn(applied);
-    return showingBack ? core.flipSide(applied) : applied;
+    return asShown(collage, applied);
   }
 
   /**
@@ -941,6 +1146,32 @@
     return moveForLogo(collage, next, opts);
   }
 
+  /** An item's box on the page (not turned): left, right, top and bottom. */
+  function itemBox(item) {
+    const half = core.itemHeight(item) / 2;
+    return { left: item.x - item.width / 2, right: item.x + item.width / 2, top: item.y - half, bottom: item.y + half };
+  }
+
+  /**
+   * The Hindi wording kept in step with the English (cold review 6): an occasion quick pick has
+   * its Hindi (`picks`, English to Hindi); a Hindi field still holding the sample's or a quick
+   * pick's Hindi while its English is something else is emptied, so the card never prints a
+   * Hindi line that says something different. Words the user typed in Hindi stay theirs.
+   */
+  function hindiInStep(details, picks = {}) {
+    const out = { ...details };
+    const known = new Set([DEFAULT_DETAILS.occasionHi, ...Object.values(picks)]);
+    // Only a sample's or a quick pick's Hindi (or none) follows the English; Hindi the user typed
+    // stays, whatever else is edited (Codex on #3453). Picking a quick pick sets its Hindi itself.
+    const stock = !String(out.occasionHi || '').trim() || known.has(out.occasionHi);
+    if (stock && picks[out.occasion]) out.occasionHi = picks[out.occasion];
+    else if (stock && known.has(out.occasionHi) && out.occasion !== DEFAULT_DETAILS.occasion) out.occasionHi = '';
+    for (const [field, hindi] of [['host', 'hostHi'], ['invite', 'inviteHi']]) {
+      if (out[hindi] === DEFAULT_DETAILS[hindi] && out[field] !== DEFAULT_DETAILS[field]) out[hindi] = '';
+    }
+    return out;
+  }
+
   /** The fields that have an item on either side of a card. */
   function placedOn(collage) {
     return [...new Set([...(collage.items || []), ...(collage.back?.items || [])].filter((item) => item.field).map((item) => item.field))];
@@ -955,16 +1186,71 @@
     return added;
   }
 
+  /**
+   * The back's small logo follows the front's logo (PR 8): the same picture in the back logo's
+   * place, or none when the front has none. Without `add`, a back whose small logo was deleted
+   * keeps none (the user took it off); with it (a logo chosen in Card details), it comes back in
+   * the design's place. Returns the collage itself when nothing changes, so it can run after
+   * every change. Works whichever side shows.
+   */
+  function followLogo(collage, opts, { add = false } = {}) {
+    if (!collage?.back || !collage.card) return collage;
+    const front = frontOf(collage);
+    const logo = front.items.find((item) => item.role === 'logo' && item.kind !== 'slot');
+    const items = front.back.items;
+    const at = items.findIndex((item) => item.role === 'backlogo');
+    let next;
+    if (!logo) {
+      // A back logo the user locked stays, even when the front's logo goes (Codex on #3453).
+      if (at < 0 || items[at].locked) return collage;
+      next = items.filter((_, i) => i !== at);
+    } else {
+      if (at < 0 && !add) return collage;
+      const place = at >= 0 ? items[at] : backPage(front, front.card.design, detailsOf(front), opts).items.find((item) => item.role === 'backlogo');
+      if (!place) return collage;
+      const old = at >= 0 ? items[at] : null;
+      if (old && old.kind === logo.kind && old.sticker === logo.sticker && old.photo === logo.photo && old.aspect === logo.aspect) return collage;
+      if (old?.locked) return collage;
+      const small = backLogoFrom(logo, old || { ...place, id: opts.newId(), hidden: false, locked: false });
+      next = old ? items.map((item, i) => (i === at ? small : item)) : [...items, small];
+    }
+    const out = { ...front, back: { ...front.back, items: next } };
+    return asShown(collage, out);
+  }
+
+  /**
+   * The back's small logo made from the front's logo, in `place` (the back logo as it is, or the
+   * design's place for one): the front's picture at the place's position and size. A locked back
+   * logo stays exactly as it is; a hidden one stays hidden; the front logo's own lock and hiding
+   * are its own, not the back's.
+   */
+  function backLogoFrom(front, place) {
+    if (place.locked) return place;
+    const { locked, hidden, ...picture } = front;
+    const small = { ...picture, id: place.id, x: place.x, y: place.y, width: place.width, angle: 0, role: 'backlogo' };
+    if (place.hidden) small.hidden = true;
+    return small;
+  }
+
   /** The card without its back, showing its front. */
   function deleteBack(collage) {
     if (!collage?.back) return collage;
-    const front = collage.side === 'back' ? core.flipSide(collage) : collage;
+    const front = frontOf(collage);
     const { back, side, ...rest } = front;
-    // The back's fields are no longer on the card: their words, as they are now on the card
-    // (typed in Card details or in an item's Words box), are kept for a new back.
-    // A field the design shows on the front (a programme card's programme) stays tracked.
-    if (rest.card) rest.card = { ...rest.card, details: detailsOf(front), placed: (rest.card.placed || []).filter((field) => !isBackField(rest, field)) };
+    // The fields only the back had are no longer on the card: their words, as they are now on the
+    // card (typed in Card details or in an item's Words box), are kept for a new back.
+    const backOnly = new Set(fieldsIn(partsFor(rest.card?.design, rest.size).back));
+    if (rest.card) rest.card = { ...rest.card, details: detailsOf(front), placed: (rest.card.placed || []).filter((field) => !backOnly.has(field)) };
     return rest;
+  }
+
+  /**
+   * Whether a field is on the card's back: a back field, unless the design shows it on the
+   * front (a programme card has its programme and title on the front).
+   */
+  function isBackField(collage, field) {
+    // The design says which side a field is on (partsFor), a folded card's inside included.
+    return fieldsIn(partsFor(collage?.card?.design, collage?.size).back).includes(field);
   }
 
   /**
@@ -972,16 +1258,6 @@
    * user emptied and fills again, so it comes back in its design's place. Null when the design
    * has no place for it or its words are empty.
    */
-  /**
-   * Whether a field is on the card's back: a back field, unless the design shows it on the
-   * front (a programme card has its programme and title on the front).
-   */
-  function isBackField(collage, field) {
-    // A folded card's inside fields are on its back (PR 9c).
-    if (isFolded(collage?.size) && INSIDE_FIELDS.includes(field)) return true;
-    return BACK_FIELDS.includes(field) && !fieldsOf(collage?.card?.design, collage?.size).includes(field);
-  }
-
   function fieldItem(collage, field, details, opts) {
     const key = collage?.card?.design;
     if (!DESIGNS[key]) return null;
@@ -989,7 +1265,7 @@
     if (!where) return null;
     if (where === 'back') {
       // Built from the front's point of view, so the back's logo follows the front's.
-      const front = collage.side === 'back' ? core.flipSide(collage) : collage;
+      const front = frontOf(collage);
       return backPage(front, key, details, opts).items.find((item) => item.field === field) || null;
     }
     const { back, side, ...front } = collage;
@@ -997,5 +1273,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, INSIDE_FIELDS, partsFor, sideOf, fieldsOnCard });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, followLogo, roleItemOn, designOnSize, hindiInStep });
 });

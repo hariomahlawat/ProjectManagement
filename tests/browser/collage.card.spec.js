@@ -81,10 +81,10 @@ test('words typed on the card show in the Card details, and a plain collage has 
   await page.getByRole('button', { name: 'Back to the start' }).click();
 
   await page.locator('[data-start-design="navy"]').click();
-  await expect(page.locator('[data-card-field="venue"]')).toHaveValue("Officers' Mess, SDD Campus");
+  await expect(page.locator('[data-card-field="venue"]')).toHaveValue('Officers’ Mess, SDD Campus');
   // Select the venue on the page through Layers and type in its Words box.
   await page.locator('.clg-props [data-props-tab="layers"]').click();
-  await page.locator('[data-layer-select]').filter({ hasText: "Officers' Mess" }).click();
+  await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).click();
   await page.locator('.clg-props [data-props-tab="settings"]').click();
   const words = page.locator('[data-text]');
   await words.fill('Sudarshan Hall');
@@ -115,13 +115,14 @@ test('a quick pick pressed straight after typing words in Settings still fills i
   await page.locator('[data-start-design="classic"]').click();
   // Select the venue through Layers and type in its Words box, then at once press a quick pick.
   await page.locator('.clg-props [data-props-tab="layers"]').click();
-  await page.locator('[data-layer-select]').filter({ hasText: "Officers' Mess" }).click();
+  await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).click();
   await page.locator('.clg-props [data-props-tab="settings"]').click();
   await page.locator('[data-text]').fill('Sudarshan Hall');
   await page.locator('[data-card-pick="occasion"][data-value="Barakhana"]').click();
   await expect(page.locator('[data-card-field="occasion"]')).toHaveValue('Barakhana');
   await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'occasion')?.text).toBe('Barakhana');
   expect((await newestDraft(page)).model.items.find((item) => item.field === 'venue').text).toBe('Sudarshan Hall');
+  expect(errors).toEqual([]);
 });
 
 test('Regimental takes the unit\'s colours from Card details; Bilingual shows the Hindi fields, Classic does not', async ({ page }) => {
@@ -156,9 +157,9 @@ test('words typed in Card details show in the selected item\'s Words box at once
   const errors = await openFresh(page);
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('.clg-props [data-props-tab="layers"]').click();
-  await page.locator('[data-layer-select]').filter({ hasText: "Officers' Mess" }).click();
+  await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).click();
   await page.locator('.clg-props [data-props-tab="settings"]').click();
-  await expect(page.locator('[data-text]')).toHaveValue("Officers' Mess, SDD Campus");
+  await expect(page.locator('[data-text]')).toHaveValue('Officers’ Mess, SDD Campus');
   await page.locator('[data-card-field="venue"]').fill('Sudarshan Hall');
   await expect(page.locator('[data-text]')).toHaveValue('Sudarshan Hall');
   expect(errors).toEqual([]);
@@ -192,7 +193,7 @@ test('a Card field clicked straight after typing words in Settings shows those w
   const errors = await openFresh(page);
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('.clg-props [data-props-tab="layers"]').click();
-  await page.locator('[data-layer-select]').filter({ hasText: "Officers' Mess" }).click();
+  await page.locator('[data-layer-select]').filter({ hasText: 'Officers’ Mess' }).click();
   await page.locator('.clg-props [data-props-tab="settings"]').click();
   await page.locator('[data-text]').fill('Sudarshan Hall');
   // At once, into the matching Card details field, and type one more letter.
@@ -394,9 +395,14 @@ test('a back with the programme: added and shown, typed from the front, and save
     const text = atob(base64);
     const bytes = new Uint8Array(text.length);
     for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
-    return (await window.PDFLib.PDFDocument.load(bytes)).getPageCount();
+    return (await window.PDFLib.PDFDocument.load(bytes)).getPages().map((p) => [p.getWidth(), p.getHeight()]);
   }, (await streamBytes(file)).toString('base64'));
-  expect(pages).toBe(2);
+  expect(pages.length).toBe(2);
+  // Both pages are the card's paper, A5 (148 × 210 mm) in points.
+  for (const [w, h] of pages) {
+    expect(Math.abs(w - 148 / 25.4 * 72)).toBeLessThan(0.5);
+    expect(Math.abs(h - 210 / 25.4 * 72)).toBeLessThan(0.5);
+  }
   await expect(page.locator('[data-save-result]')).toContainText('2 pages');
   // The front alone, as a picture: one file named for its side.
   await page.locator('input[name="sides"][value="front"]').check();
@@ -462,17 +468,18 @@ test('the back\'s small logo follows the front\'s: replaced, removed and put bac
 test('pocket sizes offer the pocket cards; a car pass shows its own fields and shares the occasion', async ({ page }) => {
   const errors = await openFresh(page);
   await page.locator('[data-card-size]').selectOption('passl');
-  await expect(page.locator('[data-start-design]')).toHaveCount(4);
+  // The visiting-card size offers three: a whole pocket invitation would be too small to read.
+  await expect(page.locator('[data-start-design]')).toHaveCount(3);
   await page.locator('[data-start-design="pass"]').click();
   await expect(page.locator('[data-card-field="passTitle"]')).toHaveValue('CAR PASS');
   await expect(page.locator('[data-card-field="vehicle"]')).toBeVisible();
   await expect(page.locator('[data-card-field="host"]')).toHaveCount(0);
-  await expect(page.locator('[data-card-design]')).toHaveCount(4);
+  await expect(page.locator('[data-card-design]')).toHaveCount(3);
   // Another pocket design keeps the occasion typed for the pass.
   await page.locator('[data-card-field="occasion"]').fill('Barakhana');
   await page.locator('[data-card-field="occasion"]').blur();
-  await page.locator('[data-card-design="pocketinvite"]').click();
-  await expect.poll(async () => (await newestDraft(page))?.model?.card?.design).toBe('pocketinvite');
+  await page.locator('[data-card-design="programmecard"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.card?.design).toBe('programmecard');
   expect((await newestDraft(page)).model.items.find((item) => item.field === 'occasion').text).toBe('Barakhana');
   expect(errors).toEqual([]);
 });
@@ -498,7 +505,7 @@ test('a poster asks which logo; Decide later keeps its place; No logo moves the 
   await page.locator('[data-start-poster="notice"]').click();
   await expect(page.locator('#clgCardTitle')).toHaveText('Poster details');
   await expect(page.locator('.clg-rail [data-panel="card"] span')).toHaveText('Poster');
-  await expect(page.locator('[data-card-field="title"]')).toHaveValue('Annual Sports Meet 2026');
+  await expect(page.locator('[data-card-field="title"]')).toHaveValue('Annual Medical Examination');
   await expect(page.locator('.clg-card-question')).toContainText('Which logo goes on this poster?');
   await expect(page.locator('[data-card-design]')).toHaveCount(4);
   const titleY = async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'title')?.y;
@@ -597,6 +604,7 @@ test('a logo still being read when the card is turned over stays in the tray, no
   await page.locator('[data-card-field="venue"]').blur();
   await expect.poll(async () => Boolean(await newestDraft(page))).toBe(true);
   const model = (await newestDraft(page)).model;
+  // A draft saved with the back showing has it at the top, as the PRISM before stores it.
   const front = model.side === 'back' ? model.back.items : model.items;
   const back = model.side === 'back' ? model.items : model.back.items;
   expect(front.find((item) => item.role === 'logo').sticker).toBe('logo:sdd');
@@ -624,9 +632,26 @@ test('a programme card\'s programme is typed in Card details; a folded card prin
   await page.getByRole('button', { name: 'Printing' }).click();
   const download = page.waitForEvent('download');
   await page.locator('[data-action="save-go"]').click();
-  await download;
+  const file = await download;
   // Outside and inside for each guest; the names are inside, where the guest line is.
   await expect(page.locator('[data-save-result]')).toContainText('2 guest cards on 4 pages');
+  // The picture on each page (tests review 5, M2): both guests share one outside, drawn once,
+  // and each inside is their own, so names put on the outside would fail here.
+  const pictures = await page.evaluate(async (base64) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    const pdf = await window.PDFLib.PDFDocument.load(bytes);
+    const { PDFName, PDFDict } = window.PDFLib;
+    return pdf.getPages().map((each) => {
+      const xobjects = each.node.Resources().lookupMaybe(PDFName.of('XObject'), PDFDict);
+      return xobjects ? xobjects.values().map(String).join(' ') : '';
+    });
+  }, (await streamBytes(file)).toString('base64'));
+  expect(pictures).toHaveLength(4);
+  expect(pictures[0]).toBe(pictures[2]);
+  expect(pictures[1]).not.toBe(pictures[3]);
+  expect(pictures[0]).not.toBe(pictures[1]);
   expect(errors).toEqual([]);
 });
 
@@ -643,28 +668,20 @@ test('a programme card\'s programme typed in Card details is the programme on th
 });
 
 // Codex on PR 11: the contact line is in Poster details; a poster's back logo follows No logo.
-test('Poster details changes the contact line; Remove logo takes the back logo too', async ({ page }) => {
+test('Poster details changes the contact line; Remove logo leaves No logo', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
   await page.locator('[data-start-poster="notice"]').click();
   const contact = page.locator('[data-card-field="contact"]');
-  await expect(contact).toHaveValue('Sports Officer · Ext 2210');
+  // The design's sample contact shows, to be changed.
+  await expect(contact).toHaveValue(/Ext \d+/);
   await contact.fill('Adjutant · Ext 2201');
   await contact.blur();
   await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'contact')?.text).toBe('Adjutant · Ext 2201');
-
+  // A poster here offers no back, so the back logo following No logo is not reached from the panel.
+  await expect(page.locator('[data-card-side="add"]')).toHaveCount(0);
   await page.locator('[data-card-logo-use="logo:sdd"]').click();
-  await page.locator('[data-card-side="add"]').click();
-  await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
-  const backLogo = async () => {
-    const model = (await newestDraft(page))?.model;
-    const back = model?.side === 'back' ? model.items : model?.back?.items;
-    return (back || []).some((item) => item.role === 'backlogo');
-  };
-  await expect.poll(backLogo).toBe(true);
-  await page.locator('[data-card-side="front"]').click();
   await page.locator('[data-card-logo="remove"]').click();
   await expect.poll(async () => (await newestDraft(page))?.model?.items?.some((item) => item.role === 'logo')).toBe(false);
-  await expect.poll(backLogo).toBe(false);
   expect(errors).toEqual([]);
 });

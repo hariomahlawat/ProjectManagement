@@ -14,20 +14,20 @@
 
   /** The Card details form: each field's label, and whether it takes more than one line. */
   const FORM = Object.freeze([
-    ['occasion', 'Occasion'],
+    // The Bilingual design's Hindi wording (PR 6) sits right under its English.
     ['host', 'Host', true],
+    ['hostHi', 'Host in Hindi', true],
     ['invite', 'Invitation line'],
+    ['inviteHi', 'Invitation line in Hindi'],
     ['guest', 'Guest’s name (leave empty for a line to write it on)'],
     ['at', 'Before the occasion'],
+    ['occasion', 'Occasion'],
+    ['occasionHi', 'Occasion in Hindi'],
     ['when', 'Date and time'],
     ['venue', 'Venue'],
     ['dress', 'Dress'],
     ['rsvp', 'R.S.V.P.'],
     ['note', 'Note at the bottom'],
-    // The Bilingual design's Hindi wording (PR 6).
-    ['occasionHi', 'Occasion in Hindi'],
-    ['hostHi', 'Host in Hindi', true],
-    ['inviteHi', 'Invitation line in Hindi'],
     // The back of the card (PR 8).
     ['programmeTitle', 'Back: title'],
     ['programme', 'Back: programme, one line each', true],
@@ -47,13 +47,34 @@
     ['lines', 'Details, one line each', true],
     ['contact', 'Contact line at the bottom']
   ]);
+  // A poster's fields in the order it reads: the heading first, the contact line last.
+  const POSTER_ORDER = Object.freeze(['kicker', 'title', 'subtitle', 'when', 'venue', 'lines', 'contact']);
+  const POSTER_FORM = Object.freeze([
+    ...POSTER_ORDER.map((field) => FORM.find(([key]) => key === field)).filter(Boolean),
+    ...FORM.filter(([key]) => !POSTER_ORDER.includes(key))
+  ]);
   const COLOUR_NAMES = Object.freeze(['Top', 'Middle', 'Bottom']);
-  const OCCASIONS = Object.freeze(['Raising Day Dinner', 'Regimental Dinner', 'Change of Command', 'Farewell', 'Barakhana', 'At Home', 'Ladies’ Night', 'Passing Out Parade']);
+  const OCCASIONS = Object.freeze(['Raising Day Dinner', 'Regimental Dinner', 'Change of Command Parade', 'Farewell Dinner', 'Barakhana', 'At Home', 'Ladies’ Night', 'Passing Out Parade']);
   const DRESSES = Object.freeze(['Dress: Lounge Suit', 'Dress: Mess Dress', 'Dress: Smart Casuals', 'Dress: Ceremonial']);
+  // Each quick pick's occasion in Hindi, for the Bilingual design's Hindi column.
+  const OCCASIONS_HI = Object.freeze({
+    'Raising Day Dinner': 'स्थापना दिवस रात्रिभोज',
+    'Regimental Dinner': 'रेजिमेंटल रात्रिभोज',
+    'Change of Command Parade': 'कमान परिवर्तन परेड',
+    'Farewell Dinner': 'विदाई रात्रिभोज',
+    Barakhana: 'बड़ा खाना',
+    'At Home': 'एट होम',
+    'Ladies’ Night': 'लेडीज़ नाइट',
+    'Passing Out Parade': 'पासिंग आउट परेड'
+  });
+  // The word before an occasion that does not take "the": "at an At Home" (cold review 5). Only
+  // the words a design starts with are changed; words the user typed stay theirs.
+  const AT_FOR = Object.freeze({ 'At Home': 'at an' });
+  const AT_WORDS = Object.freeze(['at the', 'at an']);
   const DEFAULT_CARD_SIZE = 'a5p';
 
   function createCard(deps) {
-    const { state, core, draw, designs, stickers, ui, doc, history, messages, surface, selection, screens, parts } = deps;
+    const { state, core, draw, designs, stickers, ui, doc, history, messages, surface, selection, screens, parts, print = window.PrismCollagePrint } = deps;
     const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const form = ui.$('[data-card-form]');
     const strip = ui.$('[data-card-designs]');
@@ -98,6 +119,9 @@
         startSize.value = DEFAULT_CARD_SIZE;
       }
       const size = core.isSize(startSize.value) ? startSize.value : DEFAULT_CARD_SIZE;
+      // Where the pocket designs are, said while a full-size card is chosen.
+      const pocketHint = ui.$('[data-card-pocket-hint]');
+      if (pocketHint) pocketHint.hidden = core.sizeOf(size).group === 'pocket';
       const round = ++thumbs;
       if (posterGrid && posterSize) renderPosters(round);
       startGrid.textContent = '';
@@ -106,7 +130,9 @@
         button.type = 'button';
         button.className = 'clg-design-card';
         button.dataset.startDesign = design.key;
-        button.setAttribute('aria-label', `${design.label} card, ${core.sizeOf(size).label}`);
+        const named = /\bcard\b/i.test(design.label) || /\bpass\b/i.test(design.label) ? design.label : `${design.label} card`;
+        // The size is said too, unless it is the design's own name (the car pass on a car pass size).
+        button.setAttribute('aria-label', core.sizeOf(size).label === design.label ? named : `${named}, ${core.sizeOf(size).label}`);
         const ratio = core.pageHeight(size) / core.PAGE_WIDTH;
         const width = ratio >= 1 ? Math.round(150 / ratio) : 150;
         const height = Math.round(width * ratio);
@@ -134,16 +160,25 @@
         button.querySelector('b').textContent = design.label;
         button.querySelector('small').textContent = design.note;
         posterGrid.appendChild(button);
-        drawThumb(button.querySelector('canvas'), size, design.key, round, designs.POSTER_DETAILS);
+        drawThumb(button.querySelector('canvas'), size, design.key, round);
       }
     }
 
     // A small picture of a design, drawn as Save draws: the same drawing as the page.
     let renderer = null;
-    async function drawThumb(canvas, size, key, round, details = designs.DEFAULT_DETAILS) {
+    /** A design's picture on the start screen, with the wording it opens with. */
+    async function drawThumb(canvas, size, key, round) {
+      const details = designs.startDetails(key);
       try {
         renderer = renderer || window.PrismCollageRender.createRenderer({ core, draw, measureText: surface.measureText, fontsReady: surface.fontsReady, stickerImage: surface.stickerImage });
         const collage = designs.applyDesign(core.newCollage(size), key, details, { measure: surface.measureText, newId: (() => { let n = 0; return () => `t${++n}`; })() });
+        // The design's own fonts first (a script heading, Bebas on a poster), so the picture is
+        // drawn in them, not in the fallback.
+        if (document.fonts) {
+          const fonts = new Set(collage.items.filter((item) => item.kind === 'text').map((item) => core.fontOf(item, 40)));
+          await Promise.all([...fonts].map((font) => document.fonts.load(font, 'Aअ').catch(() => null)));
+          if (round !== thumbs) return;
+        }
         const drawn = await renderer.drawCollage(collage, new Map(), canvas.width, canvas.height);
         if (round !== thumbs) { renderer.release(drawn.canvas); return; }
         const context = canvas.getContext('2d');
@@ -156,6 +191,20 @@
           const h = core.itemHeight(slot) * scale;
           const x = slot.x * scale - w / 2;
           const y = slot.y * scale - h / 2;
+          if (slot.role === 'logo') {
+            // A poster's logo place: a light dashed outline, so the heading shows through.
+            context.setLineDash([3, 3]);
+            context.strokeStyle = '#8796a8';
+            context.lineWidth = 1;
+            context.strokeRect(x, y, w, h);
+            context.setLineDash([]);
+            context.fillStyle = '#5b6b7d';
+            context.font = `600 ${Math.max(9, Math.round(w / 5))}px Mulish, sans-serif`;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText('Logo', x + w / 2, y + h / 2);
+            continue;
+          }
           const shade = context.createLinearGradient(0, y, 0, y + h);
           shade.addColorStop(0, '#c9d6e3');
           shade.addColorStop(1, '#8796a8');
@@ -175,6 +224,11 @@
     // Custom size… shows the mm fields; Use adds the size to the menu and draws the designs at it.
     const customBox = ui.$('[data-card-custom]');
     let lastSize = DEFAULT_CARD_SIZE;
+    /** A custom card smaller than A6 is warned of on the start screen: its smallest words get tiny. */
+    function showSmallHint() {
+      const hint = ui.$('[data-card-small]');
+      if (hint) hint.hidden = !(core.isSize(startSize.value) && startSize.value.startsWith('mm:') && core.smallCard(startSize.value));
+    }
     startSize?.addEventListener('change', () => {
       if (startSize.value === 'custom') {
         startSize.value = lastSize;
@@ -185,6 +239,7 @@
         return;
       }
       lastSize = startSize.value;
+      showSmallHint();
       renderStart();
     });
     function useCustomCardSize() {
@@ -206,14 +261,24 @@
       startSize.value = answer.key;
       lastSize = answer.key;
       customBox.hidden = true;
+      showSmallHint();
       renderStart();
-      messages.announce(`Card size: ${core.sizeOf(answer.key).label}.`);
+      messages.announce(`Card size: ${core.sizeOf(answer.key).label}.${core.smallCard(answer.key) ? ' This card is smaller than A6, so its smallest words will print very small.' : ''}`);
+    }
+    /** Cancel or Escape: the box closes and the menu keeps the size it had; focus goes back to it. */
+    function closeCustomBox() {
+      customBox.hidden = true;
+      customBox.querySelector('[data-card-custom-error]').hidden = true;
+      startSize.value = lastSize;
+      startSize.focus();
     }
     customBox?.addEventListener('click', (event) => {
       if (event.target.closest('[data-card-custom-use]')) useCustomCardSize();
+      if (event.target.closest('[data-card-custom-cancel]')) closeCustomBox();
     });
     customBox?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && event.target.matches('[data-card-custom-size]')) { event.preventDefault(); useCustomCardSize(); }
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeCustomBox(); }
     });
     posterSize?.addEventListener('change', () => renderStart());
     posterGrid?.addEventListener('click', (event) => {
@@ -253,6 +318,11 @@
     window.addEventListener('pointercancel', pressDone, true);
 
     /** Shows the Card button only for a card; draws the panel again unless the user is typing in it. */
+    // The control in the panel that last had focus, and whether a redraw waits for focus to land.
+    let lastFocused = null;
+    let landing = false;
+    let landed = false;
+
     function refresh() {
       const card = state.collage?.card;
       if (railButton) railButton.hidden = !card;
@@ -261,9 +331,21 @@
         return;
       }
       if (pressing) { waiting = true; return; }
+      // Focus passing from one field to the next (Tab after typing) is on the page for a moment:
+      // drawn now, the panel would replace the field Tab is going to. Drawn once it has landed.
+      if (state.panel === 'card' && !landed && document.activeElement === document.body && form.contains(lastFocused)) {
+        if (!landing) {
+          landing = true;
+          // Once, after focus has had its turn: still on the page (a click away), it is drawn then.
+          setTimeout(() => { landing = false; landed = true; refresh(); landed = false; }, 0);
+        }
+        return;
+      }
       const word = isPoster() ? 'Poster' : 'Card';
       const title = ui.$('#clgCardTitle');
       if (title) title.textContent = `${word} details`;
+      const hint = ui.$('[data-card-hint]');
+      if (hint) hint.textContent = `Type here, or click any words on the ${word.toLowerCase()}. Changing the design keeps every word.`;
       const label = railButton?.querySelector('span');
       if (label) label.textContent = word;
       // Drawn again unless a field in it is being typed in; a focused button keeps its focus.
@@ -277,7 +359,34 @@
 
     // The field typed in since it was focused: its words are the user's, never put back.
     let typedIn = null;
-    form?.addEventListener('focusin', (event) => { if (event.target.dataset.cardField) typedIn = null; });
+    // Ctrl+Z in a field is the Studio's Undo (words typed are recorded for it), as on the page;
+    // Ctrl+Y or Ctrl+Shift+Z its Redo. The browser's own undo is lost once the panel is redrawn.
+    form?.addEventListener('keydown', (event) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || !event.target.matches('[data-card-field], [data-card-guests]')) return;
+      const key = event.key.toLowerCase();
+      const which = key === 'z' && !event.shiftKey ? 'undo' : (key === 'y' || (key === 'z' && event.shiftKey)) ? 'redo' : null;
+      if (!which) return;
+      event.preventDefault();
+      event.stopPropagation();
+      history.flushNudge();
+      // The field shows the words Undo brings back, though it has focus.
+      typedIn = null;
+      const button = ui.root.querySelector(`[data-action="${which}"]`);
+      undoing = true;
+      try {
+        if (button && !button.disabled) button.click();
+      } finally {
+        undoing = false;
+      }
+    });
+    form?.addEventListener('focusin', (event) => { lastFocused = event.target; if (event.target.dataset.cardField) typedIn = null; });
+    // While a field is typed in, a phone's sheet is shorter, so the card above stays readable.
+    form?.addEventListener('focusin', (event) => {
+      if (event.target.matches('input:not([type="color"]), textarea')) ui.root.classList.add('is-card-typing');
+    });
+    form?.addEventListener('focusout', () => {
+      setTimeout(() => { if (!form.contains(document.activeElement)) ui.root.classList.remove('is-card-typing'); }, 0);
+    });
 
     /** Every field shows the card's words, in place, except one being typed in. */
     function syncInputs() {
@@ -287,7 +396,15 @@
         const value = details[input.dataset.cardField] || '';
         if (input.value !== value) input.value = value;
       }
+      // The guest list box follows the list (after Undo too), but never while it is typed in.
+      const guestsBox = form.querySelector('[data-card-guests]');
+      if (guestsBox && (guestsBox !== document.activeElement || undoing)) {
+        const value = (state.collage.card?.guests || []).join(String.fromCharCode(10));
+        if (guestsBox.value !== value) guestsBox.value = value;
+      }
     }
+    // An Undo or Redo pressed in the panel: the box with focus shows what it brings back.
+    let undoing = false;
 
     function renderPanel() {
       const details = designs.detailsOf(state.collage);
@@ -297,23 +414,25 @@
       const colours = designs.usesColours(design) ? colourFields(details.colours) : '';
       // The logo is the front's: changed with the front showing.
       const logo = state.collage.side === 'back' ? '<p class="clg-hint">Turn to the front to change the logo.</p>' : logoSection();
-      form.innerHTML = sidesSection() + logo + colours + guestSection() + FORM.filter(([field]) => shown.has(field)).map(([field, label, long]) => {
+      const poster = isPoster();
+      const fields = (poster ? POSTER_FORM : FORM).filter(([field]) => shown.has(field)).map(([field, label, long]) => {
         const id = `clgCard-${field}`;
         const value = escapeHtml(details[field] || '');
         const input = long
-          ? `<textarea class="form-control form-control-sm" id="${id}" rows="${field === 'programme' ? 5 : 2}" maxlength="${core.TEXT_LIMITS.maxLength}" data-card-field="${field}">${value}</textarea>`
+          ? `<textarea class="form-control form-control-sm" id="${id}" rows="${field === 'programme' ? 5 : field === 'host' ? 3 : 2}" maxlength="${core.TEXT_LIMITS.maxLength}" data-card-field="${field}">${value}</textarea>`
           : `<input class="form-control form-control-sm" id="${id}" type="text" maxlength="${core.TEXT_LIMITS.maxLength}" value="${value}" data-card-field="${field}" autocomplete="off">`;
         const picks = field === 'occasion' ? OCCASIONS : field === 'dress' ? DRESSES : null;
-        const chips = picks ? `<div class="clg-chips clg-card-picks">${picks.map((pick) => `<button type="button" class="clg-chip" data-card-pick="${field}" data-value="${escapeHtml(pick)}">${escapeHtml(pick.replace(/^Dress: /, ''))}</button>`).join('')}</div>` : '';
-        return `<label class="clg-field" for="${id}"><span class="clg-field__label">${escapeHtml(label)}</span>${input}</label>${chips}`;
+        const chips = picks ? `<div class="clg-chips clg-card-picks">${picks.map((pick) => `<button type="button" class="clg-chip" data-card-pick="${field}" data-value="${escapeHtml(pick)}" aria-pressed="${(details[field] || '') === pick}">${escapeHtml(pick.replace(/^Dress: /, ''))}</button>`).join('')}</div>` : '';
+        const note = field === 'occasionHi' ? '<p class="clg-hint clg-card-hindi-note">An occasion quick pick fills this in too. Other English is not translated: an old Hindi line is emptied for you to type.</p>'
+          : /Hi$/.test(field) ? '<p class="clg-hint clg-card-hindi-note">Not translated for you: when the English changes, this is emptied for you to type the Hindi.</p>' : '';
+        return `<label class="clg-field" for="${id}"><span class="clg-field__label">${escapeHtml(label)}</span>${input}</label>${chips}${note}`;
       }).join('');
+      // A poster asks which logo first, above everything, until it is answered (PR 11).
+      form.innerHTML = posterQuestion() + `<div class="clg-section clg-card-words"><p class="clg-section__title">Words</p>${fields}</div>`
+        + logo + (poster && !state.collage.back ? '' : sidesSection()) + colours + (poster || !shown.has('guest') ? '' : guestSection());
       renderStrip();
     }
 
-    /**
-     * The design buttons, made once and then only marked: a held edit written when a button is
-     * pressed redraws the panel, and a button replaced under the pointer would lose its click.
-     */
     // -------------------------------------------------------------------------
     // The logo (PR 7): PRISM's SDD logo, a crest an administrator uploaded, or the user's own
     // picture, kept in this browser like a photo. Changing the design keeps it.
@@ -326,9 +445,23 @@
 
     /** What the card's logo is, in words. */
     function logoName(item) {
-      if (!item || item.kind === 'slot') return isPoster() && item ? 'No logo chosen yet: the place for it is left out of Save.' : 'No logo';
+      if (!item || item.kind === 'slot') {
+        if (!isPoster()) return 'No logo';
+        return designs.detailsOf(state.collage).logoMode === 'none' ? 'No logo on this poster.' : 'No logo chosen yet. Its place on the page is left out of Save.';
+      }
       if (item.kind === 'photo') return `Your own logo (${doc.photos.get(item.photo)?.name || 'picture'})`;
       return stickers.find(item.sticker)?.label || 'Logo';
+    }
+
+    /** A poster's question, at the top of its panel until a logo, No logo or Decide later is chosen. */
+    function posterQuestion() {
+      const first = logoOf(state.collage)?.kind === 'slot' ? null : logoOf(state.collage);
+      if (!isPoster() || first || designs.detailsOf(state.collage).logoMode) return '';
+      return `<div class="clg-section clg-card-question" role="group" aria-labelledby="clgPosterAsk"><p class="clg-section__title" id="clgPosterAsk">Which logo goes on this poster?</p>
+          <p class="clg-hint">Use your own, pick a crest under Logo below, or choose:</p>
+          <div class="clg-stack"><button type="button" class="btn btn-outline-primary btn-sm" data-card-logo="own"><i class="bi bi-upload" aria-hidden="true"></i> Your own logo…</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="none">No logo</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="later">Decide later</button></div></div>`;
     }
 
     function logoSection() {
@@ -336,8 +469,8 @@
       const mode = designs.detailsOf(state.collage).logoMode;
       // A poster asks which logo, until one is chosen, none is, or it is left for later (PR 11).
       const asking = isPoster() && !first && !mode;
-      const question = asking ? `<p class="clg-card-question" role="note"><b>Which logo goes on this poster?</b> Pick one below, use your own, or choose <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-card-logo="none">No logo</button> or <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-card-logo="later">Decide later</button>.</p>` : '';
-      const second = state.collage.items.some((item) => item.role === 'logo2');
+      const secondItem = state.collage.items.find((item) => item.role === 'logo2') || null;
+      const second = Boolean(secondItem);
       const role = targetRole();
       const current = role === 'logo2' ? state.collage.items.find((item) => item.role === 'logo2') : first;
       // With two logos, which one the choices below change.
@@ -349,7 +482,7 @@
         return `<button type="button" class="clg-sticker clg-sticker--named${on ? ' is-on' : ''}" data-card-logo-use="${escapeHtml(entry.id)}" aria-pressed="${on}" title="${escapeHtml(entry.label)}" aria-label="Use ${escapeHtml(entry.label)}"><img src="${escapeHtml(surface.stickerSource({ sticker: entry.id, colour: '' }) || '')}" alt=""><span class="clg-sticker__name">${escapeHtml(entry.label)}</span></button>`;
       }).join('');
       return `<div class="clg-section clg-card-logo">
-          <p class="clg-section__title">Logo</p>${question}${which}
+          <p class="clg-section__title">Logo</p>${which}
           <p class="clg-hint" data-card-logo-name>${escapeHtml(logoName(current))}</p>
           <div class="clg-stickers clg-card-logo__choices">${choices}</div>
           <div class="clg-stack">
@@ -358,6 +491,7 @@
             ${current ? `<button type="button" class="btn btn-outline-danger btn-sm" data-card-logo="remove"><i class="bi bi-x-lg" aria-hidden="true"></i> ${!second ? 'Remove logo' : role === 'logo2' ? 'Remove second logo' : 'Remove first logo'}</button>` : ''}
             ${isPoster() && !first && mode !== 'none' && !asking ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="none">No logo</button>' : ''}
           </div>
+          ${secondItem ? `<p class="clg-hint clg-card-logo__second" data-card-logo2-name>Second logo: ${escapeHtml(logoName(secondItem))}. Pick First logo or Second logo above to change or remove one; choose it on the page to move or resize it.</p>` : ''}
           <p class="clg-hint">Your own logo stays in this browser, like your photos. A PNG keeps its clear background.</p>
         </div>`;
     }
@@ -379,6 +513,13 @@
       doc.edit((draft) => {
         if (draft.card?.details?.logoMode === 'none') draft.card = { ...draft.card, details: { ...draft.card.details, logoMode: '' } };
         const fresh = { ...make({ x: place.x, y: place.y, width: place.width }), role };
+        // A wide logo gets the place's area, not only its width (a crest's place is narrow).
+        const shape = fresh.width / core.itemHeight(fresh);
+        if (isPoster()) {
+          // On a poster, sized from the design's place, never taller than it (the place is near the top edge).
+          const designPlace = designs.roleItem(draft, 'logo', options()) || place;
+          fresh.width = designs.posterLogoWidth(designPlace.width, designPlace.width / core.itemHeight(designPlace), shape);
+        } else fresh.width = designs.logoWidth(place.width, place.width / core.itemHeight(place), shape);
         const index = draft.items.findIndex((item) => item.role === role);
         if (index >= 0) draft.items.splice(index, 1, fresh);
         else {
@@ -388,6 +529,7 @@
       }, 'none');
       // The heading moves back down to make room; nothing else changes.
       if (wasNone) doc.edit((draft) => designs.moveForLogo(before, draft, options()), 'none');
+      fitRoundel(before.items.some((item) => item.role === 'logo' && item.kind !== 'slot'));
       followLogoOnBack();
       history.commit();
       surface.syncAll();
@@ -396,25 +538,21 @@
     }
 
     /**
+     * The design's roundel behind the logo (Regimental) follows the logos: hidden with none, as
+     * wide as both when there are two, back to its design size with one. Inside the same change.
+     */
+    /** The roundel follows the logos; `hadLogo` says whether the card had a logo before the change. */
+    function fitRoundel(hadLogo = true) {
+      const base = designs.roleItem(state.collage, 'roundel', options());
+      doc.edit((draft) => designs.fitRoundel(draft.items, base, { hadLogo }), 'none');
+    }
+
+    /**
      * The back's small logo shows the front's logo (PR 8): the same picture in the back's place,
      * or none when the front has none. Done inside the change it follows, so one Undo covers both.
      */
     function followLogoOnBack() {
-      doc.edit((draft) => {
-        if (!draft.back) return;
-        const front = draft.items.find((item) => item.role === 'logo' && item.kind !== 'slot');
-        const at = draft.back.items.findIndex((item) => item.role === 'backlogo');
-        if (!front) {
-          if (at >= 0) draft.back.items.splice(at, 1);
-          return;
-        }
-        // The back's place for it: where it is now, or where the design puts it.
-        const place = at >= 0 ? draft.back.items[at] : designs.backPage(draft, draft.card?.design, designs.detailsOf(draft), options()).items.find((item) => item.role === 'backlogo');
-        if (!place) return;
-        const small = { ...front, id: at >= 0 ? place.id : doc.newItemId(), x: place.x, y: place.y, width: place.width, angle: 0, role: 'backlogo' };
-        if (at >= 0) draft.back.items.splice(at, 1, small);
-        else draft.back.items.push(small);
-      }, 'none');
+      doc.edit((draft) => designs.followLogo(draft, options(), { add: true }), 'none');
     }
 
     function useLogoSticker(id) {
@@ -509,9 +647,9 @@
         }
         draft.items.splice(draft.items.indexOf(first) + 1, 0, second);
       }, 'none');
+      fitRoundel();
       history.commit();
       surface.syncAll();
-      renderPanel();
       logoTarget = 'logo2';
       renderPanel();
       messages.announce('A second logo is on the card. The choices below now change it; First logo goes back to the first.');
@@ -533,30 +671,73 @@
 
     /**
      * Removes the logo picked above the choices. The second goes on its own; the first, with a
-     * second on the card, leaves the second as the card's logo, so the card keeps a logo to
-     * change or remove.
+     * second on the card, leaves the second as the card's logo, in the logo's place, so the card
+     * keeps a logo to change or remove. A locked logo stays until it is unlocked.
      */
     function removeLogo() {
       const role = targetRole();
       const target = state.collage.items.find((item) => item.role === role);
       if (!target) return;
       if (target.locked) { messages.sayLocked(); return; }
-      const promoting = role === 'logo' && state.collage.items.some((item) => item.role === 'logo2');
+      if (role === 'logo2') { removeSecondLogo(); return; }
+      if (state.collage.items.some((item) => item.role === 'logo2')) { promoteSecond(); return; }
       // A poster's only logo removed: "No logo", so its design closes the gap (PR 11).
-      if (isPoster() && role === 'logo' && !promoting) { setLogoMode('none'); return; }
+      if (isPoster()) { setLogoMode('none'); return; }
       selection.select(null);
       doc.edit((draft) => {
-        draft.items = draft.items.filter((item) => item.role !== role);
-        if (promoting) draft.items = draft.items.map((item) => (item.role === 'logo2' ? { ...item, role: 'logo' } : item));
+        draft.items = draft.items.filter((item) => item.role !== 'logo');
       }, 'none');
       logoTarget = 'logo';
+      fitRoundel();
       followLogoOnBack();
       history.commit();
       surface.syncAll();
       renderPanel();
-      messages.offerUndo(role === 'logo2' ? 'Second logo removed.'
-        : promoting ? "First logo removed. The second is now the card's logo."
-        : 'Logo removed. It stays off when you change the design.');
+      messages.offerUndo('Logo removed. It stays off when you change the design.');
+    }
+
+    // Whether the design's logo sits in the middle of the page (two logos then share the middle).
+    const inMiddle = (item) => Boolean(item) && Math.abs(item.x - core.PAGE_WIDTH / 2) < core.PAGE_WIDTH * 0.05;
+
+    /** The first of two logos removed: the second becomes the card's logo, in the logo's place. */
+    function promoteSecond() {
+      const place = designs.roleItem(state.collage, 'logo', options());
+      selection.select(null);
+      doc.edit((draft) => {
+        const first = draft.items.find((item) => item.role === 'logo');
+        const second = draft.items.find((item) => item.role === 'logo2');
+        const x = inMiddle(place) ? place.x : first.x;
+        const promoted = second.locked ? { ...second, role: 'logo' } : { ...second, role: 'logo', x, y: first.y };
+        draft.items = draft.items.filter((item) => item !== second);
+        draft.items.splice(draft.items.findIndex((item) => item.role === 'logo'), 1, promoted);
+      }, 'none');
+      logoTarget = 'logo';
+      fitRoundel();
+      followLogoOnBack();
+      history.commit();
+      surface.syncAll();
+      renderPanel();
+      messages.offerUndo("First logo removed. The second is now the card's logo.");
+    }
+
+    function removeSecondLogo() {
+      const second = state.collage.items.find((item) => item.role === 'logo2');
+      if (!second) return;
+      if (second.locked) { messages.sayLocked(); return; }
+      const place = designs.roleItem(state.collage, 'logo', options());
+      selection.select(null);
+      doc.edit((draft) => {
+        draft.items = draft.items.filter((item) => item.role !== 'logo2');
+        const first = draft.items.find((item) => item.role === 'logo');
+        // The first logo goes back to the middle when the two shared it.
+        if (first && !first.locked && inMiddle(place)) first.x = place.x;
+      }, 'none');
+      logoTarget = 'logo';
+      fitRoundel();
+      history.commit();
+      surface.syncAll();
+      renderPanel();
+      messages.offerUndo('Second logo removed.');
     }
 
     // -------------------------------------------------------------------------
@@ -611,9 +792,6 @@
     // -------------------------------------------------------------------------
 
     function guestSection() {
-      // Only a design with a place for the guest's name takes a guest list (not a car pass, RSVP
-      // or programme card): names it could not show would make identical cards.
-      if (!designs.fieldsOf(state.collage.card?.design, state.collage.size).includes('guest')) return '';
       const names = state.collage.card?.guests || [];
       const count = names.length;
       return `<div class="clg-section clg-card-guests">
@@ -624,13 +802,32 @@
             <button type="button" class="btn btn-outline-secondary btn-sm" data-card-guest="file"><i class="bi bi-filetype-csv" aria-hidden="true"></i> Names from a .csv or .txt file…</button>
             ${count ? '<button type="button" class="btn btn-link btn-sm text-danger p-0" data-card-guest="clear">Clear names</button>' : ''}
           </div>
-          <p class="clg-hint" data-card-guest-count>${count ? `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it.` : 'Leave empty to print the card as it is, with a line for the name.'} The names stay in this browser.</p>
+          <p class="clg-hint" data-card-guest-count>${guestCountText(count)}</p>
         </div>`;
+    }
+
+    // What reading the last list given found: names past the limit, other columns. It belongs to
+    // that list only (cold review 6): another draft, or Undo to another list, shows none of it.
+    let guestNotes = { names: '', over: 0, firstColumn: false, extraCells: false };
+    const notesFor = (names) => (guestNotes.names === (names || []).join(String.fromCharCode(10)) ? guestNotes : { over: 0, firstColumn: false, extraCells: false });
+
+    /** The line under the guest list: how many guests, and how many names were left out. */
+    function guestCountText(count) {
+      if (!count) return 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.';
+      const { over: guestsOver, firstColumn: guestsFirstColumn, extraCells: guestsExtraCells } = notesFor(state.collage.card?.guests);
+      const left = guestsOver ? ` Only the first ${core.GUEST_LIMITS.names} are kept: ${guestsOver} name${guestsOver === 1 ? ' was' : 's were'} left out.` : '';
+      const column = guestsFirstColumn ? ' Only the first column was used; give the list a heading row (Rank, Name) to join columns.'
+        : guestsExtraCells ? ' Some rows have a comma inside a name without quotes ("Col X, VSM"): put such names in quotes so all of it is used.' : '';
+      // The first names as they will print, so a wrong column shows before Save.
+      // Names are the user's (or a file's) words: escaped, never markup.
+      const first = (state.collage.card?.guests || []).slice(0, 3).map((name) => `“${escapeHtml(name)}”`).join(', ');
+      return `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it. First on the cards: ${first}${count > 3 ? ', …' : '.'}${left}${column} The names stay in this browser.`;
     }
 
     /** Sets the guest list from text (pasted, typed, or a file's); kept with the draft, recorded for Undo. */
     function setGuests(text, { csv = false, held = false } = {}) {
-      const guests = core.guestNames(text, { csv });
+      const { names: guests, over, firstColumnOnly, extraCells } = print.readGuests(text, { csv });
+      guestNotes = { names: guests.join(String.fromCharCode(10)), over, firstColumn: firstColumnOnly, extraCells };
       doc.edit((draft) => {
         const card = { ...(draft.card || { design: 'classic', details: {} }) };
         if (guests.length) card.guests = guests;
@@ -640,7 +837,9 @@
       if (held) history.holdEdit();
       else history.commit();
       const count = form.querySelector('[data-card-guest-count]');
-      if (count) (count.textContent = guests.length ? `${guests.length} guest${guests.length === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it. The names stay in this browser.` : 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.');
+      if (count) count.textContent = guestCountText(guests.length);
+      if (over && !held) messages.showAlert(`Only the first ${core.GUEST_LIMITS.names} names are kept. ${over} name${over === 1 ? ' was' : 's were'} left out: make a second card for them.`);
+      else if (over) messages.announce(`Only the first ${core.GUEST_LIMITS.names} names are kept. ${over} left out.`);
       return guests;
     }
 
@@ -655,8 +854,14 @@
       guestFile.value = '';
       if (!file) return;
       if (file.size > 1000000) { messages.showAlert('That file is too large for a guest list. Use a .csv or .txt file of at most 1 MB.'); return; }
+      // A card left (or another opened) while the file is read gets nothing from it.
+      const forCollage = state.collageSession;
       let text = '';
-      try { text = await file.text(); } catch { messages.showAlert('That file could not be read.'); return; }
+      try {
+        // UTF-8, UTF-16 (a spreadsheet's "Unicode Text") or ANSI (Windows-1252).
+        text = print.decodeText(await file.arrayBuffer());
+      } catch { if (forCollage === state.collageSession) messages.showAlert('That file could not be read.'); return; }
+      if (forCollage !== state.collageSession) return;
       const guests = setGuests(text, { csv: /\.csv$/i.test(file.name) || file.type === 'text/csv' });
       renderPanel();
       messages.announce(guests.length ? `${guests.length} names read from ${file.name}.` : `No names were found in ${file.name}.`);
@@ -665,7 +870,27 @@
     /** The unit's three colours, for a design with a band in them (Regimental). */
     function colourFields(text) {
       const colours = designs.colourList(text);
-      return `<div class="clg-section clg-card-colours"><p class="clg-section__title">Unit colours</p><div class="clg-card-colours__row">${colours.map((colour, i) => `<label class="clg-card-colour"><input type="color" value="${colour}" data-card-colour="${i + 1}" aria-label="${COLOUR_NAMES[i]} colour of the band"><span>${COLOUR_NAMES[i]}</span></label>`).join('')}</div></div>`;
+      // What else each colour changes besides its band, from the card's own parts (cold review 6).
+      const uses = colourUses(state.collage);
+      const said = COLOUR_NAMES.map((name, i) => (uses[i].length ? `${name}: ${uses[i].join(', ')}` : '')).filter(Boolean);
+      const hint = said.length ? `<p class="clg-hint clg-card-colours__uses">Besides the band, each colour also sets: ${escapeHtml(said.join('; '))}.</p>` : '';
+      return `<div class="clg-section clg-card-colours"><p class="clg-section__title">Unit colours</p><div class="clg-card-colours__row">${colours.map((colour, i) => `<label class="clg-card-colour"><input type="color" value="${colour}" data-card-colour="${i + 1}" aria-label="${COLOUR_NAMES[i]} colour of the band"><span>${COLOUR_NAMES[i]}</span></label>`).join('')}</div>${hint}</div>`;
+    }
+
+    /** For each unit colour, the parts other than the bands that follow it, in plain words. */
+    function colourUses(collage) {
+      const names = { roundel: 'the ring round the logo', rule: 'the line at the bottom', backrule: 'the line on the back', coverrule: 'the line on the cover' };
+      const labels = Object.fromEntries(FORM.map(([field, label]) => [field, label.toLowerCase().replace(/^back: /, 'back ')]));
+      const uses = [[], [], []];
+      for (const item of [...(collage?.items || []), ...(collage?.back?.items || [])]) {
+        if (!item.tint || /^band\d$/.test(item.role || '')) continue;
+        const what = item.field ? `the ${labels[item.field] || item.field}` : names[item.role];
+        if (!what) continue;
+        for (const index of new Set(Object.values(item.tint))) {
+          if (uses[index - 1] && !uses[index - 1].includes(what)) uses[index - 1].push(what);
+        }
+      }
+      return uses;
     }
 
     /**
@@ -681,7 +906,8 @@
         // Both sides follow the unit's colours: the back's title and rules use them too.
         for (const item of [...draft.items, ...(draft.back?.items || [])]) {
           for (const [prop, which] of Object.entries(item.tint || {})) {
-            if (which === index && ['fill', 'stroke', 'color'].includes(prop)) item[prop] = value.toLowerCase();
+            // A locked part stays exactly as it is.
+            if (which === index && !item.locked && ['fill', 'stroke', 'color'].includes(prop)) item[prop] = value.toLowerCase();
           }
         }
       }, 'none');
@@ -689,6 +915,10 @@
       history.holdEdit();
     }
 
+    /**
+     * The design buttons, made once and then only marked: a held edit written when a button is
+     * pressed redraws the panel, and a button replaced under the pointer would lose its click.
+     */
     function renderStrip() {
       if (!strip) return;
       const current = state.collage?.card?.design;
@@ -767,21 +997,38 @@
       if (!designs.DESIGNS[key] || state.collage?.card?.design === key) return;
       history.flushNudge();
       selection.select(null);
-      doc.edit((draft) => designs.applyDesign(draft, key, designs.detailsOf(draft), options()), 'none');
+      // The Hindi follows the English where it can, and is emptied where it would say something else.
+      doc.edit((draft) => designs.applyDesign(draft, key, designs.hindiInStep(designs.detailsOf(draft), OCCASIONS_HI), options()), 'none');
       history.commit();
       surface.syncAll();
       renderStrip();
-      messages.offerUndo(`Design: ${designs.DESIGNS[key].label}. Your words are kept.`);
+      const hindiEmpty = designs.fieldsOnCard(state.collage).some((field) => /Hi$/.test(field)) && ['occasionHi', 'hostHi', 'inviteHi'].some((field) => !designs.detailsOf(state.collage)[field]);
+      messages.offerUndo(`Design: ${designs.DESIGNS[key].label}. Your words are kept.${hindiEmpty ? ' Type the Hindi lines to match your English.' : ''}`);
     }
 
     form?.addEventListener('input', (event) => {
       const field = event.target.dataset.cardField;
       if (field) typedIn = event.target;
       if (field) setField(field, event.target.value);
+      // A quick pick shows pressed only while its words are the field's.
+      if (field) for (const chip of form.querySelectorAll(`[data-card-pick="${field}"]`)) chip.setAttribute('aria-pressed', String(chip.dataset.value === event.target.value));
       if (event.target.dataset.cardColour) setColour(Number(event.target.dataset.cardColour), event.target.value);
       if (event.target.matches('[data-card-guests]')) setGuests(event.target.value, { held: true });
     });
     form?.addEventListener('change', (event) => {
+      // English changed on a card with Hindi lines: a Hindi line still saying the sample's words
+      // is emptied (or follows an occasion quick pick), so the two languages never disagree.
+      const english = event.target.dataset.cardField;
+      if (['occasion', 'host', 'invite'].includes(english) && designs.fieldsOnCard(state.collage).some((field) => /Hi$/.test(field))) {
+        const before = designs.detailsOf(state.collage);
+        const after = designs.hindiInStep(before, OCCASIONS_HI);
+        for (const field of ['occasionHi', 'hostHi', 'inviteHi']) {
+          if (after[field] === before[field] || !designs.fieldsOnCard(state.collage).includes(field)) continue;
+          const input = form.querySelector(`[data-card-field="${field}"]`);
+          if (input) input.value = after[field];
+          setField(field, after[field]);
+        }
+      }
       if (event.target.dataset.cardField || event.target.dataset.cardColour || event.target.matches('[data-card-guests]')) history.flushNudge();
     });
     form?.addEventListener('click', (event) => {
@@ -820,6 +1067,20 @@
       const input = form.querySelector(`[data-card-field="${pick.dataset.cardPick}"]`);
       if (input) input.value = pick.dataset.value;
       setField(pick.dataset.cardPick, pick.dataset.value);
+      // On a Bilingual card the Hindi occasion follows the quick pick, so both columns agree.
+      const hindi = pick.dataset.cardPick === 'occasion' ? OCCASIONS_HI[pick.dataset.value] : null;
+      if (hindi && designs.fieldsOnCard(state.collage).includes('occasionHi')) {
+        const hindiInput = form.querySelector('[data-card-field="occasionHi"]');
+        if (hindiInput) hindiInput.value = hindi;
+        setField('occasionHi', hindi);
+      }
+      if (pick.dataset.cardPick === 'occasion' && AT_WORDS.includes(designs.detailsOf(state.collage).at)) {
+        const at = AT_FOR[pick.dataset.value] || 'at the';
+        const atInput = form.querySelector('[data-card-field="at"]');
+        if (atInput) atInput.value = at;
+        setField('at', at);
+      }
+      for (const chip of form.querySelectorAll(`[data-card-pick="${pick.dataset.cardPick}"]`)) chip.setAttribute('aria-pressed', String(chip === pick));
       history.flushNudge();
       messages.announce(`${pick.dataset.cardPick === 'occasion' ? 'Occasion' : 'Dress'}: ${pick.dataset.value.replace(/^Dress: /, '')}.`);
     });

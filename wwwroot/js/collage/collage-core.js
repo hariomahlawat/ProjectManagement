@@ -15,6 +15,13 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  // A table looked up by a name from a draft or a file: no prototype, so "constructor" or
+  // "toString" is never a size, a design or a font.
+  const lookupTable = (entries) => Object.freeze(Object.assign(Object.create(null), entries));
+  // A pattern tested only against text: a draft's odd value (an object, a number) never matches,
+  // and never throws while it is turned into text.
+  const textMatches = (pattern, value) => typeof value === 'string' && pattern.test(value);
+
   /** The model's version, kept in every collage so a later version can read an older draft. */
   const MODEL_VERSION = 1;
 
@@ -30,7 +37,9 @@
   const card = (group, label, note, mm) => Object.freeze({
     group, label, note, width: Math.round(mm[0] / 25.4 * 300), height: Math.round(mm[1] / 25.4 * 300), mm
   });
-  const turned = (size, label) => Object.freeze({ ...size, label, width: size.height, height: size.width, mm: [size.mm[1], size.mm[0]] });
+  // A size turned the other way round: its measurements in the note turn too (cold review 6).
+  const turnNote = (note) => String(note || '').replace(/(\d+(?:\.\d+)?) × (\d+(?:\.\d+)?)( mm| in)/, '$2 × $1$3');
+  const turned = (size, label) => Object.freeze({ ...size, label, note: turnNote(size.note), width: size.height, height: size.width, mm: [size.mm[1], size.mm[0]] });
   const A5 = card('card', 'A5 card', '148 × 210 mm', [148, 210]);
   const A6 = card('card', 'A6 card', '105 × 148 mm', [105, 148]);
   const IN57 = card('card', '5 × 7 in card', '127 × 178 mm', [127, 177.8]);
@@ -43,7 +52,7 @@
   // Folded cards (PR 9c): the flat sheet, printed both sides and folded down the middle.
   const folded = (label, note, mm) => Object.freeze({ ...card('folded', label, note, mm), fold: 'middle' });
 
-  const SIZES = Object.freeze({
+  const SIZES = lookupTable({
     a4l: Object.freeze({ group: 'page', label: 'A4 landscape', note: '297 × 210 mm', width: 3508, height: 2480, mm: [297, 210] }),
     a4p: Object.freeze({ group: 'page', label: 'A4 portrait', note: '210 × 297 mm', width: 2480, height: 3508, mm: [210, 297] }),
     a3p: Object.freeze({ group: 'page', label: 'A3 poster', note: '297 × 420 mm', width: 3508, height: 4961, mm: [297, 420] }),
@@ -119,6 +128,15 @@
    * each side 50 to 300 mm, to a tenth of a mm, saved at 300 dpi with a true PDF paper size.
    */
   const CUSTOM_LIMITS = Object.freeze({ mm: [50, 300] });
+
+  /**
+   * Whether a card size is smaller than A6 (a side under 100 mm, or less paper than 100 × 148
+   * mm): a full invitation's smallest words would then print under 1.5 mm tall.
+   */
+  function smallCard(sizeKey) {
+    const mm = sizeOf(sizeKey)?.mm;
+    return Boolean(mm) && (Math.min(mm[0], mm[1]) < 100 || mm[0] * mm[1] < 100 * 148);
+  }
   const CUSTOM_KEY = /^mm:(\d{2,3}(?:\.\d)?)x(\d{2,3}(?:\.\d)?)$/;
   const customSizes = new Map();
   function customSize(key) {
@@ -480,14 +498,14 @@
    * the top and at the bottom (a polaroid's deep bottom holds a caption). Frames go with the
    * square shape only; a shaped photo has none.
    */
-  const FRAMES = Object.freeze({
+  const FRAMES = lookupTable({
     none: Object.freeze({ label: 'None', side: 0, top: 0, bottom: 0 }),
     border: Object.freeze({ label: 'White border', side: 0.035, top: 0.035, bottom: 0.035 }),
     polaroid: Object.freeze({ label: 'Polaroid', side: 0.05, top: 0.05, bottom: 0.2 }),
     tape: Object.freeze({ label: 'Taped', side: 0.035, top: 0.035, bottom: 0.035 }),
     torn: Object.freeze({ label: 'Torn edge', side: 0.035, top: 0.035, bottom: 0.035 })
   });
-  const SHAPES = Object.freeze({
+  const SHAPES = lookupTable({
     rect: 'Square',
     oval: 'Oval',
     heart: 'Heart',
@@ -496,7 +514,7 @@
     arch: 'Arch'
   });
   /** Looks as CSS filter lists; the same text styles the screen, the save and the previews. */
-  const LOOKS = Object.freeze({
+  const LOOKS = lookupTable({
     none: Object.freeze({ label: 'Original', filter: '' }),
     bw: Object.freeze({ label: 'Black & white', filter: 'grayscale(1) contrast(1.08)' }),
     sepia: Object.freeze({ label: 'Sepia', filter: 'sepia(0.85)' }),
@@ -681,7 +699,7 @@
    * Fonts for text, all shipped with PRISM (wwwroot/fonts/collage, SIL Open Font License). Each
    * English font falls back to a Devanagari one, so Hindi typed in any font still shows.
    */
-  const FONTS = Object.freeze({
+  const FONTS = lookupTable({
     clean: Object.freeze({ label: 'Clean', css: 'Mulish, "Noto Sans Devanagari", sans-serif' }),
     elegant: Object.freeze({ label: 'Elegant', css: '"Playfair Display", "Tiro Devanagari Hindi", serif' }),
     script: Object.freeze({ label: 'Script', css: '"Dancing Script", Kalam, cursive' }),
@@ -696,7 +714,7 @@
     hindiFormal: Object.freeze({ label: 'हिंदी औपचारिक', css: '"Tiro Devanagari Hindi", "Noto Sans Devanagari", serif' })
   });
   const TEXT_LIMITS = Object.freeze({
-    size: [8, 300], spacing: [-5, 40], outline: [0, 12], curve: [-100, 100], maxLength: 300
+    size: [8, 300], spacing: [-5, 40], outline: [0, 12], curve: [-100, 100], maxLength: 1000
   });
   const HEX_COLOUR = /^#[0-9a-f]{6}$/i;
 
@@ -825,7 +843,9 @@
     // Lines the user broke always count: a programme of eight lines may have eight.
     const given = String(item.text || '').split(String.fromCharCode(10)).length;
     const lines = Math.max(given, Number.isInteger(item.maxLines) ? item.maxLines : TEXT_FIT.defaultLines);
-    const smallest = Math.max(TEXT_LIMITS.size[0], item.size * TEXT_FIT.smallest);
+    // A part may set the smallest its words go (`minSize`, a guest's name): past it they take
+    // another line rather than shrink out of reading.
+    const smallest = Math.min(item.size, Math.max(TEXT_LIMITS.size[0], item.size * TEXT_FIT.smallest, isNumber(item.minSize) ? item.minSize : 0));
     let size = item.size;
     let layout = null;
     for (let step = 0; step < 16; step += 1) {
@@ -834,12 +854,28 @@
       // Smaller by what the width needs, and at least a little each time.
       size = Math.max(smallest, size * Math.min(0.94, item.maxWidth / layout.width));
     }
+    // A word too long for the width even at the smallest size (a long unbroken name) is broken
+    // across lines, so it never runs off the page.
+    if (layout.width > item.maxWidth + 0.5) layout = layoutTextAt(item, size, measure, item.maxWidth, true);
     return layout;
   }
 
-  /** Words broken onto lines no wider than `width` (whole words; a word longer than it stands alone). */
-  function wrapLine(line, width, measureLine) {
-    const words = line.split(/ +/);
+  /**
+   * Words broken onto lines no wider than `width`: whole words, and a word longer than it stands
+   * alone, or with `breakWords` is broken between letters (whole letters, so Hindi stays joined).
+   */
+  function wrapLine(line, width, measureLine, breakWords = false) {
+    const words = line.split(/ +/).flatMap((word) => {
+      if (!breakWords || measureLine(word) <= width) return [word];
+      const pieces = [];
+      let piece = '';
+      for (const letter of graphemes(word)) {
+        if (piece && measureLine(piece + letter) > width) { pieces.push(piece); piece = letter; }
+        else piece += letter;
+      }
+      if (piece) pieces.push(piece);
+      return pieces;
+    });
     const out = [];
     let current = '';
     for (const word of words) {
@@ -855,7 +891,7 @@
     return out;
   }
 
-  function layoutTextAt(item, size, measure, wrapWidth) {
+  function layoutTextAt(item, size, measure, wrapWidth, breakWords = false) {
     const font = fontOf(item, size);
     const gap = (item.spacing || 0) / 100 * size;
     const pad = (item.outline || 0) + size * 0.08;
@@ -869,7 +905,7 @@
       let lines = String(item.text || ' ').split('\n').map((line) => line || ' ');
       if (wrapWidth > 0) {
         const room = Math.max(1, wrapWidth - 2 * (pad + labelX));
-        lines = lines.flatMap((line) => wrapLine(line, room, runWidth));
+        lines = lines.flatMap((line) => wrapLine(line, room, runWidth, breakWords));
       }
       const lineHeight = size * 1.25;
       const widths = lines.map(runWidth);
@@ -959,7 +995,7 @@
    */
   function readBackground(raw, photoIds) {
     if (!raw || typeof raw !== 'object') return { ...WHITE_BACKGROUND };
-    if (raw.type === 'color' && /^#[0-9a-f]{6}$/i.test(raw.value)) return { type: 'color', value: raw.value };
+    if (raw.type === 'color' && textMatches(/^#[0-9a-f]{6}$/i, raw.value)) return { type: 'color', value: raw.value };
     if (raw.type === 'gradient' && GRADIENTS[raw.key]) return { type: 'gradient', key: raw.key };
     if (raw.type === 'pattern' && PATTERNS[raw.key]) return { type: 'pattern', key: raw.key };
     if (raw.type === 'texture' && TEXTURES[raw.key]) return { type: 'texture', key: raw.key };
@@ -986,7 +1022,7 @@
   // ---------------------------------------------------------------------------
 
   /** Grids on 12 × 12 units: [x, y, width, height] for each frame. */
-  const LAYOUTS = Object.freeze({
+  const LAYOUTS = lookupTable({
     t2: Object.freeze({ label: '2 side by side', cells: [[0, 0, 6, 12], [6, 0, 6, 12]] }),
     t3: Object.freeze({ label: '1 big, 2 small', cells: [[0, 0, 7, 12], [7, 0, 5, 6], [7, 6, 5, 6]] }),
     t3c: Object.freeze({ label: '3 columns', cells: [[0, 0, 4, 12], [4, 0, 4, 12], [8, 0, 4, 12]] }),
@@ -1410,9 +1446,11 @@
   /** The first line of the collage's first words (not a placeholder), shortened; '' if none. */
   function autoTitleFromText(items) {
     // A card is called by its occasion (docs/ux/invitations-posters.md, PR 5).
-    const occasion = (items || []).find((item) => item.kind === 'text' && item.field === 'occasion' && String(item.text || '').trim());
+    // A poster is called by its heading (PR 11).
+    const heading = (items || []).find((item) => item.kind === 'text' && item.field === 'title' && String(item.text || '').trim());
+    const occasion = heading || (items || []).find((item) => item.kind === 'text' && item.field === 'occasion' && String(item.text || '').trim());
     if (occasion) {
-      const named = `${String(occasion.text).split('\n').map((part) => part.trim()).find(Boolean)} card`;
+      const named = `${String(occasion.text).split('\n').map((part) => part.trim()).find(Boolean)} ${heading ? 'poster' : 'card'}`;
       return named.length > 40 ? `${named.slice(0, 39)}…` : named;
     }
     const placeholders = new Set(Object.values(TEXT_PLACEHOLDERS));
@@ -1542,63 +1580,6 @@
   }
 
   /**
-   * Print sheets (docs/ux/invitations-posters.md, PR 9): as many cards of a size as fit on an A4
-   * or A3 sheet, with room round them for cutting. The sheet is turned whichever way holds more
-   * (upright on a tie). Everything is in mm from the sheet's top-left; `cut` marks sit in the
-   * gaps, never on a card. A back sheet is mirrored so each back lands behind its front when the
-   * printer flips on the long edge: across for an upright sheet, top to bottom for a turned one.
-   */
-  const SHEETS = Object.freeze({ a4: Object.freeze({ label: 'A4', mm: [210, 297] }), a3: Object.freeze({ label: 'A3', mm: [297, 420] }) });
-  const SHEET_SPACE = Object.freeze({ margin: 8, gap: 4, mark: 2.5 });
-
-  function sheetLayout(sizeKey, sheetKey, { back = false } = {}) {
-    const size = sizeOf(sizeKey);
-    const sheet = SHEETS[sheetKey];
-    if (!size.mm || !sheet) return null;
-    const [cw, ch] = size.mm;
-    const { margin, gap } = SHEET_SPACE;
-    const fit = ([sw, sh]) => {
-      const cols = Math.max(0, Math.floor((sw - 2 * margin + gap) / (cw + gap)));
-      const rows = Math.max(0, Math.floor((sh - 2 * margin + gap) / (ch + gap)));
-      return { sw, sh, cols, rows, count: cols * rows };
-    };
-    const upright = fit(sheet.mm);
-    const turned = fit([sheet.mm[1], sheet.mm[0]]);
-    const best = turned.count > upright.count ? turned : upright;
-    if (!best.count) return { sheet: sheet.mm, upright: true, cols: 0, rows: 0, count: 0, cards: [] };
-    const blockW = best.cols * cw + (best.cols - 1) * gap;
-    const blockH = best.rows * ch + (best.rows - 1) * gap;
-    const left = (best.sw - blockW) / 2;
-    const top = (best.sh - blockH) / 2;
-    const isUpright = best === upright;
-    const cards = [];
-    for (let row = 0; row < best.rows; row += 1) {
-      for (let col = 0; col < best.cols; col += 1) {
-        // Behind its front after a long-edge flip.
-        const c = back && isUpright ? best.cols - 1 - col : col;
-        const r = back && !isUpright ? best.rows - 1 - row : row;
-        cards.push({ x: left + c * (cw + gap), y: top + r * (ch + gap), w: cw, h: ch });
-      }
-    }
-    return { sheet: [best.sw, best.sh], upright: isUpright, cols: best.cols, rows: best.rows, count: best.count, cards };
-  }
-
-  /** Cut marks round each card of a sheet: short lines in the gaps at each corner, in mm. */
-  function cutMarks(layout) {
-    const { mark } = SHEET_SPACE;
-    const lines = [];
-    for (const card of layout?.cards || []) {
-      for (const [x, y] of [[card.x, card.y], [card.x + card.w, card.y], [card.x, card.y + card.h], [card.x + card.w, card.y + card.h]]) {
-        const sx = x === card.x ? -1 : 1;
-        const sy = y === card.y ? -1 : 1;
-        lines.push([x, y + sy * 1, x, y + sy * (1 + mark)]);
-        lines.push([x + sx * 1, y, x + sx * (1 + mark), y]);
-      }
-    }
-    return lines;
-  }
-
-  /**
    * How large to read a photo's original for a frame `framePixels` wide in the saved picture:
    * enough for the part the frame shows to have that many pixels, never more than the original
    * has, so a small frame never makes the browser hold a huge photo.
@@ -1624,10 +1605,13 @@
       .replace(/[\u0000-\u001f<>:"/\\|?*]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
-      .replace(/^[.\s]+|[.\s]+$/g, '')
-      .slice(0, 80)
-      .trim();
-    return /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(clean) || !clean ? 'Collage' : clean;
+      .replace(/…/g, '')
+      .replace(/^[.\s]+|[.\s]+$/g, '');
+    // At most 80 letters, cut between words where it can be.
+    const cut = clean.slice(0, 81);
+    const space = cut.lastIndexOf(' ');
+    const short = clean.length <= 80 ? clean : (space > 0 ? cut.slice(0, space) : clean.slice(0, 80)).trim();
+    return /^(con|prn|aux|nul|com\d|lpt\d)$/i.test(short) || !short ? 'Collage' : short;
   }
 
   // ---------------------------------------------------------------------------
@@ -1664,6 +1648,9 @@
   const MODEL_FIELDS = Object.freeze(['version', 'size', 'background', 'layout', 'items', 'kept', 'card', 'back', 'side']);
   // A kind, sticker or font name a newer PRISM may write: short, lower case, no markup.
   const PART_NAME = /^[a-z][a-z0-9:_-]{0,40}$/;
+  // A field's name, which a newer PRISM may write in camelCase as this one does ("logoMode"):
+  // letters first, then letters, digits, "_" or "-" (cold review 6). Never "__proto__".
+  const FIELD_NAME = /^[a-zA-Z][a-zA-Z0-9_-]{0,40}$/;
   // How much a draft may hold that is not understood: well past any real card.
   const KEPT_LIMITS = Object.freeze({ items: 500, chars: 2_000_000 });
 
@@ -1677,7 +1664,29 @@
     }
   }
 
+  /**
+   * A part's tint, checked: which unit colour (1 to 3) its fill, stroke or colour follows (PR 6).
+   * Anything else in it is dropped, and an empty tint is removed.
+   */
+  function setTint(clean, raw) {
+    const tint = raw && typeof raw === 'object'
+      ? Object.fromEntries(Object.entries(raw).filter(([prop, which]) => ['fill', 'stroke', 'color'].includes(prop) && [1, 2, 3].includes(which)))
+      : {};
+    if (Object.keys(tint).length) clean.tint = tint;
+    else delete clean.tint;
+  }
+
+  // Marks a draft already turned front first while being read, so it is not turned twice.
+  const SHOWN_FRONT_FIRST = Symbol('front first');
+
   function readDraftModel(raw, photoIds) {
+    // A card saved with its back showing has the back at the top (see draftModel): read it front
+    // first, as everything here expects, and turned over at the end.
+    if (raw && typeof raw === 'object' && raw.side === 'back' && raw.back && typeof raw.back === 'object' && Array.isArray(raw.back.items) && Array.isArray(raw.items) && !raw[SHOWN_FRONT_FIRST]) {
+      const { background: frontBackground, items: frontItems, layout: frontLayout, ...backFields } = raw.back;
+      raw = { ...raw, background: frontBackground, items: frontItems, layout: frontLayout, back: { ...backFields, background: raw.background, items: raw.items, layout: raw.layout }, [SHOWN_FRONT_FIRST]: true };
+    }
+    let showBack = false;
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.items)) return null;
     const version = isNumber(raw.version) ? raw.version : 1;
     if (version > MODEL_VERSION) return null;
@@ -1705,7 +1714,7 @@
         if (typeof item.kind === 'string' && PART_NAME.test(item.kind)) keep(item, at);
         continue;
       }
-      if (item.kind === 'sticker' && !STICKER_ID.test(item.sticker)) {
+      if (item.kind === 'sticker' && !textMatches(STICKER_ID, item.sticker)) {
         if (typeof item.sticker === 'string' && PART_NAME.test(item.sticker)) keep(item, at);
         continue;
       }
@@ -1728,7 +1737,7 @@
         // Stickers have their own limits (down to 20), so the saved width is clamped, not the
         // item width already raised to the general minimum.
         clean.width = Math.min(STICKER_LIMITS.width[1], Math.max(STICKER_LIMITS.width[0], item.width));
-        clean.colour = HEX_COLOUR.test(item.colour) ? item.colour : '';
+        clean.colour = textMatches(HEX_COLOUR, item.colour) ? item.colour : '';
         clean.flip = item.flip === true;
         clean.shadow = item.shadow === true;
         delete clean.crop;
@@ -1736,15 +1745,11 @@
       }
       if (item.kind === 'shape') {
         clean.form = SHAPE_FORMS.includes(item.form) ? item.form : 'rect';
-        clean.fill = HEX_COLOUR.test(item.fill) ? item.fill : '';
-        clean.stroke = HEX_COLOUR.test(item.stroke) ? item.stroke : '';
+        clean.fill = textMatches(HEX_COLOUR, item.fill) ? item.fill : '';
+        clean.stroke = textMatches(HEX_COLOUR, item.stroke) ? item.stroke : '';
         const [low, high] = SHAPE_LIMITS.strokeWidth;
         clean.strokeWidth = Math.min(high, Math.max(low, isNumber(item.strokeWidth) ? item.strokeWidth : 4));
-        if (item.tint && typeof item.tint === 'object') {
-          const tint = Object.fromEntries(Object.entries(item.tint).filter(([prop, which]) => ['fill', 'stroke', 'color'].includes(prop) && [1, 2, 3].includes(which)));
-          if (Object.keys(tint).length) clean.tint = tint;
-          else delete clean.tint;
-        } else delete clean.tint;
+        setTint(clean, item.tint);
         delete clean.crop;
       }
       if (item.kind === 'text') {
@@ -1756,22 +1761,19 @@
         clean.spacing = range(item.spacing, TEXT_LIMITS.spacing, 0);
         clean.outline = range(item.outline, TEXT_LIMITS.outline, 0);
         clean.curve = range(item.curve, TEXT_LIMITS.curve, 0);
-        clean.color = HEX_COLOUR.test(item.color) ? item.color : '#172033';
-        clean.outlineColor = HEX_COLOUR.test(item.outlineColor) ? item.outlineColor : '#ffffff';
-        clean.label = HEX_COLOUR.test(item.label) ? item.label : '';
+        clean.color = textMatches(HEX_COLOUR, item.color) ? item.color : '#172033';
+        clean.outlineColor = textMatches(HEX_COLOUR, item.outlineColor) ? item.outlineColor : '#ffffff';
+        clean.label = textMatches(HEX_COLOUR, item.label) ? item.label : '';
         clean.align = ['left', 'center', 'right'].includes(item.align) ? item.align : 'center';
         for (const flag of ['bold', 'italic', 'shadow', 'glow']) clean[flag] = item[flag] === true;
+        setTint(clean, item.tint);
         // Fitting to a width (PR 4 of docs/ux/invitations-posters.md): a usable width, or none.
-        // A part's tint names which unit colour (1 to 3) a colour follows; nothing else is kept.
-        if (item.tint && typeof item.tint === 'object') {
-          const tint = Object.fromEntries(Object.entries(item.tint).filter(([prop, which]) => ['fill', 'stroke', 'color'].includes(prop) && [1, 2, 3].includes(which)));
-          if (Object.keys(tint).length) clean.tint = tint;
-          else delete clean.tint;
-        } else delete clean.tint;
         if (isNumber(item.maxWidth) && item.maxWidth >= ITEM_LIMITS.minWidth) clean.maxWidth = Math.min(ITEM_LIMITS.maxWidth, item.maxWidth);
         else delete clean.maxWidth;
         if (Number.isInteger(item.maxLines)) clean.maxLines = Math.min(TEXT_FIT.maxLines[1], Math.max(TEXT_FIT.maxLines[0], item.maxLines));
         else delete clean.maxLines;
+        if (isNumber(item.minSize) && item.minSize > 0) clean.minSize = Math.min(TEXT_LIMITS.size[1], item.minSize);
+        else delete clean.minSize;
         delete clean.crop;
         delete clean.radius;
       }
@@ -1816,20 +1818,23 @@
       if (back) {
         model.back = { background: back.background, items: back.items, layout: back.layout };
         if (back.kept) model.back.kept = back.kept;
-        if (raw.side === 'back') model.side = 'back';
+        // The draft keeps the front at the top; `side` says the back was showing.
+        showBack = raw.side === 'back';
       }
     }
-    // Fields of the collage this PRISM does not use (a newer PRISM's back page, for example).
+    // Fields of the collage this PRISM does not use, and a back it cannot read (a newer PRISM's),
+    // kept as they were so a newer PRISM gets them back.
     const fields = {};
     for (const [key, value] of Object.entries(raw)) {
-      if (MODEL_FIELDS.includes(key) || !PART_NAME.test(key)) continue;
+      const unreadBack = key === 'back' && !model.back && value !== undefined && value !== null;
+      if ((MODEL_FIELDS.includes(key) && !unreadBack) || !FIELD_NAME.test(key)) continue;
       const copy = plainCopy(value);
       if (!copy || keptChars + copy.json.length > KEPT_LIMITS.chars) continue;
       keptChars += copy.json.length;
       fields[key] = copy.value;
     }
     if (keptItems.length || Object.keys(fields).length) model.kept = { items: keptItems, fields, order: keptItems.length ? drawnOrder : [] };
-    return model;
+    return showBack ? flipSide(model) : model;
   }
 
   /**
@@ -1843,42 +1848,48 @@
     const design = typeof raw.design === 'string' && PART_NAME.test(raw.design) ? raw.design : '';
     const details = {};
     for (const [field, value] of Object.entries(raw.details && typeof raw.details === 'object' ? raw.details : {})) {
-      if (CARD_FIELD.test(field) && typeof value === 'string' && Object.keys(details).length < 40) details[field] = value.slice(0, TEXT_LIMITS.maxLength);
+      if (CARD_FIELD.test(field) && typeof value === 'string' && Object.keys(details).length < CARD_FIELD_LIMIT) details[field] = value.slice(0, TEXT_LIMITS.maxLength);
     }
     // The fields the design placed (PR 5): names only, as the designs name them.
-    const placed = Array.isArray(raw.placed) ? [...new Set(raw.placed.filter((field) => typeof field === 'string' && CARD_FIELD.test(field)))].slice(0, 40) : [];
+    const placed = Array.isArray(raw.placed) ? [...new Set(raw.placed.filter((field) => typeof field === 'string' && CARD_FIELD.test(field)))].slice(0, CARD_FIELD_LIMIT) : [];
     // The guest list (PR 10): plain names, at most GUEST_LIMITS of them.
-    const guests = guestNames(Array.isArray(raw.guests) ? raw.guests.filter((name) => typeof name === 'string').join(String.fromCharCode(10)) : '');
-    return design ? { design, details, placed, ...(guests.length ? { guests } : {}) } : null;
+    const guests = keptGuests(Array.isArray(raw.guests) ? raw.guests : []);
+    if (!design) return null;
+    // A newer PRISM's card fields are kept as plain copies, within KEPT_LIMITS, and go back as
+    // they were when the card is saved (every change to the card keeps the rest of it).
+    const newer = {};
+    let chars = 0;
+    for (const [key, value] of Object.entries(raw)) {
+      if (['design', 'details', 'placed', 'guests'].includes(key) || !FIELD_NAME.test(key)) continue;
+      const copy = plainCopy(value);
+      if (!copy || chars + copy.json.length > KEPT_LIMITS.chars) continue;
+      chars += copy.json.length;
+      newer[key] = copy.value;
+    }
+    return { ...newer, design, details, placed, ...(guests.length ? { guests } : {}) };
   }
 
   /** A guest list's limits (docs/ux/invitations-posters.md, PR 10). */
   const GUEST_LIMITS = Object.freeze({ names: 300, length: 120 });
 
   /**
-   * Guest names from pasted text or a .txt file (one a whole line, commas and all), or a .csv file
-   * (`csv`: its first column, quotes allowed); blanks and a first line "Name" left out, each
-   * trimmed to GUEST_LIMITS.length, at most GUEST_LIMITS.names.
+   * A guest list kept in a draft: each a plain name, spaces tidied, at most GUEST_LIMITS.length
+   * letters, at most GUEST_LIMITS.names of them. A guest may be called anything (even "Name");
+   * reading lists the user gives (headings, columns, CSV) is collage-print.js's readGuests.
    */
-  function guestNames(text, { csv = false } = {}) {
-    const lines = String(text || '').split(/\r?\n/);
+  function keptGuests(list) {
     const names = [];
-    for (const line of lines) {
-      let name = line.trim();
-      if (csv && name.startsWith('"')) {
-        // A quoted first column ("Brig P. Singh, SM",…); a doubled quote is a quote.
-        const match = /^"((?:[^"]|"")*)"/.exec(name);
-        name = match ? match[1].replace(/""/g, '"') : name.slice(1);
-      } else if (csv) {
-        name = name.split(',')[0];
-      }
-      name = name.replace(/\s+/g, ' ').trim().slice(0, GUEST_LIMITS.length);
-      if (!name || (!names.length && /^names?$/i.test(name))) continue;
-      names.push(name);
+    for (const raw of list) {
+      if (typeof raw !== 'string') continue;
+      // Control characters (a NUL from a wrongly read file) are never part of a name.
+      const name = raw.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, GUEST_LIMITS.length);
+      if (name) names.push(name);
       if (names.length >= GUEST_LIMITS.names) break;
     }
     return names;
   }
+  // At most this many card fields kept from a draft: the designs use about 31, so newer designs have room.
+  const CARD_FIELD_LIMIT = 64;
 
   /**
    * The card turned over (PR 8): the other side becomes the one shown and edited, so every tool
@@ -1926,6 +1937,21 @@
    */
   function draftModel(collage) {
     if (!collage) return collage;
+    // A card saved with its back showing is stored as the PRISM before it stores one (code review
+    // 7): the side showing at the top, the other in `back`, and `side: 'back'`. Both read each
+    // other's drafts the right way round. The collage's own newer fields stay at the top.
+    if (collage.side === 'back' && collage.back) {
+      const front = draftModel(flipSide(collage));
+      const { background: backBackground, items: backItems, layout: backLayout, ...backFields } = front.back;
+      return {
+        ...front,
+        background: backBackground,
+        items: backItems,
+        layout: backLayout ?? null,
+        back: { ...backFields, background: front.background, items: front.items, layout: front.layout ?? null },
+        side: 'back'
+      };
+    }
     // The other side keeps its own newer parts too (PR 8), put back the same way.
     const withBack = collage.back?.kept
       ? { ...collage, back: { ...(collage.back.kept.fields || {}), background: collage.back.background, layout: collage.back.layout || null, items: putBack(collage.back) } }
@@ -2148,12 +2174,8 @@
     paperDpi,
     fitArea,
     pdfPage,
-    SHEETS,
-    SHEET_SPACE,
-    sheetLayout,
     GUEST_LIMITS,
-    guestNames,
-    cutMarks,
+    smallCard,
     decodeSize,
     itemsToSave,
     fileStem,
@@ -2163,6 +2185,7 @@
     sortDrafts,
     photosInUse,
     keptCount,
+    lookupTable,
     flipSide,
     pagesOf,
     draftModel,

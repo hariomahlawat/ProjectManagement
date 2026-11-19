@@ -122,13 +122,24 @@
 
 .clg-start-cards__size select {
     width: auto;
-    max-width: min(22rem, 70vw);
+    max-width: min(15rem, 70vw);
 }
 
 .clg-design-grid {
     display: flex;
     flex-wrap: wrap;
     gap: 1rem;
+}
+
+/* Cards and posters on the start screen: as many to a row as fit, all the same width, so six
+   designs never leave one alone on a second row (cold review 2). */
+.clg-start-cards .clg-design-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.clg-start-cards .clg-design-card {
+    width: auto;
 }
 
 .clg-design-card {
@@ -182,12 +193,34 @@
     margin-bottom: 0.8rem;
 }
 
+/* Notes on the start screen keep their distance from the design cards under them. */
+.clg-card-pocket-hint,
+.clg-card-small {
+    margin: 0 0 0.7rem;
+}
+
+/* The Card details intro keeps its distance from the designs under it. */
+[data-card-hint] {
+    margin-bottom: 0.7rem;
+}
+
 .clg-card-form .clg-field {
     margin-bottom: 0.55rem;
 }
 
 .clg-card-picks {
     margin: -0.25rem 0 0.7rem;
+}
+
+/* Save: what the saved picture leaves out, said where it is seen (cold review 2). */
+.clg-save-empty {
+    margin: 0.4rem 0;
+    padding: 0.5rem 0.7rem;
+    border-left: 3px solid var(--bs-warning);
+    border-radius: 6px;
+    background: var(--bs-warning-bg-subtle);
+    color: var(--bs-warning-text-emphasis);
+    font-size: 0.86rem;
 }
 
 .clg-card-question {
@@ -240,20 +273,34 @@
         min-height: 150px;
     }
 
-    /* On a phone the blank pages stay near the top (docs/ux/collage-review-3-fixes.md, PR 8);
-       the cards come after them, before the credits. */
-    .clg-start[data-view="start"]:not([hidden]) {
+    /* On a phone, cards and posters come first, as on a wide screen, each in one row that scrolls
+       sideways, so the layouts and blank pages stay close below (cold review, 19 Nov). */
+    .clg-start-cards .clg-design-grid {
         display: flex;
-        flex-direction: column;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scroll-snap-type: x proximity;
+        gap: 0.6rem;
+        padding-bottom: 0.4rem;
+        overscroll-behavior-x: contain;
     }
 
-    .clg-start-cards {
-        order: 1;
-        margin-top: 1rem;
+    .clg-start-cards .clg-design-card {
+        flex: 0 0 40%;
+        width: auto;
+        scroll-snap-align: start;
     }
 
-    .clg-credits-link {
-        order: 2;
+    .clg-start-cards .clg-design-card__pic {
+        min-height: 0;
+    }
+}
+
+/* Quick picks big enough to touch (cold review, 19 Nov). */
+@media (pointer: coarse) {
+    .clg-card-picks .clg-chip {
+        min-height: 36px;
+        padding-inline: 0.7rem;
     }
 }
 
@@ -263,12 +310,24 @@
 
 .clg-custom-size__row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.4rem;
 }
 
 .clg-custom-size__row input {
-    width: 5.5rem;
+    width: 5rem;
+    min-width: 0;
+}
+
+details.clg-custom-size > summary {
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: var(--pdft-muted);
+}
+
+details.clg-custom-size[open] > summary {
+    margin-bottom: 0.35rem;
 }
 
 .clg-custom-size__error {
@@ -702,6 +761,11 @@
     padding: 0.75rem 0;
 }
 
+/* The poster's logo question is a section too, with its own inner room (cold review 6). */
+.clg-section.clg-card-question {
+    padding: 0.55rem 0.7rem;
+}
+
 .clg-section__title {
     font-size: 0.7rem;
     letter-spacing: 0.08em;
@@ -895,6 +959,11 @@
         --clg-sheet: 52vh;
     }
 
+    /* Typing in Card details: a shorter sheet, so the card above stays big enough to read. */
+    .clg.is-card-typing {
+        --clg-sheet: 38vh;
+    }
+
     .clg-body,
     .clg-body.is-drawer-closed {
         grid-template-columns: 1fr;
@@ -946,6 +1015,8 @@
         min-width: 3.6rem;
         padding: 0.3rem 0.4rem;
         font-size: 0.68rem;
+        /* Room under the labels for letters that go below the line. */
+        line-height: 1.3;
     }
 
     .clg-rail button i {
@@ -2251,6 +2322,14 @@ body.clg-dialog-open .prism-toasts {
 
 body.clg-dialog-open .prism-toasts .prism-toast {
     pointer-events: none;
+}
+/* The Card panel's logo choices show their whole name, on two lines if need be. */
+.clg-card-logo__choices .clg-sticker__name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.15;
+    text-align: center;
 }
 
 /* BEGIN GENERATED: color-mix() fallbacks for older browsers. Do not edit by hand; run node tools/color-mix-fallbacks.js --write */

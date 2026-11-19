@@ -210,9 +210,11 @@
     }
 
     function renderTrayNow() {
+      // Both sides of a card count: a photo on the back is in use, and cannot be removed here.
       const used = new Map();
-      for (const item of state.collage.items) if (item.kind === 'photo') used.set(item.photo, (used.get(item.photo) || 0) + 1);
-      const background = state.collage.background?.type === 'photo' ? state.collage.background.photo : null;
+      for (const item of [...state.collage.items, ...(state.collage.back?.items || [])]) if (item.kind === 'photo') used.set(item.photo, (used.get(item.photo) || 0) + 1);
+      // The background photo of either side.
+      const backgrounds = new Set([state.collage.background, state.collage.back?.background].filter((b) => b?.type === 'photo').map((b) => b.photo));
       ui.tray.textContent = '';
       for (const photo of doc.photos.values()) {
         if (photo.removed) continue;
@@ -230,7 +232,7 @@
         img.alt = '';
         button.appendChild(img);
         const times = used.get(photo.id) || 0;
-        if (times || photo.id === background) {
+        if (times || backgrounds.has(photo.id)) {
           const badge = document.createElement('span');
           badge.className = 'clg-tray__used';
           badge.textContent = times > 1 ? `${times}×` : times ? 'Used' : 'Background';
@@ -238,7 +240,7 @@
         }
         tile.appendChild(button);
         // Only a photo the page does not show can be taken out of the collage.
-        if (!times && photo.id !== background && !photo.importing) {
+        if (!times && !backgrounds.has(photo.id) && !photo.importing) {
           const remove = document.createElement('button');
           remove.type = 'button';
           remove.className = 'clg-tray__remove';

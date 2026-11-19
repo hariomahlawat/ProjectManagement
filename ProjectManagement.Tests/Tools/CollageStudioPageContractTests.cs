@@ -18,6 +18,7 @@ public sealed class CollageStudioPageContractTests
     private static readonly string[] Scripts =
     {
         "js/collage/collage-core.js",
+        "js/collage/collage-print.js",
         "js/collage/collage-drafts.js",
         "js/collage/collage-draft-session.js",
         "js/collage/collage-draw.js",
@@ -127,6 +128,17 @@ public sealed class CollageStudioPageContractTests
             Assert.DoesNotContain("@import", css, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotMatch(new Regex(@"url\(\s*[""']?(https?:)?//", RegexOptions.IgnoreCase), css);
         }
+    }
+
+    [Fact]
+    public void SddLogo_ShipsWithTheApplicationAndIsTheOneCardsUse()
+    {
+        // Cards open with PRISM's SDD logo (docs/ux/invitations-posters.md, PR 4): the picture is
+        // shipped, not fetched, and the stickers script names exactly that file.
+        var root = FindProjectRoot();
+        Assert.True(File.Exists(Path.Combine(root, "wwwroot", "img", "logos", "sdd-hd.webp")), "~/img/logos/sdd-hd.webp must ship with the application.");
+        var stickers = File.ReadAllText(Path.Combine(root, "wwwroot", "js", "collage", "collage-stickers.js"));
+        Assert.Contains("/img/logos/sdd-hd.webp", stickers, StringComparison.Ordinal);
     }
 
     [Fact]
