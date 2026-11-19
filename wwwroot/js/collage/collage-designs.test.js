@@ -814,3 +814,24 @@ test('backs and folded insides keep long wording on the page without overlaps', 
     }
   }
 });
+
+// A size change keeps a design the new size offers, or moves to the nearest one (cold review 5).
+test('a card on a size its design does not suit moves to the nearest design offered', () => {
+  assert.equal(designs.designOnSize('classic', 'a5p'), 'classic');
+  assert.equal(designs.designOnSize('classic', 'a7p'), 'pocketinvite');
+  assert.equal(designs.designOnSize('navy', 'passl'), 'pass');
+  assert.equal(designs.designOnSize('pocketinvite', 'passl'), 'pass');
+  assert.equal(designs.designOnSize('reply', 'a5p'), 'classic');
+  assert.equal(designs.designOnSize('event', 'a7p'), 'event', 'a poster keeps its design');
+});
+
+test('a custom size smaller than A6 offers the pocket designs first, then the others', () => {
+  const small = core.customKey(80, 120).key;
+  const keys = designs.designsFor(small).map((design) => design.key);
+  assert.equal(designs.DESIGNS[keys[0]].pocket, true);
+  assert.ok(keys.includes('classic'));
+  assert.ok(keys.includes('pocketinvite'));
+  assert.equal(designs.designOnSize('classic', small), 'classic');
+  const big = core.customKey(150, 200).key;
+  assert.ok(designs.designsFor(big).every((design) => !design.pocket));
+});

@@ -485,10 +485,10 @@ test('Tab straight after typing in Card details goes to the next field, not to t
 test('on a Bilingual card an occasion quick pick sets the Hindi occasion too', async ({ page }) => {
   const errors = await openFresh(page);
   await page.locator('[data-start-design="bilingual"]').click();
-  await page.locator('[data-card-pick="occasion"][data-value="Farewell"]').click();
-  await expect(page.locator('[data-card-field="occasion"]')).toHaveValue('Farewell');
-  await expect(page.locator('[data-card-field="occasionHi"]')).toHaveValue('विदाई समारोह');
-  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'occasionHi')?.text).toBe('विदाई समारोह');
+  await page.locator('[data-card-pick="occasion"][data-value="Farewell Dinner"]').click();
+  await expect(page.locator('[data-card-field="occasion"]')).toHaveValue('Farewell Dinner');
+  await expect(page.locator('[data-card-field="occasionHi"]')).toHaveValue('विदाई रात्रिभोज');
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'occasionHi')?.text).toBe('विदाई रात्रिभोज');
   expect(errors).toEqual([]);
 });
 
@@ -683,5 +683,41 @@ test('a guest file saved by a spreadsheet in ANSI (Windows-1252) keeps its accen
   const bytes = Buffer.concat([Buffer.from('Name\nMaj S', 'latin1'), Buffer.from([0xe9]), Buffer.from('bastien\n', 'latin1')]);
   await page.locator('[data-card-guest-file]').setInputFiles({ name: 'guests.csv', mimeType: 'text/csv', buffer: bytes });
   await expect.poll(async () => (await newestDraft(page))?.model?.card?.guests?.[0]).toBe('Maj Sébastien');
+  expect(errors).toEqual([]);
+});
+
+// Cold review 5: a size the design does not suit moves the card to the nearest design offered,
+// says so with Undo, and Undo takes the card back to its size and design.
+test('a card changed to a pocket size moves to the pocket invitation, with Undo', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a5p');
+  await page.locator('[data-start-design="classic"]').click();
+  await touch(page);
+  await page.locator('#clgSize').selectOption('a7p');
+  const toast = page.locator('[data-prism-toast]:not(.is-leaving)', { hasText: 'Pocket invitation' });
+  await expect(toast).toBeVisible();
+  await expect.poll(async () => (await newestDraft(page))?.model?.card?.design).toBe('pocketinvite');
+  await expect.poll(async () => (await newestDraft(page))?.model?.size).toBe('a7p');
+  await toast.getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.card?.design).toBe('classic');
+  await expect.poll(async () => (await newestDraft(page))?.model?.size).toBe('a5p');
+  expect(errors).toEqual([]);
+});
+
+// Cold review 5: "at the At Home" is not English; the design's own "at the" becomes "at an" for it.
+test('the At Home pick reads "at an At Home"; another pick puts "at the" back; typed words stay', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  const atText = async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'at')?.text;
+  await page.locator('[data-card-pick="occasion"][data-value="At Home"]').click();
+  await expect.poll(atText).toBe('at an');
+  await page.locator('[data-card-pick="occasion"][data-value="Barakhana"]').click();
+  await expect.poll(atText).toBe('at the');
+  const at = page.locator('[data-card-field="at"]');
+  await at.fill('in the');
+  await at.blur();
+  await page.locator('[data-card-pick="occasion"][data-value="At Home"]').click();
+  await expect(page.locator('[data-card-field="occasion"]')).toHaveValue('At Home');
+  await expect.poll(atText).toBe('in the');
   expect(errors).toEqual([]);
 });

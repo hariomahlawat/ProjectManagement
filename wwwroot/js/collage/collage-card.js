@@ -54,19 +54,23 @@
     ...FORM.filter(([key]) => !POSTER_ORDER.includes(key))
   ]);
   const COLOUR_NAMES = Object.freeze(['Top', 'Middle', 'Bottom']);
-  const OCCASIONS = Object.freeze(['Raising Day Dinner', 'Regimental Dinner', 'Change of Command', 'Farewell', 'Barakhana', 'At Home', 'Ladies’ Night', 'Passing Out Parade']);
+  const OCCASIONS = Object.freeze(['Raising Day Dinner', 'Regimental Dinner', 'Change of Command Parade', 'Farewell Dinner', 'Barakhana', 'At Home', 'Ladies’ Night', 'Passing Out Parade']);
   const DRESSES = Object.freeze(['Dress: Lounge Suit', 'Dress: Mess Dress', 'Dress: Smart Casuals', 'Dress: Ceremonial']);
   // Each quick pick's occasion in Hindi, for the Bilingual design's Hindi column.
   const OCCASIONS_HI = Object.freeze({
     'Raising Day Dinner': 'स्थापना दिवस रात्रिभोज',
     'Regimental Dinner': 'रेजिमेंटल रात्रिभोज',
-    'Change of Command': 'कमान परिवर्तन समारोह',
-    Farewell: 'विदाई समारोह',
+    'Change of Command Parade': 'कमान परिवर्तन परेड',
+    'Farewell Dinner': 'विदाई रात्रिभोज',
     Barakhana: 'बड़ा खाना',
     'At Home': 'एट होम',
     'Ladies’ Night': 'लेडीज़ नाइट',
     'Passing Out Parade': 'पासिंग आउट परेड'
   });
+  // The word before an occasion that does not take "the": "at an At Home" (cold review 5). Only
+  // the words a design starts with are changed; words the user typed stay theirs.
+  const AT_FOR = Object.freeze({ 'At Home': 'at an' });
+  const AT_WORDS = Object.freeze(['at the', 'at an']);
   const DEFAULT_CARD_SIZE = 'a5p';
 
   function createCard(deps) {
@@ -1034,6 +1038,12 @@
         const hindiInput = form.querySelector('[data-card-field="occasionHi"]');
         if (hindiInput) hindiInput.value = hindi;
         setField('occasionHi', hindi);
+      }
+      if (pick.dataset.cardPick === 'occasion' && AT_WORDS.includes(designs.detailsOf(state.collage).at)) {
+        const at = AT_FOR[pick.dataset.value] || 'at the';
+        const atInput = form.querySelector('[data-card-field="at"]');
+        if (atInput) atInput.value = at;
+        setField('at', at);
       }
       for (const chip of form.querySelectorAll(`[data-card-pick="${pick.dataset.cardPick}"]`)) chip.setAttribute('aria-pressed', String(chip === pick));
       history.flushNudge();

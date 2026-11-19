@@ -590,12 +590,31 @@
     return { ...(design.poster ? POSTER_DETAILS : DEFAULT_DETAILS), ...(design.sample || {}) };
   }
 
-  /** The designs offered for a size: the pocket designs for a pocket card, the others otherwise. */
+  /**
+   * The designs offered for a size: the pocket designs for a pocket card, the others otherwise.
+   * A custom size smaller than A6 is offered both, the pocket designs first (cold review 5).
+   */
   function designsFor(sizeKey, kind) {
     if (kind === 'poster') return Object.values(DESIGNS).filter((design) => design.poster);
-    const pocket = core.sizeOf(sizeKey).group === 'pocket';
+    const size = core.sizeOf(sizeKey);
     // A design may not suit some sizes (a full pocket invitation on a visiting card is too small to read).
-    return Object.values(DESIGNS).filter((design) => !design.poster && Boolean(design.pocket) === pocket && !(design.notFor || []).includes(sizeKey));
+    const cards = Object.values(DESIGNS).filter((design) => !design.poster && !(design.notFor || []).includes(sizeKey));
+    if (size?.group === 'custom' && core.smallCard(sizeKey)) return [...cards.filter((design) => design.pocket), ...cards.filter((design) => !design.pocket)];
+    const pocket = size?.group === 'pocket';
+    return cards.filter((design) => Boolean(design.pocket) === pocket);
+  }
+
+  /**
+   * The design a card keeps on a new size: its own when that size offers it, or the nearest one
+   * offered (an invitation becomes the pocket invitation, a pocket card the classic invitation).
+   */
+  function designOnSize(designKey, sizeKey) {
+    const design = DESIGNS[designKey];
+    if (!design || design.poster) return designKey;
+    const offered = designsFor(sizeKey).map((each) => each.key);
+    if (offered.includes(designKey)) return designKey;
+    const nearest = design.pocket ? ['classic'] : ['pocketinvite', 'pass'];
+    return nearest.find((key) => offered.includes(key)) || offered[0] || designKey;
   }
 
   /** Whether a design follows the unit's colours: a part's colour is one of 'band1' to 'band3'. */
@@ -1175,5 +1194,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, INSIDE_FIELDS, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, fitRoundel, followLogo, roleItemOn });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, INSIDE_FIELDS, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, fitRoundel, followLogo, roleItemOn, designOnSize });
 });

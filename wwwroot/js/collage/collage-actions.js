@@ -243,9 +243,15 @@
       change.setCollage(core.changeSize(state.collage, ui.sizeSelect.value));
       // A card is laid out again by its design for the new shape, both sides, keeping its words,
       // logo, photos and locked parts (docs/ux/invitations-posters.md, cold review fixes).
+      // A design the new size does not offer (a full invitation on a car pass) gives way to the
+      // nearest one it does, and the user is told (cold review 5).
       const designs = window.PrismCollageDesigns;
+      let designNote = '';
       if (state.collage.card && designs?.DESIGNS[state.collage.card.design]) {
-        change.setCollage(designs.applyDesign(state.collage, state.collage.card.design, designs.detailsOf(state.collage), { measure: surface.measureText, newId: doc.newItemId }));
+        const was = state.collage.card.design;
+        const next = designs.designOnSize(was, state.collage.size);
+        if (next !== was) designNote = ` The ${designs.DESIGNS[was].label} design does not suit this size, so the card now uses ${designs.DESIGNS[next].label}.`;
+        change.setCollage(designs.applyDesign(state.collage, next, designs.detailsOf(state.collage), { measure: surface.measureText, newId: doc.newItemId }));
       }
       // A page laid out in a grid is laid out again on the new page, every frame in its own place.
       if (state.collage.layout) change.setCollage(core.reflowLayout(state.collage, state.collage.layout.gap));
@@ -257,7 +263,9 @@
       selection.stopAdjust(false);
       surface.layout();
       history.commit();
-      messages.announce(`The page is now ${core.sizeOf(state.collage.size).label}.`);
+      // The design change is shown with Undo, which takes the card back to its old size and design.
+      if (designNote) offerUndo(`The page is now ${core.sizeOf(state.collage.size).label}.${designNote}`);
+      else messages.announce(`The page is now ${core.sizeOf(state.collage.size).label}.`);
     });
 
     ui.nameInput.addEventListener('input', () => {
