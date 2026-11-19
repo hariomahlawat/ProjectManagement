@@ -1038,6 +1038,62 @@
   const LAYOUT_LIMITS = Object.freeze({ gapMax: 60, radiusMax: 60, defaultGap: 12 });
 
   /**
+   * The layout made for a number of photos (docs/ux/collage-usability-plan.md, PR 3): the one with
+   * that many frames, else the next larger one (10 or 11 photos take "12 grid"). Where two have the
+   * same number, the first in the list is the plain choice ("1 big, 2 small", "4 grid"). One photo
+   * needs no layout (null), and more than 12 take "12 grid", the rest waiting in Photos.
+   */
+  function layoutForCount(count) {
+    const n = Math.floor(Number(count) || 0);
+    if (n < 2) return null;
+    const keys = Object.keys(LAYOUTS);
+    const fitting = keys.filter((key) => LAYOUTS[key].cells.length >= Math.min(n, 12));
+    const least = Math.min(...fitting.map((key) => LAYOUTS[key].cells.length));
+    return fitting.find((key) => LAYOUTS[key].cells.length === least);
+  }
+
+  /**
+   * The layouts with a frame for each of `count` photos and none to spare, or the one made for
+   * them. None for more photos than the largest layout has frames: no layout fits them all.
+   */
+  function layoutsThatFit(count) {
+    const n = Math.floor(Number(count) || 0);
+    const most = Math.max(...Object.values(LAYOUTS).map((layout) => layout.cells.length));
+    if (n < 2 || n > most) return [];
+    const exact = Object.keys(LAYOUTS).filter((key) => LAYOUTS[key].cells.length === n);
+    return exact.length ? exact : [layoutForCount(n)];
+  }
+
+  /**
+   * How many photos a layout would have to take: every photo on the page, a photo used twice
+   * counted twice (a layout keeps each copy), and every kept photo not used anywhere yet, which
+   * waits in Photos (`keptIds`: the photos not removed). Codex review on #3467.
+   */
+  function photosToLayOut(collage, keptIds) {
+    const items = collage?.items || [];
+    const placed = items.filter((item) => item.kind === 'photo').length;
+    const used = new Set([...items, ...(collage?.back?.items || [])].filter((item) => item.kind === 'photo').map((item) => item.photo));
+    return placed + [...(keptIds || [])].filter((id) => !used.has(id)).length;
+  }
+
+  /**
+   * One empty frame that fills the page inside the layouts' usual margin: where one photo chosen on
+   * the start screen goes, so it fills the page rather than sitting small in the middle (PR 3).
+   */
+  function withPageFrame(collage, newId) {
+    const gap = LAYOUT_LIMITS.defaultGap;
+    const height = pageHeight(collage.size);
+    const width = PAGE_WIDTH - 2 * gap;
+    const place = { x: PAGE_WIDTH / 2, y: height / 2, width, aspect: width / (height - 2 * gap) };
+    return { ...collage, items: [...collage.items, slotItem(newId(), place)] };
+  }
+
+  /** How many of the files chosen look like photos, by their type or their name. */
+  function photoFileCount(files) {
+    return [...(files || [])].filter((file) => /^image\//.test(file?.type || '') || PHOTO_NAME.test(file?.name || '')).length;
+  }
+
+  /**
    * The frames of a layout on a page: centre, width and shape of each. `gap` is the space
    * between frames and around the page's edge, in page units.
    */
@@ -2220,6 +2276,11 @@
     panCrop,
     LAYOUTS,
     LAYOUT_LIMITS,
+    layoutForCount,
+    layoutsThatFit,
+    photoFileCount,
+    photosToLayOut,
+    withPageFrame,
     layoutFrames,
     applyLayout,
     reflowLayout,

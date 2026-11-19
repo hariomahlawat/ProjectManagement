@@ -1548,3 +1548,75 @@ test('a long heading names the poster and its file cut between words, within 40 
   assert.equal(collage.autoTitle([{ kind: 'text', text: 'x'.repeat(60) }]), 'x'.repeat(39) + '…');
   assert.equal(collage.autoTitle([{ kind: 'text', text: 'Short and sweet' }]), 'Short and sweet');
 });
+
+// docs/ux/collage-usability-plan.md, PR 3: photos first, in a layout made for them.
+test('the layout made for a number of photos: that many frames, else the next larger', () => {
+  assert.equal(collage.layoutForCount(0), null);
+  assert.equal(collage.layoutForCount(1), null);
+  assert.equal(collage.layoutForCount(2), 't2');
+  // Where two layouts have the same number of frames, the plain one comes first.
+  assert.equal(collage.layoutForCount(3), 't3');
+  assert.equal(collage.layoutForCount(4), 't4');
+  for (const n of [5, 6, 7, 8, 9]) assert.equal(collage.LAYOUTS[collage.layoutForCount(n)].cells.length, n);
+  assert.equal(collage.layoutForCount(10), 't12');
+  assert.equal(collage.layoutForCount(11), 't12');
+  assert.equal(collage.layoutForCount(12), 't12');
+  assert.equal(collage.layoutForCount(40), 't12');
+  assert.equal(collage.layoutForCount('6'), 't6');
+  assert.equal(collage.layoutForCount(undefined), null);
+});
+
+test('the layouts that fit a number of photos are every one with that many frames', () => {
+  assert.deepEqual(collage.layoutsThatFit(3), ['t3', 't3c']);
+  assert.deepEqual(collage.layoutsThatFit(4), ['t4', 't4s']);
+  assert.deepEqual(collage.layoutsThatFit(6), ['t6']);
+  assert.deepEqual(collage.layoutsThatFit(10), ['t12']);
+  assert.deepEqual(collage.layoutsThatFit(12), ['t12']);
+  // Past the largest layout none fits them all, so none is marked (Codex review, PR 3).
+  assert.deepEqual(collage.layoutsThatFit(13), []);
+  assert.deepEqual(collage.layoutsThatFit(60), []);
+  assert.deepEqual(collage.layoutsThatFit(1), []);
+  assert.deepEqual(collage.layoutsThatFit(0), []);
+});
+
+test('photo files are counted by their type or their name', () => {
+  const files = [
+    { name: 'a.jpg', type: 'image/jpeg' },
+    { name: 'scan.HEIC', type: 'image/heic' },
+    { name: 'b.PNG', type: '' },
+    { name: 'notes.txt', type: 'text/plain' },
+    { name: 'report.pdf', type: 'application/pdf' }
+  ];
+  assert.equal(collage.photoFileCount(files), 3);
+  assert.equal(collage.photoFileCount([]), 0);
+  assert.equal(collage.photoFileCount(null), 0);
+});
+
+test('one photo gets one empty frame filling the page inside the usual margin', () => {
+  let n = 0;
+  const page = collage.withPageFrame(collage.newCollage('a4l'), () => `f${++n}`);
+  assert.equal(page.items.length, 1);
+  const [frame] = page.items;
+  const gap = collage.LAYOUT_LIMITS.defaultGap;
+  const height = collage.pageHeight('a4l');
+  assert.equal(frame.kind, 'slot');
+  assert.equal(frame.id, 'f1');
+  assert.equal(frame.x, 500);
+  assert.equal(frame.y, height / 2);
+  assert.equal(frame.width, 1000 - 2 * gap);
+  assert.ok(Math.abs(frame.width / frame.aspect - (height - 2 * gap)) < 1e-9);
+  assert.equal(frame.angle, 0);
+});
+
+test('a layout must take each placed copy of a photo and every photo still waiting', () => {
+  const photo = (id, ref) => ({ id, kind: 'photo', photo: ref });
+  // A, B, A, B in four frames, and C waiting: five, not three (Codex review on #3467).
+  const page = { ...collage.newCollage('a4l'), items: [photo('1', 'A'), photo('2', 'B'), photo('3', 'A'), photo('4', 'B'), { id: '5', kind: 'text' }] };
+  assert.equal(collage.photosToLayOut(page, ['A', 'B', 'C']), 5);
+  assert.equal(collage.layoutForCount(collage.photosToLayOut(page, ['A', 'B', 'C'])), 't5');
+  // A photo on the back of a card is in use there, so it does not wait for the front.
+  const card = { ...page, items: [photo('1', 'A')], back: { items: [photo('9', 'D')] } };
+  assert.equal(collage.photosToLayOut(card, ['A', 'D', 'E']), 2);
+  assert.equal(collage.photosToLayOut(collage.newCollage('a4l'), []), 0);
+  assert.equal(collage.photosToLayOut(null, null), 0);
+});

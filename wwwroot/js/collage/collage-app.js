@@ -371,7 +371,8 @@
    * A new collage at this size, from a layout, or a card in a ready-made design
    * (docs/ux/invitations-posters.md, PR 5), which opens with its Card details.
    */
-  async function startCollage(sizeKey, layoutKey, designKey) {
+  /** `pageFrame`: one empty frame filling the page, for one photo chosen on the start screen (PR 3). */
+  async function startCollage(sizeKey, layoutKey, designKey, { pageFrame = false } = {}) {
     const request = ++openRequest;
     // When this browser already keeps the most drafts it can, the user is asked now, while
     // choosing, rather than later from the autosave in the middle of their work.
@@ -387,6 +388,8 @@
     collage = frozen(core.newCollage(sizeKey));
     if (layoutKey) {
       collage = frozen(core.applyLayout(collage, layoutKey, core.LAYOUT_LIMITS.defaultGap, 0, [], newItemId).collage);
+    } else if (pageFrame) {
+      collage = frozen(core.withPageFrame(collage, newItemId));
     }
     if (designKey && window.PrismCollageDesigns.DESIGNS[designKey]) {
       const designs = window.PrismCollageDesigns;
@@ -922,7 +925,15 @@
     announce(left
       ? `Layout applied. ${left} photo${left > 1 ? 's' : ''} did not fit and ${left > 1 ? 'are' : 'is'} still in Photos.`
       : 'Layout applied.');
-    if (left) showAlert(`${left} photo${left > 1 ? 's' : ''} did not fit this layout. ${left > 1 ? 'They are' : 'It is'} still in Photos; Ctrl+Z brings the page back.`);
+    // A button for the layout made for every photo, when that is another one (docs/ux/collage-usability-plan.md, PR 3).
+    const kept = [...photos.entries()].filter(([, photo]) => !photo.removed).map(([id]) => id);
+    const fitting = core.layoutForCount(core.photosToLayOut(collage, kept));
+    const offer = fitting && fitting !== key && !collage.card ? fitting : null;
+    if (left) {
+      showAlert(`${left} photo${left > 1 ? 's' : ''} did not fit this layout. ${left > 1 ? 'They are' : 'It is'} still in Photos; Ctrl+Z brings the page back.`, offer ? {
+        action: { label: `Use a ${core.LAYOUTS[offer].cells.length}-photo layout`, run: () => applyLayoutKey(offer) }
+      } : {});
+    }
   }
 
   // the Text, Stickers and Background panels (collage-add-panels.js).
