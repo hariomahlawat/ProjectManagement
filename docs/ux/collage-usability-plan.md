@@ -165,6 +165,81 @@ same way. Each can be reverted on its own.
      Collage, add photos, Save, Save).
 - Then run a fresh cold review. The aim is 8.5 or more for both tasks above.
 
+## First-time check after PR 7 (19 Nov 2026)
+
+The guide was checked against PRs 2 to 7, and nothing in it was out of date. Then a reviewer who
+had not seen the work used the page as a first-time user through the browser test server, at
+1366 × 768 and on a 390 × 844 touch phone, and timed the two tasks.
+
+| Task | Before | After PR 7 | Aim |
+| --- | --- | --- | --- |
+| Make an invitation card | 7.5 | **8** | 8.5 |
+| Make a quick collage | 6.5 | **7** | 8.5 |
+| Depth for a confident user | 8.5 | **8** | keep 8.5 |
+
+- **Invitation for a dinner, saved as a print PDF:** about 8 actions, well under a minute, with
+  nothing hard to find. The PDF was right. The card's sample date happened to be the task's
+  date, so a real user would need about 3 more actions.
+- **Six photos, wide and tall, as one picture for WhatsApp:** 4 actions, under 30 seconds, the
+  photos in the order picked. Same on the phone.
+- No page or console errors in any run.
+
+Both High findings were checked in the code before this plan was written.
+
+- **R1 (High): phones hide the page size.** `.clg-bar .clg-size` is hidden on phones; the size is
+  reached only through Layers, Settings, then a list of 30 sizes. A collage for WhatsApp stays on
+  A4 landscape, where every frame is nearly square and photos are cut hard.
+- **R2 (High): Layouts on a card covers the card.** The rail shows Layouts on cards and posters;
+  "4 grid" lays four empty frames over the words.
+- **R3: the sample date is fixed.** Every card opens with "Friday, 12 December 2026 at 1930 h".
+  A user who skips the field prints the wrong date, and the sample goes stale.
+- **R4: Printing gives an A5 PDF.** It defaults to each card on its own page, which office A4
+  printers scale or place without cut marks; some print wording reads like jargon.
+- **R5: two size menus on desktop** (top bar and Page settings), each with all 30 sizes, cards and
+  collages mixed.
+- **R6: poster wording.** A poster's help line says "Card details"; the panel is "Poster details".
+- **R7: the phone rail is cut off** on a card: "Layers" runs off the right edge.
+- **R8: a busy panel after adding photos.** The last photo stays selected, so its long settings
+  open.
+- **Low:** the Save dialog stays open after saving; Stickers opens on a group of two crests with a
+  cut-off name; a poster draft's picture shows the "Add logo" placeholder; a short poster heading
+  leaves a gap; the PDF is a picture (the words cannot be selected; not checked closely); the
+  phone header's shield has no words.
+
+### Owner decisions (19 Nov 2026)
+
+- A new card's **Date and time** starts empty, with the example as a grey hint. Save says so if it
+  is still empty.
+- A new collage: a **For: WhatsApp (square) / Printing (A4)** choice beside **Add photos**,
+  remembered in this browser. The page size can be reached in the phone's top bar.
+- **Printing** a card defaults to **A4 sheets** with cut marks.
+- **Layouts** is shown for collages only, not on cards or posters.
+
+### Round 2 PRs, in order
+
+Each is browser-only and small, with unit and browser tests, and changes no server, database or
+draft format. Drafts made before keep working: a card opened from a draft keeps its date.
+
+1. **R2 Layouts for collages only.** The rail hides Layouts on cards and posters; Photos, Text,
+   Stickers and Background stay. This also frees room for R7.
+2. **R1 and R5 page size.** Beside **Add photos**, a choice **For: WhatsApp (square) / Printing (A4
+   landscape)**, remembered (`localStorage`, inside `try`/`catch`); the layout made for the photos
+   fits that page. One size menu, in the top bar, also on phones (compact), listing the sizes for
+   what is open: pages and screens for a collage; card sizes for a card. Page settings keep the
+   custom size only.
+3. **R3 empty date.** New cards and posters open with Date and time empty and the example as the
+   box's hint; the card shows a short dotted line where the date goes. Save names any empty date
+   before saving, with **Save anyway**. Drafts keep the date they have.
+4. **R4 print.** Save > Printing for a card picks A4 sheets with cut marks; each card on its own
+   page stays one click away. The sheet notes say plainly how many cards fit and that cut marks
+   are added; no pixel counts on a PDF.
+5. **R6, R7, R8 and the Lows.** "Poster details" on posters; Tips lead with what is open; the
+   phone rail fits its buttons; after adding photos nothing is left selected; Save closes after
+   saving and says so in a toast; Stickers opens on the emoji group; a draft's picture leaves out
+   placeholders, as Save does; the phone shield gets its words for screen readers.
+6. **Fresh first-time check** with the same two tasks, and a real date to type. Aim: 8.5 or more
+   for both.
+
 ## Not in this plan
 
 - No feature is removed, and cards, posters and collages stay in one Collage Studio.
@@ -204,4 +279,6 @@ same way. Each can be reverted on its own.
   30 before), so the aim of about 20 is not quite met: the eight Look tiles are the largest group
   left, and Look is one of the essentials. The Order fold stays, against this plan's first draft:
   its "To the front" and "To the back" are on no toolbar, and the plan keeps everything that
-  existed.
+  existed. #3472, merged 19 Nov 2026.
+- PR 8: guide checked; first-time check done (invitation 8, collage 7, depth 8). Round 2 planned
+  above, with the owner's decisions.
