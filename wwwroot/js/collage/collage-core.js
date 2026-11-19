@@ -680,6 +680,9 @@
     clean: Object.freeze({ label: 'Clean', css: 'Mulish, "Noto Sans Devanagari", sans-serif' }),
     elegant: Object.freeze({ label: 'Elegant', css: '"Playfair Display", "Tiro Devanagari Hindi", serif' }),
     script: Object.freeze({ label: 'Script', css: '"Dancing Script", Kalam, cursive' }),
+    // Engraved capitals and a formal script, for invitations (docs/ux/invitations-posters.md).
+    engraved: Object.freeze({ label: 'Engraved', css: 'Cinzel, "Tiro Devanagari Hindi", serif' }),
+    formal: Object.freeze({ label: 'Formal script', css: '"Pinyon Script", Kalam, cursive' }),
     hand: Object.freeze({ label: 'Handwritten', css: 'Caveat, Kalam, cursive' }),
     poster: Object.freeze({ label: 'Poster', css: '"Bebas Neue", "Baloo 2", sans-serif' }),
     rounded: Object.freeze({ label: 'Rounded', css: '"Baloo 2", sans-serif' }),

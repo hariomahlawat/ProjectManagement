@@ -191,6 +191,8 @@ The mockup is the reference. In short:
   - Latin:
     - Mulish (already shipped);
     - Playfair Display (elegant);
+    - Cinzel (engraved, capitals only);
+    - Pinyon Script (formal script);
     - Dancing Script (script);
     - Caveat (handwritten);
     - Bebas Neue (poster);
