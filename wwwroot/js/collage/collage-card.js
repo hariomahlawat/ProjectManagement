@@ -81,6 +81,7 @@
     const form = ui.$('[data-card-form]');
     const strip = ui.$('[data-card-designs]');
     const railButton = ui.$('[data-panel="card"]');
+    const layoutsButton = ui.$('.clg-rail [data-panel="layouts"]');
     const startGrid = ui.$('[data-start-designs]');
     const startSize = ui.$('[data-card-size]');
     const posterGrid = ui.$('[data-start-posters]');
@@ -353,6 +354,10 @@
     function refresh() {
       const card = state.collage?.card;
       if (railButton) railButton.hidden = !card;
+      // Layouts are for collages: on a card or poster they would cover the design with empty
+      // frames (docs/ux/collage-usability-plan.md, round 2, PR 1).
+      if (layoutsButton) layoutsButton.hidden = Boolean(card);
+      if (card && state.panel === 'layouts') screens.setPanel('card');
       if (!card) {
         if (state.panel === 'card') screens.setPanel('photos');
         return;
