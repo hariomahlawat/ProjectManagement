@@ -960,6 +960,124 @@
   const isSddLogo = (item) => item.kind === 'sticker' && item.sticker === 'logo:sdd';
 
   /**
+   * Where a second logo goes (code review 9, H1: it used to mirror an off-centre first logo onto
+   * the words). `second` is the new logo already as tall as the first, `items` the page's items.
+   * Places are tried in order: both sharing the middle (a centred first logo the user has not
+   * locked), right beside the first, left beside it, one above the other about its middle, below
+   * it, above it, the mirror place across the page; then
+   * the same at 80%; then the two stacked in the first logo's own column, both made smaller to fit
+   * (Ceremonial landscape, where words sit on every side); then the beside places at 60%. The first
+   * place on the page and clear of the words, the photo and the first logo wins. What the design
+   * already puts the first logo across (Ceremonial's photo edge) does not count. With no clear
+   * place, beside the first on the page. Returns { firstX, firstY, firstWidth, x, y, width }.
+   */
+  function secondLogoPlace(items, first, second, { width: pageWidth, height: pageHeight }) {
+    const margin = Math.min(pageWidth, pageHeight) * 0.02;
+    const overlaps = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+    const across = itemBox(first);
+    // Words, the photo and the design's lines block it; the logo's own backings (box, tile, roundel)
+    // and empty words do not.
+    const backings = new Set(['logobox', 'logotile', 'backlogotile', 'roundel', 'logo2']);
+    const blockers = (items || []).filter((item) => item.id !== first.id && !item.hidden && !backings.has(item.role) && (item.kind !== 'text' || String(item.text || '').trim()) && !overlaps(itemBox(item), across));
+    const heightAt = (w) => core.itemHeight({ ...second, width: w });
+    const gap = first.width * 0.35;
+    const firstH = core.itemHeight(first);
+    const spacing = Math.max(8, firstH * 0.12);
+    const middle = !first.locked && Math.abs(first.x - pageWidth / 2) < pageWidth * 0.05;
+    const own = { firstX: first.x, firstY: first.y, firstWidth: first.width };
+    // A white box behind the logo (Ceremonial) grows round the pair (fitLogoBox): the grown box
+    // must keep clear of the words too.
+    const logoBox = (items || []).find((item) => item.role === 'logobox' && item.kind === 'shape' && !item.hidden && !item.locked);
+    const boxNow = logoBox && itemBox(logoBox);
+    const boxBlockers = logoBox ? blockers.filter((item) => !overlaps(itemBox(item), boxNow)) : [];
+    const clear = (place) => {
+      const box = itemBox({ ...second, x: place.x, y: place.y, width: place.width });
+      const firstBox = itemBox({ ...first, x: place.firstX, y: place.firstY, width: place.firstWidth });
+      if (box.left < margin || box.right > pageWidth - margin || box.top < margin || box.bottom > pageHeight - margin) return false;
+      if (overlaps(box, firstBox)) return false;
+      const moved = place.firstX !== first.x || place.firstY !== first.y || place.firstWidth !== first.width;
+      if (blockers.some((item) => { const b = itemBox(item); return overlaps(b, box) || (moved && overlaps(b, firstBox)); })) return false;
+      if (!logoBox) return true;
+      const pad = Math.max(box.bottom - box.top, firstBox.bottom - firstBox.top) * 0.1;
+      const grown = {
+        left: Math.min(boxNow.left, box.left - pad, firstBox.left - pad),
+        right: Math.max(boxNow.right, box.right + pad, firstBox.right + pad),
+        top: Math.min(boxNow.top, box.top - pad, firstBox.top - pad),
+        bottom: Math.max(boxNow.bottom, box.bottom + pad, firstBox.bottom + pad),
+      };
+      return grown.left >= 0 && grown.right <= pageWidth && grown.top >= 0 && grown.bottom <= pageHeight && !boxBlockers.some((item) => overlaps(itemBox(item), grown));
+    };
+    const beside = (w) => {
+      const h = heightAt(w);
+      const list = [];
+      if (middle) {
+        const left = pageWidth / 2 - (first.width + gap + w) / 2;
+        list.push({ ...own, firstX: left + first.width / 2, x: left + first.width + gap + w / 2, y: first.y });
+      }
+      list.push({ ...own, x: first.x + first.width / 2 + gap + w / 2, y: first.y });
+      list.push({ ...own, x: first.x - first.width / 2 - gap - w / 2, y: first.y });
+      // One above the other, sharing the first logo's middle (a logo panel beside the words).
+      if (!first.locked) list.push({ ...own, firstY: first.y - (h + spacing) / 2, x: first.x, y: first.y + (firstH + spacing) / 2 });
+      list.push({ ...own, x: first.x, y: first.y + firstH / 2 + spacing + h / 2 });
+      list.push({ ...own, x: first.x, y: first.y - firstH / 2 - spacing - h / 2 });
+      // The mirror place last: across the page, it often lands among the words.
+      if (!middle) list.push({ ...own, x: pageWidth - first.x, y: first.y });
+      return list.map((place) => ({ ...place, width: w }));
+    };
+    const stacked = () => {
+      if (first.locked) return [];
+      const top = first.y - firstH / 2;
+      const column = { left: first.x - first.width / 2, right: first.x + first.width / 2 };
+      const below = blockers.map(itemBox).filter((b) => b.top >= top && Math.min(b.right, column.right) - Math.max(b.left, column.left) > 1).map((b) => b.top);
+      // Room left below for the white box's margin round the pair (fitLogoBox).
+      const room = Math.min(pageHeight - margin, ...below) - spacing * 2.5 - top;
+      const each = Math.min(firstH, (room - spacing) / 2);
+      if (each < firstH * 0.5) return [];
+      // A wide second logo may be shorter than the first so it keeps clear of the words beside.
+      return [1, 0.8, 0.6].map((scale) => {
+        const tall = each * scale;
+        return { firstX: first.x, firstY: top + each / 2, firstWidth: first.width * each / firstH, x: first.x, y: top + each + spacing + tall / 2, width: second.width * tall / heightAt(second.width) };
+      });
+    };
+    const tries = [...beside(second.width), ...beside(second.width * 0.8), ...stacked(), ...beside(second.width * 0.6)];
+    const found = tries.find(clear);
+    if (found) return found;
+    const w = second.width;
+    const right = first.x + first.width / 2 + gap + w / 2;
+    const x = right + w / 2 <= pageWidth ? right : Math.max(w / 2, first.x - first.width / 2 - gap - w / 2);
+    return { ...own, x: Math.min(pageWidth - w / 2, Math.max(w / 2, x)), y: first.y, width: w };
+  }
+
+  /**
+   * The white box behind the logo (Ceremonial) holds both logos when there are two: it grows from
+   * the design's box (`base`) to take them in with a margin, and goes back to `base` with one logo
+   * again, unless the user moved it away (then it is theirs and stays). A locked or hidden box
+   * stays as it is. Returns the items with the box replaced, or the same array.
+   */
+  function fitLogoBox(items, base) {
+    const box = items.find((item) => item.role === 'logobox');
+    if (!box || !base || box.locked || box.hidden || box.kind !== 'shape') return items;
+    const logos = items.filter((item) => (item.role === 'logo' || item.role === 'logo2') && item.kind !== 'slot' && !item.hidden);
+    const b0 = itemBox(base);
+    const now = itemBox(box);
+    let next = null;
+    if (logos.length > 1) {
+      const boxes = logos.map(itemBox);
+      const pad = Math.max(...boxes.map((b) => b.bottom - b.top)) * 0.1;
+      const left = Math.min(b0.left, ...boxes.map((b) => b.left - pad));
+      const right = Math.max(b0.right, ...boxes.map((b) => b.right + pad));
+      const top = Math.min(b0.top, ...boxes.map((b) => b.top - pad));
+      const bottom = Math.max(b0.bottom, ...boxes.map((b) => b.bottom + pad));
+      next = { x: (left + right) / 2, y: (top + bottom) / 2, width: right - left, aspect: (right - left) / (bottom - top) };
+    } else if (now.left <= b0.left + 0.5 && now.right >= b0.right - 0.5 && now.top <= b0.top + 0.5 && now.bottom >= b0.bottom - 0.5) {
+      // Grown round two logos before (it still holds the design's box): back to the design's.
+      next = { x: base.x, y: base.y, width: base.width, aspect: base.aspect };
+    }
+    if (!next || Object.keys(next).every((key) => Math.abs(next[key] - box[key]) < 0.01)) return items;
+    return items.map((item) => (item === box ? { ...box, ...next } : item));
+  }
+
+  /**
    * The light tile behind the logo on a dark design (M3), fitted round the logos it goes behind
    * with a margin of 14% of their height. Where the page's edge is too near for that margin (a
    * poster's logo sits close to its corner), the logos are made smaller about their middle so the
@@ -1572,8 +1690,9 @@
 
   /** An item's box on the page (not turned): left, right, top and bottom. */
   function itemBox(item) {
-    const half = core.itemHeight(item) / 2;
-    return { left: item.x - item.width / 2, right: item.x + item.width / 2, top: item.y - half, bottom: item.y + half };
+    // A turned item (a divider stood upright) takes the room it really covers (code review 9).
+    const half = core.turnedHalfBox(item.width, core.itemHeight(item), item.angle || 0);
+    return { left: item.x - half.halfWidth, right: item.x + half.halfWidth, top: item.y - half.halfHeight, bottom: item.y + half.halfHeight };
   }
 
   /**
@@ -1698,5 +1817,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, followLogo, roleItemOn, designOnSize, hindiInStep });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, followLogo, roleItemOn, designOnSize, hindiInStep });
 });

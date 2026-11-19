@@ -652,8 +652,11 @@
     function fitRoundel(hadLogo = true) {
       const base = designs.roleItem(state.collage, 'roundel', options());
       doc.edit((draft) => designs.fitRoundel(draft.items, base, { hadLogo }), 'none');
-      // The light tile behind a crest on a dark design (UX review 8, M3) follows the logos too.
+      // The light tile behind a crest on a dark design (UX review 8, M3) follows the logos too,
+      // and so does Ceremonial's white box: round both logos, or back to its design size with one.
       doc.edit((draft) => { draft.items = designs.logoTileItems(draft, options()); }, 'none');
+      const box = designs.roleItem(state.collage, 'logobox', options());
+      doc.edit((draft) => { draft.items = designs.fitLogoBox(draft.items, box); }, 'none');
     }
 
     /**
@@ -773,7 +776,6 @@
       const current = logoOf(state.collage);
       if (!current) return;
       choosingSecond = null;
-      const middle = Math.abs(current.x - core.PAGE_WIDTH / 2) < core.PAGE_WIDTH * 0.05;
       selection.select(null);
       doc.edit((draft) => {
         const first = draft.items.find((item) => item.role === 'logo');
@@ -785,19 +787,11 @@
         const room = core.PAGE_WIDTH * 0.8 - first.width - gap;
         const width = Math.min(core.itemHeight(first) * (made.width / core.itemHeight(made)), Math.max(first.width * 0.5, room));
         const second = { ...made, role: 'logo2', y: first.y, width, angle: 0, locked: false };
-        // A locked first logo stays where it is; the second goes beside it, on the right if it fits.
-        if (first.locked) {
-          const right = first.x + first.width / 2 + gap + width / 2;
-          second.x = right + width / 2 <= core.PAGE_WIDTH ? right : Math.max(width / 2, first.x - first.width / 2 - gap - width / 2);
-        } else if (middle) {
-          const left = core.PAGE_WIDTH / 2 - (first.width + gap + width) / 2;
-          first.x = left + first.width / 2;
-          second.x = left + first.width + gap + width / 2;
-        } else {
-          second.x = core.PAGE_WIDTH - first.x;
-        }
-        // Never past the page's edge, wherever it went.
-        second.x = Math.min(core.PAGE_WIDTH - width / 2, Math.max(width / 2, second.x));
+        // Beside the first, clear of the words and on the page (designs.secondLogoPlace); a
+        // locked first logo is never moved.
+        const place = designs.secondLogoPlace(draft.items, first, second, { width: core.PAGE_WIDTH, height: core.pageHeight(draft.size) });
+        Object.assign(first, { x: place.firstX, y: place.firstY, width: place.firstWidth });
+        Object.assign(second, { x: place.x, y: place.y, width: place.width });
         draft.items.splice(draft.items.indexOf(first) + 1, 0, second);
       }, 'none');
       fitRoundel();

@@ -225,8 +225,13 @@ its npm package by hand; the libman entry records the version.
     - Crests and logos (the SDD logo and any uploaded crests) to pick from;
     - **Your own logo…**: a PNG, JPG or WEBP read in this browser like a photo, kept with the
       draft, never sent to PRISM; a PNG keeps its clear background in the PNG and PDF;
-    - **Add a second logo**: beside the first, as tall as it, or the two side by side when the
-      first is in the middle. It is never a copy of the first (UX review 8, M4): beside a crest
+    - **Add a second logo**: as tall as the first, in the first place that is on the page and
+      clear of the words, the photo and the design's lines (`secondLogoPlace`, code review 9):
+      the two side by side in the middle when the first is there, else right or left beside it,
+      one above the other about its middle (a logo panel beside the words), below or above it,
+      and only then across the page; smaller (80%, then stacked and shrunk in the logo's column,
+      then 60%) when nothing fits. Ceremonial's white box grows round both logos and goes back to
+      the design's size with one, unless you moved it. It is never a copy of the first (UX review 8, M4): beside a crest
       or your own logo it is the SDD logo; with the SDD logo first the panel asks **Choose the
       second logo** (a crest, or Your own logo…, with **Cancel the second logo**), and the
       second goes on the card when one is picked. The logo already on the card is greyed out in

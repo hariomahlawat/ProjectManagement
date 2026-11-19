@@ -1376,3 +1376,70 @@ test('fitLogoTile with resize false moves the tile with a moved logo and keeps t
   const gone = designs.fitLogoTile(after.filter((item) => item.role !== 'logo'), { ...page, resize: false });
   assert.equal(gone.find((item) => item.role === 'logotile').hidden, true);
 });
+
+// Code review 9, H1: a second logo (square or 2:1) goes on the page, clear of the words, the photo
+// and the first logo, on every design and size.
+test('secondLogoPlace keeps a second logo on the page and clear of the words on every design and size', () => {
+  const opts = { measure, newId };
+  const box = (item) => { const half = core.turnedHalfBox(item.width, core.itemHeight(item), item.angle || 0); return { left: item.x - half.halfWidth, right: item.x + half.halfWidth, top: item.y - half.halfHeight, bottom: item.y + half.halfHeight }; };
+  const overlap = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+  const bad = [];
+  let checked = 0;
+  for (const key of Object.keys(designs.DESIGNS)) {
+    const design = designs.DESIGNS[key];
+    const group = design.poster ? 'page' : design.pocket ? 'pocket' : 'card';
+    const sizes = Object.keys(core.SIZES).filter((size) => core.SIZES[size].group === group);
+    for (const size of sizes) {
+      for (const aspect of [1, 2]) {
+        const card = designs.applyDesign(core.newCollage(size), key, designs.startDetails(key), opts);
+        const first = card.items.find((item) => item.role === 'logo');
+        if (!first || first.kind === 'slot') continue;
+        checked += 1;
+        const made = core.photoItem('own', 'ph', aspect, { x: first.x, y: first.y, width: first.width });
+        const second = { ...made, role: 'logo2', y: first.y, width: core.itemHeight(first) * (made.width / core.itemHeight(made)), angle: 0 };
+        const height = core.pageHeight(size);
+        const place = designs.secondLogoPlace(card.items, first, second, { width: core.PAGE_WIDTH, height });
+        // With the second in, Ceremonial's white box grows round both: never over the words.
+        const two = card.items.map((item) => (item === first ? { ...item, x: place.firstX, y: place.firstY, width: place.firstWidth } : item));
+        two.push({ ...second, x: place.x, y: place.y, width: place.width });
+        const grownBox = designs.fitLogoBox(two, card.items.find((item) => item.role === 'logobox')).find((item) => item.role === 'logobox');
+        if (grownBox && card.items.filter((item) => item.kind === 'text' && item.text && !item.hidden).some((item) => overlap(box(item), box(grownBox)))) bad.push(`${key} ${size} ${aspect}:1 box over the words`);
+        const b = box({ ...second, x: place.x, y: place.y, width: place.width });
+        const f = box({ ...first, x: place.firstX, y: place.firstY, width: place.firstWidth });
+        // Never shrunk to a token: the first at half its size or more, the second at least 40% of the first's height.
+        if (place.firstWidth < first.width * 0.5 || core.itemHeight({ ...second, width: place.width }) < core.itemHeight(first) * 0.4) bad.push(key + ' ' + size + ' ' + aspect + ':1 too small');
+        // What the design itself puts the first logo across (Ceremonial's photo edge) is allowed.
+        const words = card.items.filter((item) => !item.hidden && !['logo', 'logobox', 'logotile', 'roundel'].includes(item.role) && (item.kind !== 'text' || item.text) && !overlap(box(item), box(first)));
+        const problem = b.left < 0 || b.right > core.PAGE_WIDTH || b.top < 0 || b.bottom > height ? 'off the page'
+          : overlap(b, f) ? 'on the first logo'
+          : words.some((item) => overlap(box(item), b) || overlap(box(item), f)) ? 'on the words' : '';
+        if (problem) bad.push(`${key} ${size} ${aspect}:1 ${problem}`);
+      }
+    }
+  }
+  assert.ok(checked > 100, `checked ${checked}`);
+  assert.deepEqual(bad, []);
+});
+
+// Code review 9, H1: Ceremonial's white box takes in both logos, and goes back with one.
+test('fitLogoBox grows the white box round two logos and returns it to the design size with one', () => {
+  const opts = { measure, newId };
+  const card = designs.applyDesign(core.newCollage('a5l'), 'ceremonial', designs.startDetails('ceremonial'), opts);
+  const base = card.items.find((item) => item.role === 'logobox');
+  const first = card.items.find((item) => item.role === 'logo');
+  const made = core.photoItem('own', 'ph', 1, { x: first.x, y: first.y, width: first.width });
+  const second = { ...made, role: 'logo2', angle: 0, width: core.itemHeight(first) * (made.width / core.itemHeight(made)) };
+  const place = designs.secondLogoPlace(card.items, first, second, { width: core.PAGE_WIDTH, height: core.pageHeight('a5l') });
+  const two = card.items.map((item) => (item === first ? { ...item, x: place.firstX, y: place.firstY, width: place.firstWidth } : item));
+  two.push({ ...second, x: place.x, y: place.y, width: place.width });
+  const grown = designs.fitLogoBox(two, base);
+  const box = grown.find((item) => item.role === 'logobox');
+  const inside = (outer, inner) => { const half = (i) => core.itemHeight(i) / 2; return inner.x - inner.width / 2 >= outer.x - outer.width / 2 && inner.x + inner.width / 2 <= outer.x + outer.width / 2 && inner.y - half(inner) >= outer.y - half(outer) && inner.y + half(inner) <= outer.y + half(outer); };
+  for (const logo of grown.filter((item) => /^logo2?$/.test(item.role))) assert.ok(inside(box, logo), `${logo.role} inside the box`);
+  assert.equal(designs.fitLogoBox(grown, base), grown, 'nothing more to change');
+  const back = designs.fitLogoBox(grown.filter((item) => item.role !== 'logo2'), base).find((item) => item.role === 'logobox');
+  assert.deepEqual([back.x, back.y, back.width, back.aspect], [base.x, base.y, base.width, base.aspect]);
+  // A box the user moved away stays where they put it.
+  const moved = grown.filter((item) => item.role !== 'logo2').map((item) => (item.role === 'logobox' ? { ...item, x: item.x + 200 } : item));
+  assert.equal(designs.fitLogoBox(moved, base), moved);
+});

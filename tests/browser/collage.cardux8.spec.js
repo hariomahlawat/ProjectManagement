@@ -147,3 +147,22 @@ test('deleting the crest on the page hides its light tile; one Undo brings both 
   expect((await tile()).hidden === true).toBe(false);
   expect(errors).toEqual([]);
 });
+
+// Code review 9, H1: on Modern the first logo is off-centre; the second used to mirror onto the host's words.
+test('on Modern a second logo goes beside the first, clear of the words', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="modern"]').click();
+  await ownLogo(page);
+  await expect.poll(async () => (await roles(page)).find((item) => item.role === 'logo')?.kind).toBe('photo');
+  await page.locator('[data-card-logo="second"]').click();
+  await expect.poll(async () => (await roles(page)).some((item) => item.role === 'logo2')).toBe(true);
+  const items = (await newestDraft(page)).model.items;
+  const box = (item) => { const half = item.width / item.aspect / 2; return { left: item.x - item.width / 2, right: item.x + item.width / 2, top: item.y - half, bottom: item.y + half }; };
+  const overlap = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+  const second = box(items.find((item) => item.role === 'logo2'));
+  const words = items.filter((item) => item.kind === 'text' && item.text && !item.hidden);
+  expect(words.filter((item) => overlap(box(item), second)).map((item) => item.field)).toEqual([]);
+  expect(second.left).toBeGreaterThanOrEqual(0);
+  expect(second.right).toBeLessThanOrEqual(1000);
+  expect(errors).toEqual([]);
+});
