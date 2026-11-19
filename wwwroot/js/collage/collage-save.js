@@ -101,7 +101,9 @@
       if (sidesBox) sidesBox.hidden = !getCollage().back;
       // A card with a guest list, as a PDF, can be one card for each guest (PR 10).
       const guestsBox = $('[data-save-guests]');
-      const guestCount = getCollage().card?.guests?.length || 0;
+      // Only where the design has a place for the guest's name (not a car pass or RSVP card).
+      const guestPlace = Boolean(designs?.fieldsOf(getCollage().card?.design, getCollage().size).includes('guest'));
+      const guestCount = guestPlace ? (getCollage().card?.guests?.length || 0) : 0;
       if (guestsBox) {
         guestsBox.hidden = !(guestCount && chosen('format') === 'pdf');
         const label = guestsBox.querySelector('[data-guest-label]');

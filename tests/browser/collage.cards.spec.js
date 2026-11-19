@@ -212,3 +212,17 @@ test('a guest list makes one card for each guest: on their own pages, or filling
   await expect(page.locator('[data-card-guests]')).toHaveValue('');
   expect(errors).toEqual([]);
 });
+
+// Codex on PR 10: a design with no place for the guest's name takes no guest list.
+test('a car pass offers no guest list, and Save offers no card for each guest', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('passl');
+  await page.locator('[data-start-design="pass"]').click();
+  await expect(page.locator('[data-card-field="host"], [data-card-field="when"]').first()).toBeVisible();
+  await expect(page.locator('[data-card-guests]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await expect(page.locator('[data-save-guests]')).toBeHidden();
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});
