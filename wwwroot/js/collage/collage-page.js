@@ -331,11 +331,15 @@
       return Math.abs(item.width - layout.width) > 0.5 || Math.abs(item.width / item.aspect - layout.height) > 0.5;
     }
 
-    /** Waits for every font the collage's text uses, so Save measures and draws the real fonts. */
-    async function fontsReady() {
+    /**
+     * Waits for every font the collage's text uses, so Save measures and draws the real fonts;
+     * `extra` items (a guest's name made from the design, not on the card yet) count too (code
+     * review 7).
+     */
+    async function fontsReady(extra = []) {
       if (!document.fonts) return;
       // Both sides of a card: Save draws the side not showing too.
-      const items = [...state.collage.items, ...(state.collage.back?.items || [])];
+      const items = [...state.collage.items, ...(state.collage.back?.items || []), ...(Array.isArray(extra) ? extra : [])];
       const fonts = new Set(items.filter((item) => item.kind === 'text').map((item) => core.fontOf(item, 40)));
       // A polaroid's caption is written in Caveat (Kalam for Hindi).
       if (items.some((item) => item.frame === 'polaroid' && item.caption)) fonts.add(`40px ${draw.CAPTION_FONT}`);

@@ -997,5 +997,110 @@ test('naming a card opened from a design keeps its draft', async ({ page }) => {
   await page.locator('[data-start-design="classic"]').click();
   await page.locator('[data-name]').fill('Signals Raising Day 2026');
   await expect.poll(async () => (await newestDraft(page))?.name || (await newestDraft(page))?.title || '', { timeout: 10000 }).toContain('Signals Raising Day 2026');
+});
+
+// Code review 7, M1: a long guest PDF says which card it is making, and Esc stops it.
+test('guest cards show their progress, and Esc stops them with nothing saved', async ({ page }) => {
+  test.setTimeout(120000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a5p');
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-guests]').fill(Array.from({ length: 150 }, (_, i) => `Officer ${i + 1}`).join('\n'));
+  await page.locator('[data-card-guests]').blur();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await page.locator('[data-save-sheet] input[value="card"]').check();
+  let downloaded = false;
+  page.on('download', () => { downloaded = true; });
+  await page.locator('[data-action="save-go"]').click();
+  await expect(page.locator('[data-save-result]')).toContainText(/Making the guest cards: \d+ of 150/);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-save-result]')).toContainText('Stopped: the guest cards were not saved.');
+  await expect(page.locator('[data-save-dialog]')).toBeVisible();
+  expect(downloaded).toBe(false);
+  // Saved again, it runs to the end.
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  await download;
+  await expect(page.locator('[data-save-result]')).toContainText('150 guest cards on 150 pages', { timeout: 60000 });
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});
+
+// UX review 7, M4: Save says when a Bilingual card's Hindi line is empty.
+test('Save says when a Bilingual card has an empty Hindi line', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="bilingual"]').click();
+  const occasion = page.locator('[data-card-field="occasion"]');
+  await occasion.fill('Annual Mess Night of the Corps of Signals');
+  await occasion.blur();
+  await expect(page.locator('[data-card-field="occasionHi"]')).toHaveValue('');
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-empty]')).toContainText('The Hindi occasion is empty');
+  await page.keyboard.press('Escape');
+  await page.locator('[data-card-field="occasionHi"]').fill('वार्षिक मेस नाइट');
+  await page.locator('[data-card-field="occasionHi"]').blur();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-empty]')).toBeHidden();
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});
+
+// Tests review 7, M1 and M2: each guest's card is on the page of its place in the list, and at
+// print resolution like any other card.
+test('guest cards follow the list order and print at full resolution', async ({ page }) => {
+  test.setTimeout(120000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a6p');
+  await page.locator('[data-start-design="classic"]').click();
+  // Each page's picture: a hash of its bytes, and its width in pixels.
+  const pictures = async (file) => page.evaluate(async (base64) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    const pdf = await window.PDFLib.PDFDocument.load(bytes);
+    const { PDFName, PDFDict, PDFNumber } = window.PDFLib;
+    return pdf.getPages().map((each) => {
+      const xobjects = each.node.Resources().lookupMaybe(PDFName.of('XObject'), PDFDict);
+      const stream = pdf.context.lookup(xobjects.values()[0]);
+      const contents = stream.getContents();
+      let hash = contents.length;
+      for (let i = 0; i < contents.length; i += 7) hash = (hash * 31 + contents[i]) >>> 0;
+      return { hash: `${contents.length}:${hash}`, width: stream.dict.lookup(PDFName.of('Width'), PDFNumber).asNumber() };
+    });
+  }, (await bytesOf(file)).toString('base64'));
+  const saveWith = async (names) => {
+    await page.locator('[data-card-guests]').fill(names.join('\n'));
+    await page.locator('[data-card-guests]').blur();
+    await page.getByRole('button', { name: 'Save as…' }).click();
+    await page.getByRole('button', { name: 'Printing' }).click();
+    await page.locator('[data-save-sheet] input[value="card"]').check();
+    const guestsEach = page.locator('input[name="guests"][value="each"]');
+    if (await guestsEach.count()) await guestsEach.check();
+    const download = page.waitForEvent('download');
+    await page.locator('[data-action="save-go"]').click();
+    const result = await pictures(await download);
+    await page.keyboard.press('Escape');
+    return result;
+  };
+  const forward = await saveWith(['Maj Arjun Rao', 'Capt Bela Sen', 'Lt Chandra Das']);
+  const backward = await saveWith(['Lt Chandra Das', 'Capt Bela Sen', 'Maj Arjun Rao']);
+  expect(forward).toHaveLength(3);
+  expect(new Set(forward.map((each) => each.hash)).size).toBe(3);
+  expect(backward.map((each) => each.hash)).toEqual([...forward].reverse().map((each) => each.hash));
+  // The first guest saved alone is the very picture on the list's first page: the order is the
+  // list's, not merely consistent.
+  const alone = await saveWith(['Maj Arjun Rao']);
+  expect(alone[0].hash).toBe(forward[0].hash);
+  // The same card saved as it is (no guests), at print quality: the guest cards are as sharp.
+  await page.locator('[data-card-guest="clear"]').click();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await page.locator('[data-save-sheet] input[value="card"]').check();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  const plain = await pictures(await download);
+  await page.keyboard.press('Escape');
+  expect(forward[0].width).toBe(plain[0].width);
   expect(errors).toEqual([]);
 });

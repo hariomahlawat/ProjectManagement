@@ -192,16 +192,23 @@ its npm package by hand; the libman entry records the version.
 
     **Folded cards** (PR 9c): **Folded A6 card** (an A5 sheet) and **Folded A5 card** (an A4
     sheet) are in the size menus' **Folded cards** group. A folded card is always two-sided:
-    - its **outside** has the back cover on the left (the note) and the front cover on the right
-      (the logo and the host, who sends it);
-    - its **inside** has the invitation on the left (the invitation line and the guest line) and
-      the occasion and details on the right ("at the", the occasion, when, where, dress,
-      R.S.V.P.); a Bilingual card adds its Hindi invitation and occasion.
+    - its **outside** has the back cover on the left (the note, in the middle of the panel
+      between two short lines) and the front cover on the right (the logo and the host, who
+      sends it);
+    - its **inside** has the invitation on the left (the invitation line, the guest line and
+      "at the") and the occasion and details on the right (the occasion, when, where, dress,
+      R.S.V.P.).
 
     Each field is on one side only, so the host is on the cover, not inside again.
 
-    Every card design gives it these panels in its own colours. Card details calls the sides
-    **Outside** and **Inside**, with no Delete. Inside fields are typed whichever side shows. A
+    Every panel has a frame, and each card design keeps its own look when folded (cold review 7):
+    Classic ivory and Navy and gold a double border, the host in Engraved and the invitation in
+    Formal script; Regimental its three bands in the unit's colours across the top of the cover
+    and the ring round the logo; Ceremonial photo a frame for your photo at the top of the cover,
+    the logo in its white box, and words set on the left; Bilingual the host in Hindi and English
+    on the cover and the Hindi invitation and occasion inside; Modern its navy bar down the
+    cover's spine and the inside's outer edge, and words set on the left. Card details calls the
+    sides **Outside** and **Inside**, says which half of the sheet is which, and has no Delete. Inside fields are typed whichever side shows. A
     dashed fold line shows on the page, never in Preview or Save. Saved as a PDF it's two pages
     of the flat sheet: print both sides, flipping on the short edge, and fold down the middle.
 

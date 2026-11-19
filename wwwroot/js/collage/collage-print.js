@@ -205,8 +205,13 @@
     // A byte-order mark and control characters (a stray NUL from a wrongly read file) are never
     // part of a name; tabs and line breaks stay, as they separate columns and names.
     // Line ends from any system, CR alone included (an old Mac file), are one kind of line break.
-    const source = String(text || '').replace(/^﻿/, '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n?/g, '\n');
-    const head = source.split(/\r?\n/).find((line) => line.trim()) || '';
+    // A zero-width space, word joiner or byte-order mark (from a copied web page) is never part of a
+    // name; the joiner and non-joiner (U+200D, U+200C) stay, as they shape Hindi letters (Codex on
+    // #3454). A line with nothing visible is not a guest (see `visible`).
+    const source = String(text || '').replace(/[\u200B\u2060\uFEFF]/g, '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n?/g, '\n');
+    // What a cell shows: without the joiners, which alone print nothing.
+    const visible = (cell) => String(cell ?? '').replace(/[\u200C\u200D]/g, '').trim();
+    const head = source.split(/\r?\n/).find((line) => visible(line)) || '';
     // Columns pasted from a spreadsheet come with tabs between them; a CSV saved with semicolons
     // (as some spreadsheets do) has them when its first row has no comma.
     const pasted = !csv && heading && source.includes('\t');
@@ -215,8 +220,10 @@
     const asCsv = csv || headedText;
     const separator = pasted ? '\t' : asCsv && head.includes(';') && !head.includes(',') ? ';' : ',';
     const rows = (asCsv || pasted ? csvRows(source, separator) : source.split(/\r?\n/).map((line) => [line]))
-      .filter((cells) => cells.some((cell) => cell.trim()));
+      .filter((cells) => cells.some((cell) => visible(cell)));
     let columns = [0];
+    // The columns that hold the name itself: a row with a rank but no name is not a guest.
+    let nameColumns = [0];
     let spouse = -1;
     let honours = -1;
     let headed = false;
@@ -231,6 +238,7 @@
       if (!named.length && after > 0 && after < rows[0].length && !NOT_A_PERSON.test(rows[0][after]) && !SPOUSE_HEADING.test(rows[0][after]) && !HONOURS_HEADING.test(rows[0][after])) named.push(after);
       if (named.length) {
         columns = [...ranks, ...named];
+        nameColumns = named;
         spouse = rows[0].findIndex((cell) => SPOUSE_HEADING.test(cell));
         honours = rows[0].findIndex((cell) => HONOURS_HEADING.test(cell));
         width = rows[0].length;
@@ -246,6 +254,7 @@
     const names = [];
     let over = 0;
     for (const cells of rows) {
+      if (!nameColumns.some((i) => visible(cells[i]))) continue;
       const person = columns.map((i) => cells[i] ?? '').join(' ').replace(/\s+/g, ' ').trim();
       const awards = honours >= 0 ? String(cells[honours] ?? '').replace(/\s+/g, ' ').trim() : '';
       const main = person && awards ? `${person}, ${awards}` : person;

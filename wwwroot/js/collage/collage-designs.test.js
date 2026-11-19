@@ -975,3 +975,103 @@ test('a roundel the user hid stays hidden; one hidden for want of a logo comes b
   designs.fitRoundel(old, { width: roundel.width, aspect: roundel.aspect }, { hadLogo: false });
   assert.ok(!old[0].hidden);
 });
+
+// UX review 7, M5: two logos on Regimental sit in a rounded band that holds both clear of its edge.
+test('two logos sit in a rounded band; one logo keeps its oval', () => {
+  const items = [
+    { id: 'r', role: 'roundel', kind: 'shape', form: 'ellipse', x: 500, y: 100, width: 170, aspect: 0.72 },
+    { id: 'l', role: 'logo', kind: 'sticker', x: 440, y: 100, width: 100, aspect: 0.6 },
+    { id: 'm', role: 'logo2', kind: 'photo', x: 600, y: 100, width: 160, aspect: 4 }
+  ];
+  designs.fitRoundel(items, { width: 170, aspect: 0.72 });
+  const roundel = items[0];
+  assert.equal(roundel.form, 'rect');
+  assert.ok(roundel.radius > 0);
+  for (const logo of items.slice(1)) {
+    assert.ok(logo.x - logo.width / 2 >= roundel.x - roundel.width / 2, `${logo.id} inside on the left`);
+    assert.ok(logo.x + logo.width / 2 <= roundel.x + roundel.width / 2, `${logo.id} inside on the right`);
+  }
+  const one = [{ ...items[0] }, items[1]];
+  designs.fitRoundel(one, { width: 170, aspect: 0.72 });
+  assert.equal(one[0].form, 'ellipse');
+  assert.equal(one[0].radius, undefined);
+});
+
+// Cold review 7, M1: a folded card carries its design's own look, not one plain layout in the
+// design's colours. The front cover is the outside's right half.
+test('a folded card\'s front cover carries its design: bands, bar, photo frame, Hindi host, double border', () => {
+  const half = core.PAGE_WIDTH / 2;
+  const onCover = (item) => box(item).left >= half - 0.5;
+  for (const size of ['fold6', 'fold5']) {
+    const make = (key, details = {}) => designs.applyDesign(core.newCollage(size), key, details, { measure, newId });
+    // Regimental: the three bands on the cover follow the unit's colours, the roundel behind the logo.
+    const regimental = make('regimental', { colours: '#112233 #445566 #778899' });
+    const bands = ['band1', 'band2', 'band3'].map((role) => regimental.items.find((item) => item.role === role));
+    bands.forEach((band, i) => {
+      assert.ok(band && onCover(band), `${size}: Regimental ${'band' + (i + 1)} on the cover`);
+      assert.equal(band.fill, ['#112233', '#445566', '#778899'][i]);
+      assert.deepEqual(band.tint, { fill: i + 1 }, 'a unit colour changed later recolours the band');
+    });
+    const roundelAt = regimental.items.findIndex((item) => item.role === 'roundel');
+    const logoAt = regimental.items.findIndex((item) => item.role === 'logo');
+    assert.ok(roundelAt >= 0 && roundelAt < logoAt && onCover(regimental.items[roundelAt]), `${size}: the roundel behind the logo on the cover`);
+    assert.equal(regimental.items.find((item) => item.field === 'host').color, '#112233', 'the host in the first unit colour');
+    // Modern: the navy bar down the spine of the cover and the inside's outer edge, words set left.
+    const modern = make('modern');
+    const bar = modern.items.find((item) => item.role === 'bar');
+    assert.ok(bar && box(bar).left >= half - 0.5 && box(bar).right <= half + 20, `${size}: Modern's bar along the cover's spine`);
+    assert.equal(modern.items.find((item) => item.field === 'host').align, 'left');
+    assert.ok(box(modern.back.items.find((item) => item.role === 'bar')).left <= 0.5, `${size}: Modern's bar on the inside's outer edge`);
+    for (const field of ['invite', 'occasion', 'when']) assert.equal(modern.back.items.find((item) => item.field === field).align, 'left', `${size}: Modern's ${field} set left`);
+    // Ceremonial: a frame for the user's photo on the cover, the logo in its white box.
+    const ceremonial = make('ceremonial');
+    const frame = ceremonial.items.find((item) => item.role === 'photo');
+    assert.ok(frame && frame.kind === 'slot' && onCover(frame), `${size}: Ceremonial's photo frame on the cover`);
+    assert.ok(ceremonial.items.some((item) => item.role === 'logobox' && onCover(item)));
+    // Bilingual: the host in Hindi with the host on the cover; the Hindi invitation and occasion inside.
+    const bilingual = make('bilingual');
+    const hostHi = bilingual.items.find((item) => item.field === 'hostHi');
+    assert.ok(hostHi && onCover(hostHi) && hostHi.font === 'hindiFormal', `${size}: Bilingual's Hindi host on the cover`);
+    assert.ok(box(bilingual.back.items.find((item) => item.field === 'inviteHi')).right <= half + 0.5, 'the Hindi invitation on the left');
+    assert.ok(box(bilingual.back.items.find((item) => item.field === 'occasionHi')).left >= half - 0.5, 'the Hindi occasion on the right');
+    assert.equal(designs.sideOf(bilingual, 'hostHi'), 'front');
+    // Classic and Navy: a double border round the cover, the host engraved, the invitation in formal script.
+    for (const key of ['classic', 'navy']) {
+      const card = make(key);
+      assert.ok(['coverborder', 'coverborderb'].every((role) => card.items.some((item) => item.role === role && onCover(item))), `${size}: ${key}'s double border`);
+      assert.equal(card.items.find((item) => item.field === 'host').font, 'engraved');
+      assert.equal(card.back.items.find((item) => item.field === 'invite').font, 'formal');
+    }
+    // Regimental's invitation in formal script too.
+    assert.equal(regimental.back.items.find((item) => item.field === 'invite').font, 'formal');
+    // Each design's cover is its own: no two designs make the same set of parts.
+    const looks = designs.designsFor(size).map((design) => make(design.key).items.map((item) => `${item.role}:${item.kind}`).sort().join());
+    // Only Classic ivory and Navy and gold share an arrangement (they differ in colours and lines).
+    assert.equal(new Set(looks).size, looks.length - 1, `${size}: each design's cover is its own`);
+  }
+});
+
+// Cold review 7, M2: the back cover is framed like every other panel, with its note in the middle.
+test('a folded card\'s back cover has a border and its note in the middle of the panel', () => {
+  const half = core.PAGE_WIDTH / 2;
+  for (const size of ['fold6', 'fold5']) {
+    const height = core.pageHeight(size);
+    for (const design of designs.designsFor(size)) {
+      const card = designs.applyDesign(core.newCollage(size), design.key, { note: 'Kindly bring this card and your identity card' }, { measure, newId });
+      const frame = card.items.find((item) => item.role === 'backcover');
+      assert.ok(frame && frame.kind === 'shape' && frame.stroke, `${design.key} ${size}: the back cover has a border`);
+      const f = box(frame);
+      assert.ok(f.left > 0 && f.right < half, `${design.key} ${size}: the border within the back cover`);
+      // As far in from the panel's edges as the cover's own border.
+      const cover = box(card.items.find((item) => item.role === 'coverborder'));
+      assert.ok(Math.abs(f.left - (cover.left - half)) < 1 && Math.abs(f.bottom - cover.bottom) < 1, `${design.key} ${size}: the back cover's border matches the cover's`);
+      const note = card.items.find((item) => item.field === 'note');
+      const n = box(note);
+      assert.ok(n.left > f.left && n.right < f.right && n.top > f.top && n.bottom < f.bottom, `${design.key} ${size}: the note inside the border`);
+      assert.ok(Math.abs(note.x - half / 2) < 1, `${design.key} ${size}: the note centred across the panel`);
+      assert.ok(Math.abs(note.y - height / 2) < height * 0.05, `${design.key} ${size}: the note in the middle of the panel`);
+      // Every panel of the card has a border, outside and inside.
+      for (const role of ['innerborder', 'innerborder2']) assert.ok(card.back.items.some((item) => item.role === role), `${design.key} ${size}: ${role}`);
+    }
+  }
+});

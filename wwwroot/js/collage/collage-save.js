@@ -261,7 +261,14 @@
       const empty = sides.filter((item) => item.kind === 'slot' && item.role !== 'logo').length;
       const hidden = sides.filter((item) => item.kind !== 'slot' && item.hidden && item.role !== 'roundel').length;
       const emptyLine = $('[data-save-empty]');
-      emptyLine.textContent = leftOutLine(empty, hidden);
+      // A card with Hindi lines whose Hindi is empty while its English is not prints half a line
+      // (UX review 7): Save says so before the file is made.
+      const details = designs?.detailsOf(getCollage()) || {};
+      const onCard = designs?.fieldsOnCard(getCollage()) || [];
+      const hindiNames = { occasionHi: 'occasion', hostHi: 'host', inviteHi: 'invitation line' };
+      const emptyHindi = Object.keys(hindiNames).filter((field) => onCard.includes(field) && !String(details[field] || '').trim() && String(details[field.replace(/Hi$/, '')] || '').trim());
+      const hindiNote = emptyHindi.length ? ` The Hindi ${emptyHindi.map((field) => hindiNames[field]).join(' and ')} ${emptyHindi.length === 1 ? 'is' : 'are'} empty, so the card shows only the English there: type ${emptyHindi.length === 1 ? 'it' : 'them'} in Card details.` : '';
+      emptyLine.textContent = `${leftOutLine(empty, hidden)}${hindiNote}`.trim();
       emptyLine.hidden = !emptyLine.textContent;
       const typed = targetValue.value.trim();
       saveSummaryLine.textContent = saveSummary({
@@ -361,7 +368,15 @@
       syncSaveDialog();
       announce(saveSummaryLine.textContent);
     });
-    saveDialog.addEventListener('cancel', (event) => { if (saving) event.preventDefault(); });
+    // Esc while saving does not close the dialog; while guest cards are made it stops them, and
+    // nothing is saved (code review 7: 300 cards take a while).
+    let stopGuests = false;
+    saveDialog.addEventListener('cancel', (event) => {
+      if (!saving) return;
+      event.preventDefault();
+      if (guestsInProgress) stopGuests = true;
+    });
+    let guestsInProgress = false;
 
     // Save draws the collage from the original photos (collage-render.js).
     const renderer = window.PrismCollageRender.createRenderer({ core, draw, measureText, fontsReady, stickerImage });
@@ -451,6 +466,18 @@
      */
     async function guestPdf(pdf, cards, fits, sheetKey) {
       const shared = new Map();
+      // Progress: which card is being made, and a moment for the page to show it and hear Esc.
+      let made = 0;
+      // Every picture drawn counts, fronts and backs alike, so Esc is heard on any sheet, a folded
+      // card's insides alone included (Codex on #3454).
+      const total = cards.reduce((sum, card) => sum + (card.front ? 1 : 0) + (card.back ? 1 : 0), 0);
+      const progress = async () => {
+        if (stopGuests) throw new Error('stopped');
+        made += 1;
+        saveResult.textContent = `Making the guest cards: ${Math.min(made, total)} of ${total} pictures… Press Esc to stop.`;
+        await new Promise((resolve) => window.setTimeout(resolve, 0));
+        if (stopGuests) throw new Error('stopped');
+      };
       const imageOf = async (page) => {
         if (shared.has(page)) return shared.get(page);
         const drawn = await renderer.drawCollage(page, photos, fits.width, fits.height);
@@ -468,14 +495,20 @@
       const layout = sheetKey ? print.sheetLayout(getCollage().size, sheetKey) : null;
       if (!layout?.count) {
         for (const card of cards) {
-          for (const page of [card.front, card.back].filter(Boolean)) addCardPage(pdf, await imageOf(page));
+          for (const page of [card.front, card.back].filter(Boolean)) {
+            await progress();
+            addCardPage(pdf, await imageOf(page));
+          }
         }
         return;
       }
       const backLayout = print.sheetLayout(getCollage().size, sheetKey, { back: true });
       for (const sheet of guestSheets(cards, layout.count)) {
         const images = [];
-        for (const page of sheet.pages) images.push(page ? await imageOf(page) : null);
+        for (const page of sheet.pages) {
+          if (page) await progress();
+          images.push(page ? await imageOf(page) : null);
+        }
         addSheet(pdf, sheet.back ? backLayout : layout, images, sheet.back);
       }
     }
@@ -540,7 +573,12 @@
         const holdsGuest = (page) => Boolean(page?.items.some((item) => item.field === 'guest'));
         const guestSide = holdsGuest(all[0]) ? 0 : holdsGuest(all[1]) ? 1 : designs?.sideOf(getCollage(), 'guest') === 'back' ? 1 : 0;
         // Each name is measured in the card's own fonts, so it keeps its edge: they load first.
-        if (guests.length) await fontsReady?.();
+        if (guests.length) {
+          // The guest's name made from the design (where the card leaves a line) is in a font the
+          // card may not use yet: it loads too.
+          const sample = designs?.fieldItem(getCollage(), 'guest', { ...designs.detailsOf(getCollage()), guest: guests[0] }, { measure: measureText, newId: () => 'fontcheck' });
+          await fontsReady?.(sample ? [sample] : []);
+        }
         // The side that holds the names not being saved: one copy, as it is, and a word why.
         const { cards, namesLeftOut } = guestCards(all, pages, guests, guestSide, namedPage);
         const stem = core.fileStem(collageTitle());
@@ -557,7 +595,11 @@
         }
         const pdfSheet = format === 'pdf' ? sheetBoxChoice() : null;
         if (cards && cards.length) {
+          stopGuests = false;
+          guestsInProgress = true;
           await guestPdf(pdf, cards, fits, pdfSheet);
+          // Esc pressed as the last picture was finished still stops before anything is saved.
+          if (stopGuests) throw new Error('stopped');
           width = fits.width;
           height = fits.height;
         }
@@ -624,11 +666,15 @@
         if (saveStickersLeftOut) line += ` ${saveStickersLeftOut === 1 ? 'One sticker' : `${saveStickersLeftOut} stickers`} could not be loaded and ${saveStickersLeftOut === 1 ? 'was' : 'were'} left out; check the connection to PRISM and save again.`;
         saveResult.textContent = line;
         announce(line);
-      } catch {
-        saveResult.textContent = 'The collage could not be saved. Try Screen quality, or close other tabs and try again.';
+      } catch (error) {
+        saveResult.textContent = error?.message === 'stopped'
+          ? 'Stopped: the guest cards were not saved.'
+          : 'The collage could not be saved. Try Screen quality, or close other tabs and try again.';
       } finally {
         // A failed save lets go of its picture too.
         renderer.release(canvas);
+        guestsInProgress = false;
+        stopGuests = false;
         saving = false;
         goButton.disabled = false;
       }
