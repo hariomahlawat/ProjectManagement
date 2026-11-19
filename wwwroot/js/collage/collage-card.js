@@ -452,7 +452,7 @@
         const value = escapeHtml(details[field] || '');
         const input = long
           ? `<textarea class="form-control form-control-sm" id="${id}" rows="${field === 'programme' ? 5 : field === 'host' ? 3 : 2}" maxlength="${core.TEXT_LIMITS.maxLength}" data-card-field="${field}">${value}</textarea>`
-          : `<input class="form-control form-control-sm" id="${id}" type="text" maxlength="${core.TEXT_LIMITS.maxLength}" value="${value}" data-card-field="${field}" autocomplete="off"${designs.FALLBACKS[field] ? ' placeholder="Same as the occasion"' : ''}>`;
+          : `<input class="form-control form-control-sm" id="${id}" type="text" maxlength="${core.TEXT_LIMITS.maxLength}" value="${value}" data-card-field="${field}" autocomplete="off"${designs.FALLBACKS[field] ? ' placeholder="Same as the occasion"' : field === 'when' ? ` placeholder="e.g. ${escapeHtml(designs.startDetails(state.collage?.card?.design).when || '')}"` : ''}>`;
         const picks = field === 'occasion' ? OCCASIONS : field === 'dress' ? DRESSES : null;
         const chips = picks ? `<div class="clg-chips clg-card-picks">${picks.map((pick) => `<button type="button" class="clg-chip" data-card-pick="${field}" data-value="${escapeHtml(pick)}" aria-pressed="${(details[field] || '') === pick}">${escapeHtml(pick.replace(/^Dress: /, ''))}</button>`).join('')}</div>` : '';
         const note = field === 'occasionHi' ? '<p class="clg-hint clg-card-hindi-note">An occasion quick pick fills this in too. Other English is not translated: an old Hindi line is emptied for you to type.</p>'

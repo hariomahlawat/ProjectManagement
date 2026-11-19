@@ -42,6 +42,19 @@
   }
 
   /**
+   * What Save says about an empty date (docs/ux/collage-usability-plan.md, round 2, PR 3): a new
+   * card starts with Date and time empty, so one saved before it is typed is named here. '' when
+   * the design shows no date, or the date has words.
+   */
+  function dateLine(designs, collage) {
+    if (!designs || !collage?.card) return '';
+    if (!(designs.fieldsOnCard(collage) || []).includes('when')) return '';
+    if (String(designs.detailsOf(collage)?.when || '').trim()) return '';
+    const word = designs.DESIGNS?.[collage.card.design]?.poster ? 'Poster' : 'Card';
+    return ` The date and time are empty: type them in ${word} details, or save without them.`;
+  }
+
+  /**
    * A side of the card (the one that holds the guest's name) with a guest's name in the guest
    * field (PR 10): the field's words, or, for a design that leaves a line to write on, the field
    * its design has for the name. Null when that side is not part of what is saved. Pure, so a
@@ -329,7 +342,7 @@
       const designFrames = getCollage().card ? sides.filter((item) => item.kind === 'slot' && item.role === 'photo').length : 0;
       const word = designs?.DESIGNS?.[getCollage().card?.design]?.poster ? 'Poster' : 'Card';
       const emptyLine = $('[data-save-empty]');
-      emptyLine.textContent = `${leftOutLine(empty, hidden, designFrames, word)}${hindiLine(designs, getCollage())}`.trim();
+      emptyLine.textContent = `${leftOutLine(empty, hidden, designFrames, word)}${hindiLine(designs, getCollage())}${dateLine(designs, getCollage())}`.trim();
       emptyLine.hidden = !emptyLine.textContent;
       // Colour to the page's edge, saved for printing (UX review 9): most office printers leave a
       // white margin there. Said, not refused: a print shop prints and trims.
@@ -738,5 +751,5 @@
     });
   }
 
-  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, EDGE_NOTE, hindiLine, guestPage, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops, chosenSides, guestCards, guestSheets, nameInField, guestText, onTheLine });
+  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, EDGE_NOTE, hindiLine, dateLine, guestPage, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops, chosenSides, guestCards, guestSheets, nameInField, guestText, onTheLine });
 });

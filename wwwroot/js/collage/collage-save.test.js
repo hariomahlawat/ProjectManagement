@@ -232,3 +232,16 @@ test('the place of a front field or part is the same with the back showing', () 
     assert.deepEqual([logoTurned.x, logoTurned.y, logoTurned.width], [logo.x, logo.y, logo.width]);
   }
 });
+
+// docs/ux/collage-usability-plan.md, round 2, PR 3: a new card's date starts empty, and Save says so.
+test('Save names an empty date on a card or poster, and says nothing once it has words', () => {
+  assert.equal(save.dateLine(designs, made('classic', 'a5p')), '');
+  assert.equal(save.dateLine(designs, made('classic', 'a5p', { when: '' })),
+    ' The date and time are empty: type them in Card details, or save without them.');
+  assert.equal(save.dateLine(designs, made('classic', 'a5p', { when: '   ' })),
+    ' The date and time are empty: type them in Card details, or save without them.');
+  assert.match(save.dateLine(designs, made('notice', 'a3p', { when: '' })), /Poster details/);
+  // A plain collage, and nothing at all, have no date to name.
+  assert.equal(save.dateLine(designs, { size: 'a4l', items: [] }), '');
+  assert.equal(save.dateLine(null, null), '');
+});
