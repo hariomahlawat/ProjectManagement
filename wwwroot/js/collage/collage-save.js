@@ -380,7 +380,10 @@
         // One card for each guest (PR 10): the front once a guest, their name on it, then the back.
         const guests = format === 'pdf' && !$('[data-save-guests]')?.hidden && chosen('guests') === 'each' ? (getCollage().card?.guests || []) : [];
         // The name goes on the side the design puts the guest's name (a folded card's inside).
-        const guestSide = designs?.sideOf(getCollage(), 'guest') === 'back' ? 1 : 0;
+        // The side that holds a guest field (one the user locked stays where it is), else the
+        // side the design puts it on.
+        const holdsGuest = (page) => Boolean(page?.items.some((item) => item.field === 'guest'));
+        const guestSide = holdsGuest(all[0]) ? 0 : holdsGuest(all[1]) ? 1 : designs?.sideOf(getCollage(), 'guest') === 'back' ? 1 : 0;
         const chosenPage = (page) => pages.includes(page);
         const cards = guests.length ? guests.map((name) => {
           const named = namedPage(all[guestSide], name);

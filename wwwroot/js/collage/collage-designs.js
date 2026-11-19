@@ -628,7 +628,7 @@
    * items (and a second logo) from `items`, the side as it was. A photo in the side's frame
    * (`frameRole`) goes into the new frame, or stays as the user's own when there is none.
    */
-  function makePage(items, parts, { width, height, unit, wording, measure, newId, isCard, frameRole }) {
+  function makePage(items, parts, { width, height, unit, wording, measure, newId, isCard, frameRole, lockedElsewhere = new Set() }) {
     // The unit's colours for the Regimental band: 'band1' to 'band3' in a look stand for them.
     const colours = colourList(wording.colours);
     const tinted = (look) => {
@@ -651,6 +651,10 @@
     // A locked part of the last design stays exactly as it is, and the new design leaves out its
     // own part for that role; a hidden one comes back hidden.
     const lockedRoles = new Set((items || []).filter((item) => item.role && item.locked).map((item) => item.role));
+    // A locked part keeps its place in the stacking order: it goes where the new design has its
+    // part for that role, so a locked roundel stays behind the logo (Codex on #3452).
+    const lockedByRole = new Map((items || []).filter((item) => item.role && item.locked).map((item) => [item.role, item]));
+    const placedLocked = new Set();
     const hiddenRoles = new Set((items || []).filter((item) => item.role && item.hidden).map((item) => item.role));
     const made = [];
     // A poster with "No logo" (or a logo place it has no logo for) moves parts up into the space.
@@ -658,7 +662,14 @@
     const noLogo = wording.logoMode === 'none' && !chosenLogo;
     for (const raw of parts) {
       const part = noLogo && raw.yNoLogo !== undefined ? { ...raw, y: raw.yNoLogo } : raw;
-      if (lockedRoles.has(part.role)) continue;
+      if (lockedRoles.has(part.role)) {
+        const kept = lockedByRole.get(part.role);
+        if (kept && !placedLocked.has(kept.id)) { made.push(kept); placedLocked.add(kept.id); }
+        continue;
+      }
+      // A part locked on the card's other side (a guest field locked on the front of a card
+      // turned folded) is not made again here, so the card never has two (Codex on #3452).
+      if (lockedElsewhere.has(part.role)) continue;
       const before = made.length;
       if (part.kind === 'logoplace') {
         const w = part.w * 1000 * unit;
@@ -730,7 +741,7 @@
     // Photos from the last design's frame with no frame here become the user's own.
     const leftOver = framed.map(({ role, ...item }) => item);
     // The user's own items, and a second logo they added, stay where they are.
-    const own = (items || []).filter((item) => !item.role || item.role === 'logo2' || item.locked);
+    const own = (items || []).filter((item) => !item.role || item.role === 'logo2' || (item.locked && !placedLocked.has(item.id)));
     return [...made, ...own, ...leftOver];
   }
 
@@ -823,7 +834,8 @@
     const parts = isFolded(collage.size)
       ? foldedParts(designKey, 'inside')
       : backParts(designKey, isPortrait(collage.size)).filter((part) => part.kind !== 'text' || !onFront.has(part.field));
-    const made = makePage(items, parts, pageContext(collage, wording, opts, { isCard: false, frameRole: 'backphoto' }));
+    const lockedOnFront = new Set((collage.items || []).filter((item) => item.role && item.locked).map((item) => item.role));
+    const made = makePage(items, parts, pageContext(collage, wording, opts, { isCard: false, frameRole: 'backphoto', lockedElsewhere: lockedOnFront }));
     // The back's small logo is the front's logo (the SDD logo, a crest or the user's own), or
     // none when the front has none. `collage` here shows its front.
     const front = (collage.items || []).find((item) => item.role === 'logo');
@@ -856,7 +868,7 @@
       ...card,
       background: { ...design.background },
       layout: null,
-      items: makePage(card.items, parts, pageContext(card, wording, opts, { isCard: Boolean(card.card), frameRole: 'photo' })),
+      items: makePage(card.items, parts, pageContext(card, wording, opts, { isCard: Boolean(card.card), frameRole: 'photo', lockedElsewhere: new Set((card.back?.items || []).filter((item) => item.role && item.locked).map((item) => item.role)) })),
       // The guest list stays with the card through a design change (PR 10).
       card: { ...(card.card?.guests ? { guests: card.card.guests } : {}), design: designKey, details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) }
     };

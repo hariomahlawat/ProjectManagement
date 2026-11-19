@@ -487,3 +487,20 @@ test('a design change leaves a locked part where it is and brings a hidden part 
   assert.deepEqual([occasions[0].x, occasions[0].locked], [111, true]);
   assert.equal(navy.items.find((item) => item.field === 'note').hidden, true);
 });
+
+// Codex on #3452: locked parts keep their stacking place, and are not made twice across sides.
+test('a locked part keeps its place behind the logo; a field locked on the front is not made again inside', () => {
+  const opts = { measure, newId };
+  const card = designs.applyDesign(core.newCollage('a5p'), 'regimental', {}, opts);
+  const locked = { ...card, items: card.items.map((item) => (item.role === 'roundel' ? { ...item, locked: true } : item)) };
+  const resized = designs.applyDesign({ ...locked, size: 'a6p' }, 'regimental', designs.detailsOf(locked), opts);
+  const order = resized.items.map((item) => item.role);
+  assert.ok(order.indexOf('roundel') < order.indexOf('logo'), 'the roundel is still drawn before the logo');
+  // A guest field locked on a flat card, then the card made folded: one guest field only.
+  const flat = designs.applyDesign(core.newCollage('a5p'), 'classic', { guest: 'Maj A' }, opts);
+  const lockedGuest = { ...flat, items: flat.items.map((item) => (item.field === 'guest' ? { ...item, locked: true } : item)) };
+  const folded = designs.applyDesign({ ...lockedGuest, size: 'fold6' }, 'classic', designs.detailsOf(lockedGuest), opts);
+  const guests = [...folded.items, ...(folded.back?.items || [])].filter((item) => item.field === 'guest');
+  assert.equal(guests.length, 1);
+  assert.equal(guests[0].locked, true);
+});
