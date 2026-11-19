@@ -99,7 +99,9 @@ its npm package by hand; the libman entry records the version.
     draws. Clicking a design opens the card in the editor, with the SDD logo and realistic
     wording, every part editable. The pocket cards follow the designs.
   - **Card panel:** a card has a **Card** button at the top of the rail, which opens **Card
-    details**. It has:
+    details**. A card or poster has no **Layouts** button: layouts are for collages, and on a card
+    they would cover the design with empty frames ([ux/collage-usability-plan.md](ux/collage-usability-plan.md),
+    round 2, PR 1). It has:
     - the designs, with the current one pressed;
     - first, under **Words**, a field for each part of the wording in the order the card reads:
       host, invitation line, guest's name (empty leaves a line to write it on), the words before
