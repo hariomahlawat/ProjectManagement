@@ -1052,10 +1052,14 @@
     return fitting.find((key) => LAYOUTS[key].cells.length === least);
   }
 
-  /** The layouts with a frame for each of `count` photos and none to spare, or the one made for them. */
+  /**
+   * The layouts with a frame for each of `count` photos and none to spare, or the one made for
+   * them. None for more photos than the largest layout has frames: no layout fits them all.
+   */
   function layoutsThatFit(count) {
     const n = Math.floor(Number(count) || 0);
-    if (n < 2) return [];
+    const most = Math.max(...Object.values(LAYOUTS).map((layout) => layout.cells.length));
+    if (n < 2 || n > most) return [];
     const exact = Object.keys(LAYOUTS).filter((key) => LAYOUTS[key].cells.length === n);
     return exact.length ? exact : [layoutForCount(n)];
   }

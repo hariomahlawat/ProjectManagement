@@ -1571,6 +1571,10 @@ test('the layouts that fit a number of photos are every one with that many frame
   assert.deepEqual(collage.layoutsThatFit(4), ['t4', 't4s']);
   assert.deepEqual(collage.layoutsThatFit(6), ['t6']);
   assert.deepEqual(collage.layoutsThatFit(10), ['t12']);
+  assert.deepEqual(collage.layoutsThatFit(12), ['t12']);
+  // Past the largest layout none fits them all, so none is marked (Codex review, PR 3).
+  assert.deepEqual(collage.layoutsThatFit(13), []);
+  assert.deepEqual(collage.layoutsThatFit(60), []);
   assert.deepEqual(collage.layoutsThatFit(1), []);
   assert.deepEqual(collage.layoutsThatFit(0), []);
 });
