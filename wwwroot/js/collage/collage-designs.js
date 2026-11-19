@@ -282,13 +282,13 @@
         border('border', 0.03, GOLD, 1.5),
         logo(0.5, 0.11, 0.09),
         vline('divider', 0.5, 0.3, 0.17, GOLD, 1.2),
-        words('hostHi', 0.26, 0.26, 0.42, 22, { font: 'hindiFormal', color: INK, bold: false }, { lines: 3 }),
+        words('hostHi', 0.26, 0.26, 0.42, 22, { font: 'hindiFormal', color: INK, bold: true }, { lines: 3 }),
         words('inviteHi', 0.26, 0.35, 0.42, 20, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
         words('host', 0.74, 0.26, 0.42, 19, { font: 'elegant', color: INK, bold: true }, { lines: 3 }),
         words('invite', 0.74, 0.35, 0.42, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
         rule('guestline', 0.5, 0.45, 0.62, INK, 1.5),
         words('guest', 0.5, 0.435, 0.62, 30, { font: 'script', color: INK, bold: false }, { lines: 1 }),
-        words('at', 0.5, 0.5, 0.3, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
+        // No "at the": it would stand under the English alone (UX review 8); the columns read without it.
         vline('divider2', 0.5, 0.6, 0.1, GOLD, 1.2),
         words('occasionHi', 0.26, 0.6, 0.42, 34, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 3 }),
         words('occasion', 0.74, 0.6, 0.42, 30, { font: 'elegant', color: MAROON, bold: true }, { lines: 3 }),
@@ -302,14 +302,13 @@
         border('border', 0.03, GOLD, 1.5),
         logo(0.5, 0.14, 0.11),
         vline('divider', 0.5, 0.355, 0.17, GOLD, 1.2),
-        words('hostHi', 0.27, 0.29, 0.4, 20, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
+        words('hostHi', 0.27, 0.29, 0.4, 20, { font: 'hindiFormal', color: INK, bold: true }, { lines: 2 }),
         words('inviteHi', 0.27, 0.4, 0.4, 18, { font: 'hindiFormal', color: INK, bold: false }, { lines: 1 }),
         words('host', 0.73, 0.29, 0.4, 18, { font: 'elegant', color: INK, bold: true }, { lines: 2 }),
         words('invite', 0.73, 0.4, 0.4, 18, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
         // The guest's name across both columns, then "at the" before the occasion, as in portrait.
         rule('guestline', 0.5, 0.49, 0.5, INK, 1.2),
         words('guest', 0.5, 0.473, 0.5, 24, { font: 'script', color: INK, bold: false }, { lines: 1 }),
-        words('at', 0.73, 0.535, 0.3, 16, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 }),
         vline('divider2', 0.5, 0.635, 0.1, GOLD, 1.2),
         words('occasionHi', 0.27, 0.635, 0.4, 26, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
         words('occasion', 0.73, 0.635, 0.4, 24, { font: 'elegant', color: MAROON, bold: true }, { lines: 2 }),
@@ -576,15 +575,24 @@
    * Where the card's design puts a part (its logo, say), as an item made from the details:
    * for a logo put back after it was removed. Null when the design has no such part.
    */
+  /**
+   * The one rule for "No photo" (code review 8): it applies only while the page has no design
+   * frame. A page that still has its frame (a photo in it, an empty one, one the user locked, or
+   * one an older PRISM put back) keeps the photo arrangement, whatever the details say. Returns
+   * the details to lay a part out with, for a page built afresh from `items`.
+   */
+  function photoDetails(items, details) {
+    const framed = (items || []).some((item) => item.role === 'photo');
+    return framed && details?.photoMode === 'none' ? { ...details, photoMode: '' } : details;
+  }
+
   function roleItem(collage, role, opts) {
     const key = collage?.card?.design;
     if (!DESIGNS[key]) return null;
     const { card, back, side, ...rest } = collage;
-    // Where the design puts it with a logo wanted (a poster set to "No logo" still has a place).
-    // "No photo" stays as it is, so a logo put back goes where it is with no photo, unless the
-    // page has the design's frame (a photo in it, or empty): then the photo arrangement.
-    const framed = (collage.items || []).some((item) => item.role === 'photo');
-    const made = applyDesign({ ...rest, items: [] }, key, { ...detailsOf(collage), logoMode: '', ...(framed ? { photoMode: '' } : {}) }, opts);
+    // Where the design puts it with a logo wanted (a poster set to "No logo" still has a place),
+    // with or without its photo as the page is (photoDetails).
+    const made = applyDesign({ ...rest, items: [] }, key, photoDetails(collage.items, { ...detailsOf(collage), logoMode: '' }), opts);
     return made.items.find((item) => item.role === role) || null;
   }
 
@@ -767,7 +775,7 @@
       if (raw.onlyNoPhoto && !noPhoto) continue;
       let part = noLogo && raw.yNoLogo !== undefined ? { ...raw, y: raw.yNoLogo } : raw;
       if (noPhoto && part.kind === 'slot') continue;
-      if (noPhoto && raw.noPhoto) part = { ...part, ...raw.noPhoto, ...(noLogo && raw.noPhotoNoLogo ? raw.noPhotoNoLogo : {}) };
+      if (noPhoto && raw.noPhoto) part = { ...part, ...raw.noPhoto };
       if (lockedRoles.has(part.role)) {
         const kept = lockedByRole.get(part.role);
         if (kept && !placedLocked.has(kept.id)) { made.push(kept); placedLocked.add(kept.id); }
@@ -1131,7 +1139,7 @@
         frame('cover', 'coverborder'),
         ...onAll('cover', [
           logo(0.5, 0.22, 0.1),
-          words('hostHi', 0.5, 0.45, 0.8, 24, { font: 'hindiFormal', color: INK, bold: false }, { lines: 3 }),
+          words('hostHi', 0.5, 0.45, 0.8, 24, { font: 'hindiFormal', color: INK, bold: true }, { lines: 3 }),
           rule('coverrule', 0.5, 0.545, 0.14, GOLD, 1.2),
           words('host', 0.5, 0.63, 0.8, 21, { font: 'elegant', color: INK, bold: true }, { lines: 3 })
         ])
@@ -1143,8 +1151,7 @@
           words('inviteHi', 0.5, 0.27, 0.8, 23, { font: 'hindiFormal', color: INK, bold: false }, { lines: 2 }),
           words('invite', 0.5, 0.36, 0.8, 21, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 2 }),
           rule('guestline', 0.5, 0.51, 0.66, INK, 1.5),
-          words('guest', 0.5, 0.49, 0.66, 28, { font: 'script', color: INK, bold: false }, { lines: 1 }),
-          words('at', 0.5, 0.62, 0.5, 19, { font: 'elegant', color: INK, bold: false, italic: true }, { lines: 1 })
+          words('guest', 0.5, 0.49, 0.66, 28, { font: 'script', color: INK, bold: false }, { lines: 1 })
         ]),
         ...onAll('right', [
           words('occasionHi', 0.5, 0.21, 0.82, 28, { font: 'hindiFormal', color: MAROON, bold: false }, { lines: 2 }),
@@ -1583,7 +1590,8 @@
       return backPage(front, key, details, opts).items.find((item) => item.field === field) || null;
     }
     const { back, side, ...front } = collage;
-    const made = applyDesign({ ...front, items: [] }, key, details, opts);
+    // Placed as the page is laid out: with its photo arrangement while its frame is there.
+    const made = applyDesign({ ...front, items: [] }, key, photoDetails(collage.items, details), opts);
     return made.items.find((item) => item.field === field) || null;
   }
 

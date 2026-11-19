@@ -385,6 +385,11 @@
       if (guestsInProgress) stopGuests = true;
     });
     let guestsInProgress = false;
+    // The browser closes a modal dialog after a few Esc presses even when each is refused: while
+    // saving, the dialog opens again at once, so the save never runs on unseen (code review 8).
+    saveDialog.addEventListener('close', () => {
+      if (saving && !saveDialog.open) saveDialog.showModal();
+    });
 
     // Save draws the collage from the original photos (collage-render.js).
     const renderer = window.PrismCollageRender.createRenderer({ core, draw, measureText, fontsReady, stickerImage });

@@ -1205,3 +1205,19 @@ test('No photo: an older draft with no photoMode opens as before, and the detail
   assert.ok(!read.items.some((item) => item.role === 'photo'), 'opened with no frame');
   assert.ok(read.items.some((item) => item.role === 'photoband'), 'and with the band in the photo place');
 });
+
+// Code review 8, H1: with No photo recorded but the frame still on the page, a guest's name and a
+// field typed back go where the photo arrangement puts them.
+test('a field made for a page that still has its frame follows the photo arrangement, whatever photoMode says', () => {
+  const opts = { measure, newId };
+  const card = designs.applyDesign(core.newCollage('a5p'), 'ceremonial', {}, opts);
+  const framedButNone = { ...card, card: { ...card.card, details: { ...card.card.details, photoMode: 'none' } } };
+  const line = card.items.find((item) => item.role === 'guestline');
+  const guest = designs.fieldItem(framedButNone, 'guest', { ...designs.detailsOf(framedButNone), guest: 'Maj A' }, opts);
+  const withPhoto = designs.fieldItem(card, 'guest', { ...designs.detailsOf(card), guest: 'Maj A' }, opts);
+  assert.ok(Math.abs(guest.y - withPhoto.y) < 1, 'the name where the photo arrangement has it');
+  assert.ok(guest.y < line.y + 1 && guest.y > line.y - 120, 'just above its line');
+  const occasion = designs.fieldItem(framedButNone, 'occasion', designs.detailsOf(framedButNone), opts);
+  const frame = card.items.find((item) => item.role === 'photo');
+  assert.ok(occasion.y - core.itemHeight(occasion) / 2 >= frame.y + core.itemHeight(frame) / 2 - 1, 'the occasion below the frame, not in it');
+});

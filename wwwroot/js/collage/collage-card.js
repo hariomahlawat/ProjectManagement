@@ -480,7 +480,13 @@
           <div class="clg-stack"><button type="button" class="btn btn-outline-primary btn-sm" data-card-photo="add"><i class="bi bi-image" aria-hidden="true"></i> Add a photo…</button>
           <button type="button" class="btn btn-outline-secondary btn-sm" data-card-photo="none">No photo</button></div></div>`;
       }
-      if (designs.detailsOf(state.collage).photoMode !== 'none') return '';
+      // The frame deleted on the page leaves a hole until the design closes it (code review 8).
+      if (designs.detailsOf(state.collage).photoMode !== 'none') {
+        return `<div class="clg-section clg-card-photo" role="group" aria-labelledby="clgPhotoAsk"><p class="clg-section__title" id="clgPhotoAsk">Photo</p>
+          <p class="clg-hint">The photo frame was removed, which leaves a gap. Choose No photo and the design closes it, or add a photo.</p>
+          <div class="clg-stack"><button type="button" class="btn btn-outline-primary btn-sm" data-card-photo="none">No photo</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-card-photo="add"><i class="bi bi-image" aria-hidden="true"></i> Add a photo…</button></div></div>`;
+      }
       return `<div class="clg-section clg-card-photo" role="group" aria-labelledby="clgPhotoAsk"><p class="clg-section__title" id="clgPhotoAsk">Photo</p>
           <p class="clg-hint" data-card-photo-name>No photo on this ${word}. The design uses the space.</p>
           <div class="clg-stack"><button type="button" class="btn btn-outline-secondary btn-sm" data-card-photo="add"><i class="bi bi-image" aria-hidden="true"></i> Add a photo…</button></div></div>`;
@@ -491,6 +497,10 @@
      * frame back (''), the parts back round it. Only the frame and the parts it moves change.
      */
     function setPhotoMode(mode) {
+      if (mode === 'none' && state.collage.items.some((item) => item.role === 'photo' && item.locked)) {
+        messages.sayLocked();
+        return;
+      }
       selection.select(null);
       doc.edit((draft) => designs.setPhotoMode(draft, mode, options()), 'none');
       history.commit();
@@ -501,7 +511,17 @@
 
     /** Add a photo…: the frame back if No photo was chosen, then the photo chosen for it. */
     function addPhoto() {
-      if (!state.collage.items.some((item) => item.role === 'photo')) setPhotoMode('');
+      if (!state.collage.items.some((item) => item.role === 'photo')) {
+        // No photo chosen, or the frame deleted: the design's frame comes back first.
+        if (designs.detailsOf(state.collage).photoMode === 'none') setPhotoMode('');
+        else {
+          selection.select(null);
+          doc.edit((draft) => designs.applyDesign(draft, draft.card.design, designs.detailsOf(draft), options()), 'none');
+          history.commit();
+          surface.syncAll();
+          renderPanel();
+        }
+      }
       const frame = state.collage.items.find((item) => item.role === 'photo' && item.kind === 'slot');
       if (frame) parts.chooseFor(frame.id);
     }
@@ -879,7 +899,8 @@
       if (held) history.holdEdit();
       else history.commit();
       const count = form.querySelector('[data-card-guest-count]');
-      if (count) count.textContent = guestCountText(guests.length);
+      // guestCountText escapes the names itself, so it is set as markup, never shown escaped.
+      if (count) count.innerHTML = guestCountText(guests.length);
       if (over && !held) messages.showAlert(`Only the first ${core.GUEST_LIMITS.names} names are kept. ${over} name${over === 1 ? ' was' : 's were'} left out: make a second card for them.`);
       else if (over) messages.announce(`Only the first ${core.GUEST_LIMITS.names} names are kept. ${over} left out.`);
       return guests;
