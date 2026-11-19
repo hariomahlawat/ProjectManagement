@@ -6094,6 +6094,9 @@ html[data-pbd-focus] .pbd-focus-toggle {
     }
 
     html[data-pbd-focus] .pm-topbar,
+    /* The module sub-navigation strip sits under the top bar; on this page it is empty, but its
+       border and shadow stayed behind as a line across the window when only the bar was hidden. */
+    html[data-pbd-focus] .pm-module-subnav-wrap,
     html[data-pbd-focus] .pm-footer,
     /* A What's new card already open when focus starts would cover Exit focus (whats-new.js
        does not open new ones while the top bar is hidden). */
