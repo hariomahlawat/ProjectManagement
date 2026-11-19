@@ -876,11 +876,18 @@
       const height = core.itemHeight(designLogo);
       const w2 = height * (item.width / core.itemHeight(item));
       const placed = { ...item, width: w2, y: designLogo.y, angle: 0 };
-      if (Math.abs(designLogo.x - width / 2) < width * 0.05 && !designLogo.locked) {
+      const centred = Math.abs(designLogo.x - width / 2) < width * 0.05;
+      if (centred && !designLogo.locked) {
         const gap = designLogo.width * 0.35;
         const left = width / 2 - (designLogo.width + gap + w2) / 2;
         designLogo.x = left + designLogo.width / 2;
         placed.x = left + designLogo.width + gap + w2 / 2;
+      } else if (centred) {
+        // A locked centred first logo stays put; the second goes beside it, on the right if it
+        // fits, else on the left (Codex on #3453).
+        const gap = designLogo.width * 0.35;
+        const right = designLogo.x + designLogo.width / 2 + gap + w2 / 2;
+        placed.x = right + w2 / 2 <= width ? right : designLogo.x - designLogo.width / 2 - gap - w2 / 2;
       } else {
         placed.x = width - designLogo.x;
       }
@@ -1148,8 +1155,11 @@
   function hindiInStep(details, picks = {}) {
     const out = { ...details };
     const known = new Set([DEFAULT_DETAILS.occasionHi, ...Object.values(picks)]);
-    if (picks[out.occasion]) out.occasionHi = picks[out.occasion];
-    else if (known.has(out.occasionHi) && out.occasion !== DEFAULT_DETAILS.occasion) out.occasionHi = '';
+    // Only a sample's or a quick pick's Hindi (or none) follows the English; Hindi the user typed
+    // stays, whatever else is edited (Codex on #3453). Picking a quick pick sets its Hindi itself.
+    const stock = !String(out.occasionHi || '').trim() || known.has(out.occasionHi);
+    if (stock && picks[out.occasion]) out.occasionHi = picks[out.occasion];
+    else if (stock && known.has(out.occasionHi) && out.occasion !== DEFAULT_DETAILS.occasion) out.occasionHi = '';
     for (const [field, hindi] of [['host', 'hostHi'], ['invite', 'inviteHi']]) {
       if (out[hindi] === DEFAULT_DETAILS[hindi] && out[field] !== DEFAULT_DETAILS[field]) out[hindi] = '';
     }
@@ -1185,7 +1195,8 @@
     const at = items.findIndex((item) => item.role === 'backlogo');
     let next;
     if (!logo) {
-      if (at < 0) return collage;
+      // A back logo the user locked stays, even when the front's logo goes (Codex on #3453).
+      if (at < 0 || items[at].locked) return collage;
       next = items.filter((_, i) => i !== at);
     } else {
       if (at < 0 && !add) return collage;

@@ -927,3 +927,28 @@ test('No logo on the Notice moves its details up with the heading; the Event top
   const left = (item) => item.x - item.width / 2;
   assert.ok(Math.abs(left(at(event, 'subtitle')) - left(at(event, 'title'))) < 2, 'top line and heading start together');
 });
+
+// Codex on #3453: locked logos and typed Hindi are left alone.
+test('a locked back logo stays when the front logo goes; a second logo sits beside a locked centred first', () => {
+  const opts = { measure, newId };
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, opts), opts);
+  const locked = { ...card, back: { ...card.back, items: card.back.items.map((item) => (item.role === 'backlogo' ? { ...item, locked: true } : item)) } };
+  const noFront = { ...locked, items: locked.items.filter((item) => item.role !== 'logo') };
+  assert.ok(designs.followLogo(noFront, opts).back.items.some((item) => item.role === 'backlogo'));
+  // A centred first logo locked, a second added, the design changed: side by side, not on top.
+  const front = designs.applyDesign(core.newCollage('a5p'), 'classic', {}, opts);
+  const first = front.items.find((item) => item.role === 'logo');
+  const withTwo = { ...front, items: [...front.items.map((item) => (item.role === 'logo' ? { ...item, locked: true } : item)), { ...first, id: 'second', role: 'logo2', locked: false }] };
+  const changed = designs.applyDesign(withTwo, 'navy', designs.detailsOf(withTwo), opts);
+  const [a, b] = ['logo', 'logo2'].map((role) => changed.items.find((item) => item.role === role));
+  const apart = Math.abs(a.x - b.x) >= (a.width + b.width) / 2;
+  assert.ok(apart, 'the two logos do not overlap');
+});
+
+test('Hindi the user typed stays through unrelated edits; a stock Hindi follows a quick pick', () => {
+  const picks = { 'Regimental Dinner': 'रेजिमेंटल रात्रिभोज' };
+  const typed = { ...designs.DEFAULT_DETAILS, occasion: 'Regimental Dinner', occasionHi: 'रेजिमेंट का भोज' };
+  assert.equal(designs.hindiInStep(typed, picks).occasionHi, 'रेजिमेंट का भोज');
+  const stock = { ...designs.DEFAULT_DETAILS, occasion: 'Regimental Dinner' };
+  assert.equal(designs.hindiInStep(stock, picks).occasionHi, 'रेजिमेंटल रात्रिभोज');
+});
