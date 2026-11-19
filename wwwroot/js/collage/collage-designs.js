@@ -582,6 +582,9 @@
     const design = DESIGNS[designKey];
     if (!design) return [];
     const landscape = design.landscape || design.portrait;
+    if (sizeKey && isFolded(sizeKey)) {
+      return [...new Set([...foldedParts(designKey, 'outside'), ...foldedParts(designKey, 'inside')].filter((part) => part.kind === 'text').map((part) => part.field))];
+    }
     const parts = sizeKey ? (isPortrait(sizeKey) ? design.portrait : landscape) : [...design.portrait, ...landscape];
     return [...new Set(parts.filter((part) => part.kind === 'text').map((part) => part.field))];
   }
@@ -732,6 +735,43 @@
       ];
   }
 
+  /** Whether a size is a folded card: a flat sheet, outside and inside, folded down the middle. */
+  const isFolded = (sizeKey) => core.sizeOf(sizeKey).group === 'folded';
+
+  /**
+   * A folded card's sides in a design's colours (PR 9c): the outside has the back cover on the
+   * left and the front cover on the right; the inside has the invitation on the left and the
+   * details on the right. Each panel is half the sheet.
+   */
+  function foldedParts(designKey, side) {
+    const look = BACK_LOOKS[designKey] || BACK_LOOKS.classic;
+    const panelBorder = (role, cx) => ({ role, kind: 'shape', form: 'rect', x: cx, y: 0.5, w: 0.44, h: 0.88, look: { stroke: look.accent, strokeWidth: 1.2, fill: '' } });
+    if (side === 'outside') {
+      return [
+        panelBorder('coverborder', 0.75),
+        logo(0.75, 0.24, 0.13),
+        words('occasion', 0.75, 0.52, 0.38, 46, { font: 'elegant', color: look.title, bold: true }, { lines: 3 }),
+        rule('coverrule', 0.75, 0.66, 0.12, look.accent, 2),
+        words('note', 0.25, 0.82, 0.36, 18, { font: 'elegant', color: look.ink, bold: false, italic: true }, { lines: 2 })
+      ];
+    }
+    return [
+      panelBorder('innerborder', 0.25),
+      panelBorder('innerborder2', 0.75),
+      words('host', 0.25, 0.24, 0.38, 22, { font: 'elegant', color: look.ink, bold: true }, { lines: 3 }),
+      words('invite', 0.25, 0.38, 0.38, 26, { font: 'script', color: look.accent, bold: false }, { lines: 2 }),
+      rule('guestline', 0.25, 0.53, 0.32, look.ink, 1.5),
+      words('guest', 0.25, 0.51, 0.32, 28, { font: 'script', color: look.ink, bold: false }, { lines: 1 }),
+      words('when', 0.75, 0.3, 0.38, 22, { font: 'clean', color: look.ink, bold: true }, { lines: 2 }),
+      words('venue', 0.75, 0.42, 0.38, 21, { font: 'clean', color: look.ink, bold: false }, { lines: 2 }),
+      words('dress', 0.75, 0.54, 0.38, 20, { font: 'clean', color: look.accent, bold: true }, { lines: 1 }),
+      words('rsvp', 0.75, 0.72, 0.38, 18, { font: 'clean', color: look.ink, bold: false }, { lines: 2 })
+    ];
+  }
+
+  /** The fields on a folded card's inside, so the panel knows which side holds them. */
+  const INSIDE_FIELDS = Object.freeze(['host', 'invite', 'guest', 'when', 'venue', 'dress', 'rsvp']);
+
   /** The measures one side of a card of this size is built with. */
   function pageContext(collage, wording, { measure, newId }, extra) {
     return { width: core.PAGE_WIDTH, height: core.pageHeight(collage.size), unit: unitOf(collage.size), wording, measure, newId, ...extra };
@@ -744,9 +784,12 @@
   function backPage(collage, designKey, details, opts, items = []) {
     const look = BACK_LOOKS[designKey] || BACK_LOOKS.classic;
     const wording = { ...DEFAULT_DETAILS, ...(details || {}) };
-    // A field the front already shows (a programme card's programme) is not on the back again.
+    // A folded card's inside comes from its own panels; any other back leaves out the fields its
+    // front already shows (a programme card's programme).
     const onFront = new Set(fieldsOf(designKey, collage.size));
-    const parts = backParts(designKey, isPortrait(collage.size)).filter((part) => part.kind !== 'text' || !onFront.has(part.field));
+    const parts = isFolded(collage.size)
+      ? foldedParts(designKey, 'inside')
+      : backParts(designKey, isPortrait(collage.size)).filter((part) => part.kind !== 'text' || !onFront.has(part.field));
     const made = makePage(items, parts, pageContext(collage, wording, opts, { isCard: false, frameRole: 'backphoto' }));
     // The back's small logo is the front's logo (the SDD logo, a crest or the user's own), or
     // none when the front has none. `collage` here shows its front.
@@ -774,7 +817,8 @@
     const card = showingBack ? core.flipSide(collage) : collage;
     const wording = { ...DEFAULT_DETAILS, ...(details || {}) };
     // A poster has one arrangement, used for either shape.
-    const parts = isPortrait(card.size) ? design.portrait : (design.landscape || design.portrait);
+    // A folded card has its own outside and inside (PR 9c); a poster one arrangement for any shape.
+    const parts = isFolded(card.size) ? foldedParts(designKey, 'outside') : isPortrait(card.size) ? design.portrait : (design.landscape || design.portrait);
     const applied = {
       ...card,
       background: { ...design.background },
@@ -783,10 +827,11 @@
       // The guest list stays with the card through a design change (PR 10).
       card: { ...(card.card?.guests ? { guests: card.card.guests } : {}), design: designKey, details: Object.fromEntries(FIELDS.map((field) => [field, wording[field]])) }
     };
-    if (card.back) {
-      applied.back = backPage(card, designKey, wording, opts, card.back.items);
+    // A folded card always has both sides.
+    if (card.back || isFolded(card.size)) {
+      applied.back = backPage(card, designKey, wording, opts, card.back?.items || []);
       // Parts a newer PRISM keeps on the back go with it, as the front's do.
-      if (card.back.kept) applied.back.kept = card.back.kept;
+      if (card.back?.kept) applied.back.kept = card.back.kept;
     }
     // The fields this design put on the card, both sides, so a missing one is known to be deleted.
     applied.card.placed = placedOn(applied);
@@ -875,6 +920,8 @@
    * front (a programme card has its programme and title on the front).
    */
   function isBackField(collage, field) {
+    // A folded card's inside fields are on its back (PR 9c).
+    if (isFolded(collage?.size) && INSIDE_FIELDS.includes(field)) return true;
     return BACK_FIELDS.includes(field) && !fieldsOf(collage?.card?.design, collage?.size).includes(field);
   }
 
@@ -890,5 +937,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, INSIDE_FIELDS });
 });

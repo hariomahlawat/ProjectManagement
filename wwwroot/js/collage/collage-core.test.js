@@ -1234,7 +1234,10 @@ test('every card and pocket card size is a true paper size, both ways round, in 
   assert.ok(Math.abs(a5.width - 148 / 25.4 * 72) < 0.01 && Math.abs(a5.height - 210 / 25.4 * 72) < 0.01);
   // Every size is in exactly one group of the menu.
   const groups = collage.sizesByGroup();
-  assert.deepEqual(groups.map((g) => g.key), ['page', 'card', 'pocket']);
+  assert.deepEqual(groups.map((g) => g.key), ['page', 'card', 'pocket', 'folded']);
+  // Folded cards are the flat sheet (PR 9c).
+  assert.deepEqual([collage.SIZES.fold6.mm, collage.SIZES.fold6.fold], [[210, 148], 'middle']);
+  assert.deepEqual(collage.SIZES.fold5.mm, [297, 210]);
   assert.deepEqual(groups.flatMap((g) => g.keys).sort(), Object.keys(collage.SIZES).sort());
   // A draft keeps a card size; an unknown one falls back.
   assert.equal(collage.readDraftModel({ version: 1, size: 'passl', items: [] }, []).size, 'passl');

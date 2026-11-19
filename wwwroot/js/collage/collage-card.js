@@ -78,7 +78,7 @@
       if (!startGrid || !startSize) return;
       if (!startSize.options.length) {
         // Cards and pocket cards, each in its own group; the designs offered follow the size.
-        for (const group of core.sizesByGroup().filter((each) => each.key === 'card' || each.key === 'pocket')) {
+        for (const group of core.sizesByGroup().filter((each) => ['card', 'pocket', 'folded'].includes(each.key))) {
           const list = document.createElement('optgroup');
           list.label = group.label;
           for (const key of group.keys) {
@@ -291,7 +291,7 @@
       const details = designs.detailsOf(state.collage);
       // Only the fields this design shows words for (the Hindi ones only for Bilingual).
       const design = state.collage?.card?.design;
-      const shown = new Set([...designs.fieldsOf(design, state.collage.size), ...(state.collage.back ? designs.BACK_FIELDS : [])]);
+      const shown = new Set([...designs.fieldsOf(design, state.collage.size), ...(state.collage.back && !designs.isFolded(state.collage.size) ? designs.BACK_FIELDS : [])]);
       const colours = designs.usesColours(design) ? colourFields(details.colours) : '';
       // The logo is the front's: changed with the front showing.
       const logo = state.collage.side === 'back' ? '<p class="clg-hint">Turn to the front to change the logo.</p>' : logoSection();
@@ -568,12 +568,15 @@
           <button type="button" class="btn btn-outline-secondary btn-sm w-100" data-card-side="add"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add a back: programme, route and a note</button></div>`;
       }
       const back = state.collage.side === 'back';
+      // A folded card is printed both sides: its outside and its inside, always both.
+      const folded = designs.isFolded(state.collage.size);
+      const [front, rear] = folded ? ['Outside', 'Inside'] : ['Front', 'Back'];
       return `<div class="clg-section clg-card-sides"><p class="clg-section__title">Sides</p>
           <div class="clg-buttons clg-buttons--two" role="group" aria-label="Side shown">
-            <button type="button" class="btn btn-sm ${back ? 'btn-outline-secondary' : 'btn-primary'}" data-card-side="front" aria-pressed="${!back}">Front</button>
-            <button type="button" class="btn btn-sm ${back ? 'btn-primary' : 'btn-outline-secondary'}" data-card-side="back" aria-pressed="${back}">Back</button>
+            <button type="button" class="btn btn-sm ${back ? 'btn-outline-secondary' : 'btn-primary'}" data-card-side="front" aria-pressed="${!back}">${front}</button>
+            <button type="button" class="btn btn-sm ${back ? 'btn-primary' : 'btn-outline-secondary'}" data-card-side="back" aria-pressed="${back}">${rear}</button>
           </div>
-          <button type="button" class="btn btn-link btn-sm text-danger p-0 mt-1" data-card-side="delete">Delete the back</button></div>`;
+          ${folded ? '<p class="clg-hint">Print both sides, flipping on the short edge, then fold down the middle.</p>' : '<button type="button" class="btn btn-link btn-sm text-danger p-0 mt-1" data-card-side="delete">Delete the back</button>'}</div>`;
     }
 
     /** One Undo step that changes the card's sides, then draws the page and the panel again. */

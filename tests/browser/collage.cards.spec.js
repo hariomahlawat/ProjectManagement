@@ -5,14 +5,14 @@
 // goes into the saved picture.
 
 const { test, expect } = require('./test');
-const { openFresh } = require('./helpers');
+const { openFresh, newestDraft } = require('./helpers');
 
 test('a car pass size and the SDD logo: the menu groups sizes, and Save draws the logo at the card shape', async ({ page }) => {
   const errors = await openFresh(page);
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
 
   const size = page.locator('[data-size]');
-  expect(await size.locator('optgroup').evaluateAll((groups) => groups.map((g) => g.label))).toEqual(['Pages and screens', 'Cards', 'Pocket cards', 'Custom']);
+  expect(await size.locator('optgroup').evaluateAll((groups) => groups.map((g) => g.label))).toEqual(['Pages and screens', 'Cards', 'Pocket cards', 'Folded cards', 'Custom']);
   await size.selectOption('passl');
   await expect(size).toHaveValue('passl');
 
@@ -224,5 +224,75 @@ test('a car pass offers no guest list, and Save offers no card for each guest', 
   await page.getByRole('button', { name: 'Printing' }).click();
   await expect(page.locator('[data-save-guests]')).toBeHidden();
   await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});
+
+// Codex on PR 9c: a folded card's guest names go inside, where the guest line is.
+test('a folded card with a guest list puts each name inside; the outside is shared', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('fold6');
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-guests]').fill('Col D. Nair\nMaj B. Rao');
+  await page.locator('[data-card-guests]').blur();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await page.locator('[data-save-sheet] input[value="card"]').check();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  const file = await download;
+  await expect(page.locator('[data-save-result]')).toContainText('2 guest cards on 4 pages');
+  const pictures = await page.evaluate(async (base64) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    const pdf = await window.PDFLib.PDFDocument.load(bytes);
+    const { PDFName, PDFDict } = window.PDFLib;
+    return pdf.getPages().map((each) => {
+      const xobjects = each.node.Resources().lookupMaybe(PDFName.of('XObject'), PDFDict);
+      return xobjects ? xobjects.values().map(String).join(' ') : '';
+    });
+  }, (await streamBytes(file)).toString('base64'));
+  // Outside, inside, outside, inside: one outside shared, each inside the guest's own.
+  expect(pictures).toHaveLength(4);
+  expect(pictures[0]).toBe(pictures[2]);
+  expect(pictures[1]).not.toBe(pictures[3]);
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});
+
+// Codex on PR 9c: a flat card changed to a folded size in the editor gets its inside, and the
+// fields Card details types inside are there.
+test('a card changed to a folded size gets an inside, and its inside fields can be typed', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a5p');
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('#clgSize').selectOption('fold6');
+  const venue = page.locator('[data-card-field="venue"]');
+  await venue.fill('Sudarshan Hall');
+  await venue.blur();
+  await expect.poll(async () => {
+    const model = (await newestDraft(page))?.model;
+    const inside = model?.side === 'back' ? model.items : model?.back?.items;
+    return (inside || []).find((item) => item.field === 'venue')?.text;
+  }).toBe('Sudarshan Hall');
+  expect(errors).toEqual([]);
+});
+
+// Codex on PR 9c: an ordinary size change (A5 to A6) only resizes; the user's changes stay.
+test('a card changed from A5 to A6 keeps a part the user locked', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a5p');
+  await page.locator('[data-start-design="classic"]').click();
+  // The occasion locked, through Layers and the Lock button.
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator('[data-layer-select]', { hasText: 'Raising Day Dinner' }).click();
+  await page.locator('.clg-props [data-props-tab="settings"]').click();
+  await page.locator('.clg-props [data-action="lock"]').click();
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.field === 'occasion')?.locked).toBe(true);
+  await page.locator('#clgSize').selectOption('a6p');
+  await expect.poll(async () => (await newestDraft(page))?.model?.size).toBe('a6p');
+  const occasion = (await newestDraft(page)).model.items.find((item) => item.field === 'occasion');
+  expect(occasion.locked).toBe(true);
   expect(errors).toEqual([]);
 });

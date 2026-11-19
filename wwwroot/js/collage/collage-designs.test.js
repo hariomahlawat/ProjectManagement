@@ -437,3 +437,28 @@ test('a photo added without a chosen frame never goes in a logo place', () => {
   const backPhoto = { ...core.slotItem('q', { x: 500, y: 400, width: 300, aspect: 1.5 }), role: 'backphoto' };
   assert.equal(core.bestSlotFor([backLogo, backPhoto], 0.6).id, 'q');
 });
+
+// Folded cards (PR 9c).
+test('a folded card has an outside and an inside in every design, each panel within its half', () => {
+  for (const key of designs.designsFor('fold6').map((d) => d.key)) {
+    for (const size of ['fold6', 'fold5']) {
+      const card = designs.applyDesign(core.newCollage(size), key, {}, { measure, newId });
+      assert.ok(card.back, `${key} ${size}: both sides`);
+      const occasion = card.items.find((item) => item.field === 'occasion');
+      assert.ok(occasion.x > core.PAGE_WIDTH / 2, `${key}: the occasion on the front cover, the right panel`);
+      assert.ok(card.back.items.some((item) => item.field === 'when'), `${key}: the details inside`);
+      // No words cross the fold.
+      for (const item of [...card.items, ...card.back.items].filter((i) => i.kind === 'text')) {
+        const b = box(item);
+        assert.ok(b.right <= core.PAGE_WIDTH / 2 + 0.5 || b.left >= core.PAGE_WIDTH / 2 - 0.5, `${key} ${size}: ${item.field} crosses the fold`);
+      }
+      const texts = [card.items, card.back.items].map((side) => side.filter((i) => i.kind === 'text'));
+      for (const side of texts) for (let i = 0; i < side.length; i += 1) for (let j = i + 1; j < side.length; j += 1) {
+        assert.ok(!overlap(box(side[i]), box(side[j])), `${key} ${size}: ${side[i].field} overlaps ${side[j].field}`);
+      }
+      // An inside field filled again goes inside.
+      assert.ok(designs.fieldItem(card, 'venue', { ...designs.detailsOf(card), venue: 'Gate 2' }, { measure, newId }).x > core.PAGE_WIDTH / 2);
+    }
+  }
+  assert.ok(designs.fieldsOf('classic', 'fold6').includes('when'));
+});

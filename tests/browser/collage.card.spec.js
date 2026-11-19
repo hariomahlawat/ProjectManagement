@@ -537,6 +537,39 @@ test('a card can be saved with an empty back showing, since its front has the in
   await expect(page.locator('[data-save-dialog]')).toBeVisible();
   await expect(page.locator('[data-prism-toast]').filter({ hasText: 'nothing to save yet' })).toHaveCount(0);
   await page.keyboard.press('Escape');
+});
+
+// Folded cards (PR 9c).
+test('a folded card shows Outside and Inside, a fold line on the page only, and saves two sheet pages', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('fold6');
+  await page.locator('[data-start-design="classic"]').click();
+  await expect(page.locator('[data-card-side="front"]')).toHaveText('Outside');
+  await expect(page.locator('[data-card-side="back"]')).toHaveText('Inside');
+  await expect(page.locator('[data-card-side="delete"]')).toHaveCount(0);
+  expect(await page.evaluate(() => window.Konva.stages[0].findOne('.fold').visible())).toBe(true);
+  await page.getByRole('button', { name: 'Preview' }).click();
+  expect(await page.evaluate(() => window.Konva.stages[0].findOne('.fold').visible())).toBe(false);
+  await page.keyboard.press('Escape');
+  // Venue is inside: typed with the outside showing, it lands inside.
+  const venue = page.locator('[data-card-field="venue"]');
+  await venue.fill('Sudarshan Hall');
+  await venue.blur();
+  await expect.poll(async () => (await newestDraft(page))?.model?.back?.items?.find((item) => item.field === 'venue')?.text).toBe('Sudarshan Hall');
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  const file = await download;
+  const sizes = await page.evaluate(async (base64) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    return (await window.PDFLib.PDFDocument.load(bytes)).getPages().map((p) => Math.round(p.getSize().width));
+  }, (await (async () => { const chunks = []; for await (const chunk of await file.createReadStream()) chunks.push(chunk); return Buffer.concat(chunks); })()).toString('base64'));
+  // Two A5 sheets, landscape: the outside, then the inside.
+  expect(sizes).toEqual([595, 595]);
   expect(errors).toEqual([]);
 });
 
