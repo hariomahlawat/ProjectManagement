@@ -129,6 +129,9 @@ test('the focus view hides the top bar and rail only from 576px, and the button 
 
   assert.match(section, /@media \(min-width: 576px\) \{\s*html\[data-pbd-focus\]/);
   assert.match(section, /html\[data-pbd-focus\] \.pm-topbar/);
+  // The empty module sub-navigation strip under the top bar goes too, or its border and shadow
+  // are left as a line across the window.
+  assert.match(section, /html\[data-pbd-focus\] \.pm-module-subnav-wrap,/);
   assert.match(section, /\[data-workspace-rail\]/);
   assert.match(section, /--topbar-height: 0px/);
   assert.match(section, /@media \(max-width: 575\.98px\) \{\s*\.pbd-focus-toggle \{\s*display: none !important;/);
