@@ -514,7 +514,12 @@
         if (draft.card?.details?.logoMode === 'none') draft.card = { ...draft.card, details: { ...draft.card.details, logoMode: '' } };
         const fresh = { ...make({ x: place.x, y: place.y, width: place.width }), role };
         // A wide logo gets the place's area, not only its width (a crest's place is narrow).
-        fresh.width = designs.logoWidth(place.width, place.width / core.itemHeight(place), fresh.width / core.itemHeight(fresh));
+        const shape = fresh.width / core.itemHeight(fresh);
+        if (isPoster()) {
+          // On a poster, sized from the design's place, never taller than it (the place is near the top edge).
+          const designPlace = designs.roleItem(draft, 'logo', options()) || place;
+          fresh.width = designs.posterLogoWidth(designPlace.width, designPlace.width / core.itemHeight(designPlace), shape);
+        } else fresh.width = designs.logoWidth(place.width, place.width / core.itemHeight(place), shape);
         const index = draft.items.findIndex((item) => item.role === role);
         if (index >= 0) draft.items.splice(index, 1, fresh);
         else {

@@ -375,7 +375,7 @@ test('posters: no logo until one is chosen, the heading moves up with No logo, e
   assert.deepEqual(designs.designsFor('a3p', 'poster').map((d) => d.key), ['event', 'notice', 'photoposter', 'talk']);
   assert.ok(designs.designsFor('a3p').every((d) => !d.poster), 'posters are not offered as cards');
   for (const key of ['event', 'notice', 'photoposter', 'talk']) {
-    for (const size of ['a3p', 'a4p']) {
+    for (const size of ['a3p', 'a4p', 'a3l', 'a4l']) {
       const poster = designs.applyDesign(core.newCollage(size), key, designs.POSTER_DETAILS, { measure, newId });
       const place = poster.items.find((item) => item.role === 'logo');
       assert.equal(place.kind, 'slot', `${key}: an empty logo place, left out of Save`);
@@ -388,6 +388,8 @@ test('posters: no logo until one is chosen, the heading moves up with No logo, e
       for (let i = 0; i < texts.length; i += 1) for (let j = i + 1; j < texts.length; j += 1) {
         assert.ok(!overlap(box(texts[i]), box(texts[j])), `${key} ${size}: ${texts[i].field} overlaps ${texts[j].field}`);
       }
+      // The logo's place is clear of the words.
+      for (const text of texts) assert.ok(!overlap(box(place), box(text)), `${key} ${size}: the logo place overlaps ${text.field}`);
       const none = designs.applyDesign(core.newCollage(size), key, { ...designs.POSTER_DETAILS, logoMode: 'none' }, { measure, newId });
       assert.ok(!none.items.some((item) => item.role === 'logo'), `${key}: no logo`);
       // The heading moves up into the logo's space where the design says so, and never down.
@@ -834,4 +836,26 @@ test('a custom size smaller than A6 offers the pocket designs first, then the ot
   assert.equal(designs.designOnSize('classic', small), 'classic');
   const big = core.customKey(150, 200).key;
   assert.ok(designs.designsFor(big).every((design) => !design.pocket));
+});
+
+// Cold review 5 (tests M1): a tall logo on a poster stays inside its place, and on the page,
+// through design changes.
+test('a tall own logo on a poster stays no taller than its place through design changes', () => {
+  const opts = { measure, newId };
+  for (const size of ['a4p', 'a3p', 'a4l', 'a3l']) {
+    let poster = designs.applyDesign(core.newCollage(size), 'event', designs.POSTER_DETAILS, opts);
+    const place = poster.items.find((item) => item.role === 'logo');
+    const tall = { ...core.photoItem('mine', 'p1', 0.5, { x: place.x, y: place.y, width: place.width / 2 }), role: 'logo' };
+    poster = { ...poster, items: poster.items.map((item) => (item.role === 'logo' ? tall : item)) };
+    for (const key of ['notice', 'photoposter', 'talk', 'event']) {
+      poster = designs.applyDesign(poster, key, designs.detailsOf(poster), opts);
+      const logo = poster.items.find((item) => item.role === 'logo');
+      const slot = designs.roleItem(poster, 'logo', opts);
+      const h = core.itemHeight(logo);
+      assert.ok(h <= core.itemHeight(slot) + 1e-6, `${size} ${key}: no taller than its place`);
+      assert.ok(logo.y - h / 2 >= -1e-6, `${size} ${key}: inside the top edge`);
+    }
+  }
+  assert.equal(designs.posterLogoWidth(100, 0.6, 0.5), 100 / 0.6 * 0.5);
+  assert.equal(designs.posterLogoWidth(100, 0.6, 2), designs.logoWidth(100, 0.6, 2), 'a wide logo keeps its area');
 });

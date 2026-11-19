@@ -746,9 +746,19 @@
       if (lockedElsewhere.has(part.role)) continue;
       const before = made.length;
       if (part.kind === 'logoplace') {
-        const w = part.w * 1000 * unit;
-        if (chosenLogo) made.push({ ...chosenLogo, id: newId(), x: part.x * width, y: part.y * height, width: w, angle: 0 });
-        else if (!noLogo) made.push({ ...core.slotItem(newId(), { x: part.x * width, y: part.y * height, width: w, aspect: part.aspect }), role: 'logo' });
+        // The place starts inside the page's top edge, with a little room: on a landscape page,
+        // where it would run over the edge, it is made smaller and keeps its bottom where it was,
+        // clear of the heading.
+        const room = height * 0.015;
+        const full = part.w * 1000 * unit;
+        const bottom = part.y * height + full / part.aspect / 2;
+        const w = Math.min(full, (bottom - room) * part.aspect);
+        const y = bottom - w / part.aspect / 2;
+        // The chosen logo sized for its shape, never taller than the place (cold review 5: a tall
+        // logo grew past the poster's top edge on a design change).
+        const own = chosenLogo ? chosenLogo.width / core.itemHeight(chosenLogo) : 0;
+        if (chosenLogo) made.push({ ...chosenLogo, id: newId(), x: part.x * width, y, width: posterLogoWidth(w, part.aspect, own), angle: 0 });
+        else if (!noLogo) made.push({ ...core.slotItem(newId(), { x: part.x * width, y, width: w, aspect: part.aspect }), role: 'logo' });
         continue;
       }
       const look = part.look ? tinted(part.look) : {};
@@ -839,6 +849,21 @@
       const top = frame.y - core.itemHeight(frame) / 2 + 12;
       const half = core.itemHeight(framedLogo) / 2;
       if (framedLogo.y - half < top && framedLogo.y > top) framedLogo.width *= (framedLogo.y - top) / half;
+    }
+    // A poster's logo place ends above the words below it (on a landscape page the heading comes
+    // up close): made smaller, keeping its top, so it never covers the heading (cold review 5).
+    const posterLogo = parts.some((part) => part.kind === 'logoplace') ? made.find((item) => item.role === 'logo' && !item.locked) : null;
+    if (posterLogo) {
+      const logoTop = posterLogo.y - core.itemHeight(posterLogo) / 2;
+      const left = posterLogo.x - posterLogo.width / 2;
+      const right = posterLogo.x + posterLogo.width / 2;
+      const below = made.filter((item) => item.kind === 'text' && !item.hidden).map(itemBox).filter((b) => b.top > logoTop && b.left < right && b.right > left);
+      const limit = Math.min(...below.map((b) => b.top)) - height * 0.01;
+      const tall = core.itemHeight(posterLogo);
+      if (Number.isFinite(limit) && logoTop + tall > limit && limit - logoTop > tall * 0.3) {
+        posterLogo.width *= (limit - logoTop) / tall;
+        posterLogo.y = logoTop + core.itemHeight(posterLogo) / 2;
+      }
     }
     // A second logo the user added goes beside the design's logo, as tall as it: the two share
     // the middle where the design centres its logo, or face each other across the card.
@@ -953,6 +978,15 @@
   function logoWidth(placeWidth, placeAspect, aspect) {
     if (!(aspect > 0) || !(placeAspect > 0)) return placeWidth;
     return Math.min(placeWidth * 2.4, Math.sqrt(placeWidth * (placeWidth / placeAspect) * aspect));
+  }
+
+  /**
+   * A poster's logo width: as logoWidth, but never taller than its place, which sits near the
+   * poster's top edge.
+   */
+  function posterLogoWidth(placeWidth, placeAspect, aspect) {
+    const width = logoWidth(placeWidth, placeAspect, aspect);
+    return aspect > 0 && placeAspect > 0 ? Math.min(width, placeWidth / placeAspect * aspect) : width;
   }
 
   /**
@@ -1094,6 +1128,12 @@
     return moveForLogo(collage, next, opts);
   }
 
+  /** An item's box on the page (not turned): left, right, top and bottom. */
+  function itemBox(item) {
+    const half = core.itemHeight(item) / 2;
+    return { left: item.x - item.width / 2, right: item.x + item.width / 2, top: item.y - half, bottom: item.y + half };
+  }
+
   /** The fields that have an item on either side of a card. */
   function placedOn(collage) {
     return [...new Set([...(collage.items || []), ...(collage.back?.items || [])].filter((item) => item.field).map((item) => item.field))];
@@ -1194,5 +1234,5 @@
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, INSIDE_FIELDS, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, fitRoundel, followLogo, roleItemOn, designOnSize });
+  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, BACK_FIELDS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, followLogo, roleItemOn, designOnSize });
 });
