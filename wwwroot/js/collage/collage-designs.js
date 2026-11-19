@@ -934,6 +934,8 @@
     }
     // An occasion on two lines keeps "at the" and the accent rule clear (cold review 9, L3).
     clearOccasion(made, measure);
+    // A guest's name on two lines keeps clear of the words above it (cold review 9).
+    clearGuest(made, measure);
     // A logo in a white box (Ceremonial) fits inside it with a margin, whatever its shape.
     const box = made.find((item) => item.role === 'logobox');
     const boxed = made.find((item) => item.role === 'logo');
@@ -1002,6 +1004,40 @@
     // The second logo, placed beside the design's logo, with the user's own items.
     for (const second of seconds) if (!own.some((item) => item.id === second.id)) own.push(second);
     return fitLogoTile([...made, ...own, ...leftOver], { width, height });
+  }
+
+  /**
+   * A guest's name on two lines grows upwards from the line drawn under it, so on a short card
+   * it can reach the words above (the invitation line on Classic A5 landscape: found by the
+   * real-font test in collage.cardfix9.spec.js). Made smaller, half a point at a time and never
+   * below its own minSize, with its last line kept on the line, until a gap of 4 units is left.
+   * Changes the guest item in `made` in place.
+   */
+  function clearGuest(made, measure) {
+    const guest = made.find((item) => item.kind === 'text' && item.field === 'guest');
+    if (!guest) return;
+    const raiseAt = (item) => {
+      const layout = core.layoutText(item, measure);
+      return { layout, raise: layout.lines > 1 ? (layout.height - core.layoutText({ ...item, text: 'X' }, measure).height) / 2 : 0 };
+    };
+    let { layout, raise } = raiseAt(guest);
+    if (layout.lines < 2) return;
+    const baseY = guest.y + raise;
+    const left = guest.x - guest.width / 2;
+    const right = guest.x + guest.width / 2;
+    const above = made.filter((item) => item !== guest && item.kind === 'text' && !item.hidden && item.y < baseY && Math.min(right, item.x + item.width / 2) - Math.max(left, item.x - item.width / 2) > 1);
+    if (!above.length) return;
+    const limit = Math.max(...above.map((item) => item.y + core.itemHeight(item) / 2)) + 4;
+    const floor = guest.minSize || 6;
+    let size = layout.size;
+    let next = guest;
+    while (baseY - raise - layout.height / 2 < limit && size - 0.5 >= floor) {
+      size -= 0.5;
+      next = { ...guest, size, minSize: Math.min(guest.minSize || size, size) };
+      ({ layout, raise } = raiseAt(next));
+    }
+    if (next === guest) return;
+    Object.assign(guest, { size: next.size, minSize: next.minSize, width: layout.width, aspect: layout.width / layout.height, y: baseY - raise });
   }
 
   /** The faces a guest's name may take, from a design's own: script, then serif italic, then clean. */
