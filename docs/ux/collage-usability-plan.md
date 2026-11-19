@@ -52,9 +52,11 @@ posters come first.
 4. **F4: card words have two places to edit.** Clicking the occasion on a card opens a second
    "Words" box with a font panel on the right, while Card details on the left edits the same
    words. Users do not know which one counts.
-5. **F5: one photo shows 54 settings.** They are in one long panel: In its frame, Zoom, Caption,
-   Frame, Shape, Look, Brightness, Size, Angle, Corners and see-through, Order, and Line up. The
-   toolbar already has Order, Lock and Delete.
+5. **F5: one photo still shows a long panel.** Five groups are already folded and closed at
+   first (Angle, See-through, Order, Line up, and Brightness and the other adjustments;
+   `fold()` in `collage-settings.js`). About 30 controls still show at once: In its frame, Zoom,
+   Caption, Frame, Shape, Look and Size, with 54 in all. The toolbar already has Order, Lock and
+   Delete.
 6. **F6: the help is a fixed list.** With nothing selected, the right panel shows a "How to" list
    about dragging photo corners and turning handles, even on a card, where it does not apply.
 
@@ -143,15 +145,13 @@ same way. Each can be reverted on its own.
   - Caption;
   - Frame (with Shadow);
   - Look.
-- Shape, brightness and the other adjustments, Size, Angle, Corners and see-through, and Line up
-  move into a **More settings** section, folded by default (`<details>`, so the keyboard and
-  screen readers work as they do now). Whether it is open is remembered in this browser, inside
-  `try`/`catch`.
-- Order (forward and backward) is removed from the panel, because the toolbar already has it.
-  Keyboard users keep `[` and `]`, and Layers.
+- Shape and Size join the groups that are already folded (`fold()` in `collage-settings.js`,
+  `<details>`, remembered in this browser). The five existing folds stay as they are.
+- The Order fold is removed from the panel, because the toolbar already has it. Keyboard users
+  keep `[` and `]`, and Layers.
 - Phones get the same folding in the settings sheet.
-- Done when a selected photo shows at most about 20 controls before **More settings** is
-  opened, and nothing that existed before has gone.
+- Done when a selected photo shows at most about 20 controls before a fold is opened, and
+  nothing that existed before has gone.
 
 ### PR 8: guide, tests and a first-time check
 
