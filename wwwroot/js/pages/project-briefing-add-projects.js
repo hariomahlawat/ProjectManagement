@@ -598,7 +598,8 @@ export function initAddProjects(deps) {
       const inDeck = members();
       kept.forEach((row) => {
         const projectId = Number(row?.projectId);
-        if (projectId > 0 && !inDeck.has(projectId) && ticked.size < room()) {
+        // All of them, even past the room: the room line asks which to untick (Codex review).
+        if (projectId > 0 && !inDeck.has(projectId)) {
           ticked.set(projectId, { ...row, projectId, isSelected: false });
         }
       });

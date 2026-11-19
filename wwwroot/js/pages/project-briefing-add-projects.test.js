@@ -587,3 +587,15 @@ test('ticks kept across that reload come back and the dialog opens again', async
     setUp.keptTicks = undefined;
   }
 });
+
+test('kept ticks all come back even when the deck now has less room, and the room line asks which to untick (Codex review)', async () => {
+  setUp.keptTicks = JSON.stringify([row(1, 'Alpha'), row(2, 'Bravo'), row(3, 'Charlie')]);
+  try {
+    const members = Array.from({ length: 118 }, (_, index) => 1000 + index);
+    const page = await setUp({ members });
+    assert.equal(page.$('[data-pbd-filter-ticked]').textContent, '3 ticked · Review');
+    assert.match(page.$('[data-pbd-filter-room]').textContent, /room for 2 more: untick 1/);
+  } finally {
+    setUp.keptTicks = undefined;
+  }
+});
