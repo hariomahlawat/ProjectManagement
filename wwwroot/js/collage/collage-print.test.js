@@ -319,3 +319,12 @@ test('a line of only a zero-width space, or a rank with an empty name, makes no 
   assert.deepEqual(print.guestNames(['Maj A', String.fromCharCode(0x200b), 'Capt B'].join(nl)), ['Maj A', 'Capt B']);
   assert.deepEqual(print.guestNames(['Rank,Name', 'Brig,', 'Col,D. Nair'].join(nl), { csv: true }), ['Col D. Nair']);
 });
+
+// Codex on #3454: the joiners shape Hindi letters and stay in a name; a line of nothing visible goes.
+test('zero-width joiners stay inside a name; a line of only invisible characters is not a guest', () => {
+  const nl = String.fromCharCode(10);
+  const zwj = String.fromCharCode(0x200d);
+  const zwnj = String.fromCharCode(0x200c);
+  const name = 'श्' + zwj + 'री कुमार';
+  assert.deepEqual(print.guestNames([name, zwnj + zwj, 'Capt B'].join(nl)), [name, 'Capt B']);
+});

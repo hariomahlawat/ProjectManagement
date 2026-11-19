@@ -468,10 +468,13 @@
       const shared = new Map();
       // Progress: which card is being made, and a moment for the page to show it and hear Esc.
       let made = 0;
+      // Every picture drawn counts, fronts and backs alike, so Esc is heard on any sheet, a folded
+      // card's insides alone included (Codex on #3454).
+      const total = cards.reduce((sum, card) => sum + (card.front ? 1 : 0) + (card.back ? 1 : 0), 0);
       const progress = async () => {
         if (stopGuests) throw new Error('stopped');
         made += 1;
-        saveResult.textContent = `Making the guest cards: ${Math.min(made, cards.length)} of ${cards.length}… Press Esc to stop.`;
+        saveResult.textContent = `Making the guest cards: ${Math.min(made, total)} of ${total} pictures… Press Esc to stop.`;
         await new Promise((resolve) => window.setTimeout(resolve, 0));
         if (stopGuests) throw new Error('stopped');
       };
@@ -492,8 +495,10 @@
       const layout = sheetKey ? print.sheetLayout(getCollage().size, sheetKey) : null;
       if (!layout?.count) {
         for (const card of cards) {
-          await progress();
-          for (const page of [card.front, card.back].filter(Boolean)) addCardPage(pdf, await imageOf(page));
+          for (const page of [card.front, card.back].filter(Boolean)) {
+            await progress();
+            addCardPage(pdf, await imageOf(page));
+          }
         }
         return;
       }
@@ -501,7 +506,7 @@
       for (const sheet of guestSheets(cards, layout.count)) {
         const images = [];
         for (const page of sheet.pages) {
-          if (page && !sheet.back) await progress();
+          if (page) await progress();
           images.push(page ? await imageOf(page) : null);
         }
         addSheet(pdf, sheet.back ? backLayout : layout, images, sheet.back);
@@ -593,6 +598,8 @@
           stopGuests = false;
           guestsInProgress = true;
           await guestPdf(pdf, cards, fits, pdfSheet);
+          // Esc pressed as the last picture was finished still stops before anything is saved.
+          if (stopGuests) throw new Error('stopped');
           width = fits.width;
           height = fits.height;
         }
