@@ -18,6 +18,64 @@
     slide: Object.freeze({ format: 'png', quality: 'screen' })
   });
 
+  /** Save's hint for a page whose colour runs to the edge (core.colourToEdge), saved for printing. */
+  const EDGE_NOTE = 'Colour runs to the edge: most office printers leave a white margin. Print on a larger sheet and trim, or use a print shop.';
+
+  // The words for each Hindi line a card may print, after its English field ("hostHi" after "host").
+  const HINDI_WORDS = Object.freeze({ occasion: 'occasion', host: 'host', invite: 'invitation line' });
+
+  /**
+   * What Save says about Hindi lines (UX reviews 7 and 9): every Hindi line on the card ("…Hi",
+   * beside its English field) that is empty while its English is not prints a half-empty column,
+   * so each one is named. '' when there is none. The one rule for every Hindi line, either side.
+   */
+  function hindiLine(designs, collage) {
+    if (!designs || !collage?.card) return '';
+    const details = designs.detailsOf(collage) || {};
+    const onCard = designs.fieldsOnCard(collage) || [];
+    const empty = onCard.filter((field) => /^[a-z][A-Za-z0-9]*Hi$/.test(field) && onCard.includes(field.slice(0, -2))
+      && !String(details[field] || '').trim() && String(details[field.slice(0, -2)] || '').trim());
+    if (!empty.length) return '';
+    const names = empty.map((field) => (Object.hasOwn(HINDI_WORDS, field.slice(0, -2)) ? HINDI_WORDS[field.slice(0, -2)] : field.slice(0, -2)));
+    const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+    return ` The Hindi ${list} ${names.length === 1 ? 'is' : 'are'} empty, so the card shows only the English there: type ${names.length === 1 ? 'it' : 'them'} in Card details.`;
+  }
+
+  /**
+   * A side of the card (the one that holds the guest's name) with a guest's name in the guest
+   * field (PR 10): the field's words, or, for a design that leaves a line to write on, the field
+   * its design has for the name. Null when that side is not part of what is saved. Pure, so a
+   * browser test can lay out a guest's card with the real fonts exactly as Save does (code review 9).
+   */
+  function guestPage(page, name, { collage, core, designs, measureText }) {
+    if (!page) return null;
+    const linked = page.items.find((item) => item.field === 'guest');
+    const layout = (item) => core.layoutText(item, measureText);
+    if (linked) {
+      // Set as the design sets this name (one line or two, a plainer face for a long one: cold
+      // review 9, M5), unless the user restyled the field.
+      let n = 0;
+      const styled = (words) => (designs?.guestStyle ? designs.guestStyle(collage, linked, words, { measure: measureText, newId: () => `guest${++n}` }) : { ...linked, text: words });
+      const text = guestText(styled(name), name, layout);
+      const fitted = styled(text);
+      const named = nameInField(fitted, text, layout(fitted));
+      return { ...page, items: page.items.map((item) => (item === linked ? named : item)) };
+    }
+    // A design that leaves a line to write on: the name in the place its design has for it.
+    let n = 0;
+    const opts = { measure: measureText, newId: () => `guest${++n}` };
+    const makeWith = (guest) => designs?.fieldItem(collage, 'guest', { ...designs.detailsOf(collage), guest }, opts);
+    let made = makeWith(name);
+    if (!made) return page;
+    const text = guestText(made, name, layout);
+    if (text !== name) made = makeWith(text) || made;
+    // On the line drawn to write on, wherever the user moved it: the name moves with it.
+    const line = page.items.find((item) => item.role === 'guestline');
+    const designLine = line && designs.roleItemOn(collage, 'guestline', designs.sideOf(collage, 'guest') || 'front', opts);
+    const placed = onTheLine(made, line, designLine);
+    return { ...page, items: [...page.items, placed] };
+  }
+
   /** The purpose a type and quality match, or null when the user chose them by hand. */
   function purposeFor(format, quality) {
     for (const [name, choice] of Object.entries(SAVE_PURPOSES)) {
@@ -259,25 +317,28 @@
       targetRow.hidden = !jpeg;
       targetValue.disabled = !targetOn.checked;
       targetUnit.disabled = !targetOn.checked;
-      // Both sides of a card are counted. The roundel a design hides while there is no logo is
-      // the design's, not something the user hid.
+      // Both sides of a card are counted. The parts a design hides by itself while there is no
+      // logo (the roundel, a logo's tile: designs.AUTO_PARTS) are the design's, not something the
+      // user hid.
       const sides = [...getCollage().items, ...(getCollage().back?.items || [])];
+      const autoParts = designs?.AUTO_PARTS || [];
       // A poster's empty logo place is not a photo frame: its own question says it is left out.
       const empty = sides.filter((item) => item.kind === 'slot' && item.role !== 'logo').length;
-      const hidden = sides.filter((item) => item.kind !== 'slot' && item.hidden && !['roundel', 'logotile', 'backlogotile'].includes(item.role)).length;
+      const hidden = sides.filter((item) => item.kind !== 'slot' && item.hidden && !autoParts.includes(item.role)).length;
       // A design's own photo frame (Ceremonial photo, a photo poster) has No photo in the details.
       const designFrames = getCollage().card ? sides.filter((item) => item.kind === 'slot' && item.role === 'photo').length : 0;
       const word = designs?.DESIGNS?.[getCollage().card?.design]?.poster ? 'Poster' : 'Card';
       const emptyLine = $('[data-save-empty]');
-      // A card with Hindi lines whose Hindi is empty while its English is not prints half a line
-      // (UX review 7): Save says so before the file is made.
-      const details = designs?.detailsOf(getCollage()) || {};
-      const onCard = designs?.fieldsOnCard(getCollage()) || [];
-      const hindiNames = { occasionHi: 'occasion', hostHi: 'host', inviteHi: 'invitation line' };
-      const emptyHindi = Object.keys(hindiNames).filter((field) => onCard.includes(field) && !String(details[field] || '').trim() && String(details[field.replace(/Hi$/, '')] || '').trim());
-      const hindiNote = emptyHindi.length ? ` The Hindi ${emptyHindi.map((field) => hindiNames[field]).join(' and ')} ${emptyHindi.length === 1 ? 'is' : 'are'} empty, so the card shows only the English there: type ${emptyHindi.length === 1 ? 'it' : 'them'} in Card details.` : '';
-      emptyLine.textContent = `${leftOutLine(empty, hidden, designFrames, word)}${hindiNote}`.trim();
+      emptyLine.textContent = `${leftOutLine(empty, hidden, designFrames, word)}${hindiLine(designs, getCollage())}`.trim();
       emptyLine.hidden = !emptyLine.textContent;
+      // Colour to the page's edge, saved for printing (UX review 9): most office printers leave a
+      // white margin there. Said, not refused: a print shop prints and trims.
+      const edgeLine = $('[data-save-edge]');
+      if (edgeLine) {
+        const forPrint = chosen('format') === 'pdf' || purposeFor(chosen('format'), chosen('quality')) === 'print';
+        edgeLine.hidden = !(forPrint && core.colourToEdge(getCollage()));
+        edgeLine.textContent = edgeLine.hidden ? '' : EDGE_NOTE;
+      }
       const typed = targetValue.value.trim();
       saveSummaryLine.textContent = saveSummary({
         format: chosen('format'),
@@ -408,39 +469,8 @@
       window.setTimeout(() => URL.revokeObjectURL(url), 60000);
     }
 
-    /**
-     * A side of the card (the one that holds the guest's name) with a guest's name in the guest
-     * field (PR 10): the field's words, or, for a design that leaves a line to write on, the field
-     * its design has for the name. Null when that side is not part of what is saved.
-     */
-    function namedPage(page, name) {
-      if (!page) return null;
-      const linked = page.items.find((item) => item.field === 'guest');
-      const layout = (item) => core.layoutText(item, measureText);
-      if (linked) {
-        // Set as the design sets this name (one line or two, a plainer face for a long one: cold
-        // review 9, M5), unless the user restyled the field.
-        let n = 0;
-        const styled = (words) => (designs?.guestStyle ? designs.guestStyle(getCollage(), linked, words, { measure: measureText, newId: () => `guest${++n}` }) : { ...linked, text: words });
-        const text = guestText(styled(name), name, layout);
-        const fitted = styled(text);
-        const named = nameInField(fitted, text, layout(fitted));
-        return { ...page, items: page.items.map((item) => (item === linked ? named : item)) };
-      }
-      // A design that leaves a line to write on: the name in the place its design has for it.
-      let n = 0;
-      const opts = { measure: measureText, newId: () => `guest${++n}` };
-      const makeWith = (guest) => designs?.fieldItem(getCollage(), 'guest', { ...designs.detailsOf(getCollage()), guest }, opts);
-      let made = makeWith(name);
-      if (!made) return page;
-      const text = guestText(made, name, layout);
-      if (text !== name) made = makeWith(text) || made;
-      // On the line drawn to write on, wherever the user moved it: the name moves with it.
-      const line = page.items.find((item) => item.role === 'guestline');
-      const designLine = line && designs.roleItemOn(getCollage(), 'guestline', designs.sideOf(getCollage(), 'guest') || 'front', opts);
-      const placed = onTheLine(made, line, designLine);
-      return { ...page, items: [...page.items, placed] };
-    }
+    /** A side of the card with a guest's name on it (guestPage), as Save makes it. */
+    const namedPage = (page, name) => guestPage(page, name, { collage: getCollage(), core, designs, measureText });
 
     /**
      * One sheet page of cards with cut marks (PR 9): `images[i]` goes in slot i (none leaves the
@@ -708,5 +738,5 @@
     });
   }
 
-  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops, chosenSides, guestCards, guestSheets, nameInField, guestText, onTheLine });
+  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, EDGE_NOTE, hindiLine, guestPage, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops, chosenSides, guestCards, guestSheets, nameInField, guestText, onTheLine });
 });

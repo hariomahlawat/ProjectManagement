@@ -1535,3 +1535,16 @@ test('a rounded band keeps its full corners when its draft is reopened', () => {
   const over = collage.readDraftModel({ version: 1, size: 'a5p', background: { type: 'color', value: '#ffffff' }, items: [{ ...band, radius: 900 }] }, []);
   assert.equal(over.items[0].radius, 118);
 });
+
+// UX review 9, L5: a poster's own title, and so its file name, is cut between words.
+test('a long heading names the poster and its file cut between words, within 40 letters', () => {
+  const heading = { kind: 'text', field: 'title', text: 'Simulation in Training: Lessons from the Field and the Classroom' };
+  const title = collage.autoTitle([heading]);
+  assert.equal(title, 'Simulation in Training: Lessons from…');
+  assert.ok(title.length <= 40);
+  assert.equal(collage.fileStem(title), 'Simulation in Training Lessons from');
+  // A card's occasion, and plain words, the same way; one long word is cut where it must be.
+  assert.equal(collage.autoTitle([{ kind: 'text', field: 'occasion', text: 'Annual Regimental Dinner Night with Ladies' }]), 'Annual Regimental Dinner Night with…');
+  assert.equal(collage.autoTitle([{ kind: 'text', text: 'x'.repeat(60) }]), 'x'.repeat(39) + '…');
+  assert.equal(collage.autoTitle([{ kind: 'text', text: 'Short and sweet' }]), 'Short and sweet');
+});

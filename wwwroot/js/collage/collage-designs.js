@@ -619,10 +619,10 @@
   function roleItem(collage, role, opts) {
     const key = collage?.card?.design;
     if (!DESIGNS[key]) return null;
-    const { card, back, side, ...rest } = collage;
+    const { card, back, side, ...rest } = frontOf(collage);
     // Where the design puts it with a logo wanted (a poster set to "No logo" still has a place),
-    // with or without its photo as the page is (photoDetails).
-    const made = applyDesign({ ...rest, items: [] }, key, photoDetails(collage.items, { ...detailsOf(collage), logoMode: '' }), opts);
+    // with or without its photo as the page is (photoDetails), from the front whichever side shows.
+    const made = applyDesign({ ...rest, items: [] }, key, photoDetails(rest.items, { ...detailsOf(collage), logoMode: '' }), opts);
     return made.items.find((item) => item.role === role) || null;
   }
 
@@ -2017,11 +2017,19 @@
       const front = frontOf(collage);
       return backPage(front, key, details, opts).items.find((item) => item.field === field) || null;
     }
-    const { back, side, ...front } = collage;
+    // From the front, whichever side is showing (code review 9): the back's items are not the page's.
+    const { back, side, ...front } = frontOf(collage);
     // Placed as the page is laid out: with its photo arrangement while its frame is there.
-    const made = applyDesign({ ...front, items: [] }, key, photoDetails(collage.items, details), opts);
+    const made = applyDesign({ ...front, items: [] }, key, photoDetails(front.items, details), opts);
     return made.items.find((item) => item.field === field) || null;
   }
 
-  return Object.freeze({ DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, followLogo, roleItemOn, designOnSize, hindiInStep, fieldAnchor, FALLBACKS, closeLogoPlace, fitGuest, guestStyle, clearOccasion });
+  // Parts a design shows and hides by itself (the roundel and a logo's tile while there is no
+  // logo): never counted as hidden by the user (code review 9).
+  const AUTO_PARTS = Object.freeze(['roundel', ...Object.keys(TILE_LOGOS)]);
+  // What each part that takes a unit colour is, in plain words, for the colours' hint.
+  const FRAMES_WORDS = 'the frames round the panels';
+  const COLOUR_USES = lookupTable({ roundel: 'the ring round the logo', logotile: 'the tile behind the logo', backlogotile: 'the tile behind the logo', rule: 'the line at the bottom', backrule: 'the line on the back', backborder: 'the border on the back', coverrule: 'the line on the cover', innerrule: 'the line inside', leftrule: 'the line inside', backcoverrule: 'the lines on the back cover', backcoverrule2: 'the lines on the back cover', coverborder: FRAMES_WORDS, backcover: FRAMES_WORDS, innerborder: FRAMES_WORDS, innerborder2: FRAMES_WORDS });
+
+  return Object.freeze({ AUTO_PARTS, COLOUR_USES, DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, followLogo, roleItemOn, designOnSize, hindiInStep, fieldAnchor, FALLBACKS, closeLogoPlace, fitGuest, guestStyle, clearOccasion });
 });

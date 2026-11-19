@@ -154,3 +154,81 @@ test('a guest name too long for one line breaks before its "and"', () => {
   const long = 'Maj A and Mrs Bhattacharya Rao';
   assert.equal(save.guestText(item, long, layout), long);
 });
+
+// Cold review 9: facts about a design's parts live with the designs; Save and Card details use them.
+const core = require('./collage-core.js');
+const designs = require('./collage-designs.js');
+const measure = (text, font) => [...text].length * Number(/(\d+(?:\.\d+)?)px/.exec(font)[1]) * 0.56;
+let sequence = 0;
+const opts = { measure, newId: () => `s${++sequence}` };
+const made = (key, size, details = {}) => designs.applyDesign(core.newCollage(size), key, details, opts);
+
+test('every part that takes a unit colour has words for it, and the parts a design hides itself are named by the designs', () => {
+  for (const key of Object.keys(designs.DESIGNS)) {
+    for (const size of ['a5p', 'a5l', 'fold5']) {
+      const card = designs.addBack(made(key, size), opts);
+      for (const item of [...card.items, ...(card.back?.items || [])]) {
+        if (!item.tint || item.field || /^band\d$/.test(item.role || '')) continue;
+        assert.equal(typeof designs.COLOUR_USES[item.role], 'string', `${key} ${size}: ${item.role}`);
+      }
+    }
+  }
+  assert.ok(['roundel', 'logotile', 'backlogotile'].every((role) => designs.AUTO_PARTS.includes(role)));
+  assert.equal(designs.COLOUR_USES.constructor, undefined, 'a role from a draft never reads a built-in');
+});
+
+// UX review 9, L2: every Hindi line on the card left empty is named, the host as well as the occasion.
+test('Save names every empty Hindi line on a Bilingual card, and none on a card without Hindi', () => {
+  const card = made('bilingual', 'a5p');
+  assert.equal(save.hindiLine(designs, card), '');
+  // As the card is after an English change empties its Hindi (designs.hindiInStep).
+  const empty = (fields) => made('bilingual', 'a5p', Object.fromEntries(fields.map((field) => [field, ''])));
+  assert.match(save.hindiLine(designs, empty(['hostHi'])), /The Hindi host is empty/);
+  assert.match(save.hindiLine(designs, empty(['occasionHi', 'hostHi'])), /The Hindi host and occasion are empty|The Hindi occasion and host are empty/);
+  assert.match(save.hindiLine(designs, empty(['occasionHi', 'hostHi', 'inviteHi'])), /, .* and .* are empty, so the card shows only the English there: type them in Card details\.$/);
+  // An English line left empty too prints nothing in either column: nothing to say.
+  assert.equal(save.hindiLine(designs, empty(['hostHi', 'host'])), '');
+  assert.equal(save.hindiLine(designs, made('classic', 'a5p')), '');
+  assert.equal(save.hindiLine(null, card), '');
+});
+
+// UX review 9, L7: colour to the page's edge is decided once, from what the page shows.
+test('colour runs to the edge on Navy and gold, Regimental and Modern; not on Classic or Bilingual', () => {
+  assert.equal(core.colourToEdge(made('navy', 'a5p')), true, 'a navy background');
+  assert.equal(core.colourToEdge(made('regimental', 'a5l')), true, 'bands to the edge');
+  assert.equal(core.colourToEdge(made('modern', 'a6p')), true, 'a bar down the edge');
+  assert.equal(core.colourToEdge(made('classic', 'a5p')), false, 'cream paper with an inset border');
+  assert.equal(core.colourToEdge(made('bilingual', 'a5l')), false);
+  // Either side: a Classic front with a dark back.
+  const classic = designs.addBack(made('classic', 'a5p'), opts);
+  assert.equal(core.colourToEdge({ ...classic, back: { ...classic.back, background: { type: 'color', value: '#0f1f3d' } } }), true);
+  // A photo collage: a photo touching the edge, or a gradient behind.
+  const page = core.newCollage('a4p');
+  assert.equal(core.colourToEdge(page), false);
+  assert.equal(core.colourToEdge({ ...page, background: { type: 'gradient', key: 'ocean' } }), true);
+  const photo = core.photoItem('p', 'photo1', 1.5, { x: 200, y: 200, width: 400 });
+  assert.equal(core.colourToEdge({ ...page, items: [photo] }), true);
+  assert.equal(core.colourToEdge({ ...page, items: [{ ...photo, x: 500, y: 500 }] }), false);
+  assert.equal(core.colourToEdge({ ...page, items: [{ ...photo, hidden: true }] }), false);
+  assert.match(save.EDGE_NOTE, /white margin/);
+});
+
+// Code review 9, L3: a design's place for a field or a part is the front's, whichever side shows.
+test('the place of a front field or part is the same with the back showing', () => {
+  // A Ceremonial card whose details say No photo while its photo frame is still on the front (an
+  // older PRISM put it back): the front is laid out with its photo, from either side.
+  const card = designs.addBack(made('ceremonial', 'a5p'), opts);
+  const framed = { ...card, card: { ...card.card, details: { ...card.card.details, photoMode: 'none' } } };
+  assert.ok(framed.items.some((item) => item.role === 'photo'));
+  for (const showing of [card, framed]) {
+    const turned = core.flipSide(showing);
+    for (const field of ['host', 'occasion', 'invite']) {
+      const front = designs.fieldItem(showing, field, designs.detailsOf(showing), opts);
+      const back = designs.fieldItem(turned, field, designs.detailsOf(turned), opts);
+      assert.deepEqual([back.x, back.y, back.width], [front.x, front.y, front.width], field);
+    }
+    const logo = designs.roleItem(showing, 'logo', opts);
+    const logoTurned = designs.roleItem(turned, 'logo', opts);
+    assert.deepEqual([logoTurned.x, logoTurned.y, logoTurned.width], [logo.x, logo.y, logo.width]);
+  }
+});

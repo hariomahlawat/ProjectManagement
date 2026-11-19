@@ -178,10 +178,21 @@ its npm package by hand; the libman entry records the version.
     headings, a guest's name is made from the rank columns, then the name columns (Rank, Name,
     Unit or Name, Rank give "Brig P. Singh"; First name, Surname gives both). "Officer", "Guest"
     and "Invitee" head a name column; a rank column with an unknown heading after it takes that
-    column as the name. With no headings, it is the first column. A file may be UTF-8, UTF-16 (a
+    column as the name. A heading is made of heading words only: a first line such as "Col R.
+    Names, VSM" (a rank and initials) is a guest, not a heading. A first row with a Rank heading
+    but no column for a person's name ("Rank, Name of the Unit") gives no names, and the list says
+    none of its headings is a name. With no headings, it is the first column, or the next one when
+    the first holds only serial numbers ("1, Brig A. Rao"); the list says which. Whenever a first
+    line is taken for headings, the line under the list says so ("First line read as column
+    headings: …"), so a guest it held shows before Save. A file may be UTF-8, UTF-16 (a
     spreadsheet's "Unicode Text") or ANSI (Windows-1252); control characters never print. Quoted cells may hold commas and line breaks; a CSV saved with semicolons is
     read too. A heading line ("Name", "Guests") is left out; there are at most 300 names of 120
-    characters each, and names past 300 are counted and the user is told how many were left out.
+    letters each, and names past 300 are counted and the user is told how many were left out.
+    One rule says what a name may hold, for a list given and one read back from a draft alike
+    (`core.cleanGuestName`): zero-width spaces, word joiners, byte-order marks and control
+    characters go, the joiners that shape Hindi stay, a name of nothing visible is no guest (Save
+    never makes a blank card), and a long name is cut between whole letters, never inside an
+    emoji or a Hindi syllable.
     If the side that holds the names is not saved (a folded card's outside, or a flat card's
     back, only), that side still comes once for each guest, so it matches the named side
     printed apart, and the result says the names were not saved. **Clear names** offers Undo. The names are kept in the card's `guests`, in the draft in
@@ -373,7 +384,14 @@ its npm package by hand; the libman entry records the version.
 - **Save as** PNG, JPEG (optionally under a size in KB) or PDF whose page is the paper's real
   size; at print quality (300 dpi) or for the screen (1920 px on the long side). The dialog asks
   first **what it is for** (WhatsApp or email: a JPG for the screen; Printing: a PDF at print
-  quality; A slide or a screen: a PNG for the screen). The chosen purpose shows pressed, with a
+  quality; A slide or a screen: a PNG for the screen). The **Save** button stays in view at the
+  dialog's foot however many choices it shows (a card with a back and a guest list, for
+  printing). Saved for printing, a page whose colour runs to its edge (a dark background such as
+  Navy and gold, or a band, bar or photo touching an edge: `core.colourToEdge`) gets a hint that
+  most office printers leave a white margin: print on a larger sheet and trim, or use a print
+  shop. On a Bilingual card Save names every Hindi line that is empty while its English is not.
+  A collage named after its first words is cut between words at 40 letters, and so is its file
+  name. The chosen purpose shows pressed, with a
   tick, and a line under it says what Save will make. The type, the quality and "Keep it under"
   are under **More options**, closed at first; once opened it stays open next time (both choices
   are remembered in this browser only). A type or quality changed there is what Save makes, and

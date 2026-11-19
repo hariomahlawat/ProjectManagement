@@ -252,7 +252,7 @@
         if (forCollage === state.collageSession) { screens.resetEditor(); renderDrafts(); }
         return;
       }
-      const model = core.readDraftModel(record.model, [...doc.photos.keys()]);
+      const model = withInside(core.readDraftModel(record.model, [...doc.photos.keys()]));
       if (!model) {
         // Its photos were read already: resetEditor lets them go now, not at the next collage.
         screens.resetEditor();
@@ -281,6 +281,23 @@
       window.PrismToast?.show({ tone: 'info', text: `Draft opened. Undo starts again from here: earlier steps are not kept with the draft.${keptNote}` });
     }
 
+
+    /**
+     * A folded card read back with no inside (code review 9, L4: a draft written without one)
+     * gets its design's inside, as applying the design gives it, so its guest list and inside
+     * fields are there again. Never when the draft holds a back this PRISM could not read: that is
+     * kept as it was, so a newer PRISM gets it back.
+     */
+    function withInside(model) {
+      const designs = window.PrismCollageDesigns;
+      if (!model?.card || model.back || model.kept?.fields?.back !== undefined) return model;
+      if (!designs?.DESIGNS[model.card.design] || !designs.isFolded(model.size)) return model;
+      // A field the design puts inside is missing because the inside is, not because it was
+      // emptied: only the outside's fields count as placed when reading the details.
+      const inside = new Set((designs.partsFor(model.card.design, model.size).back || []).map((part) => part.field).filter(Boolean));
+      const read = { ...model, card: { ...model.card, placed: (model.card.placed || []).filter((field) => !inside.has(field)) } };
+      return designs.applyDesign(model, model.card.design, designs.detailsOf(read), { measure: surface.measureText, newId: doc.newItemId });
+    }
 
     return { drafts, session, setDraftStatus, scheduleDraft, freshThumbnail, renderDrafts, undoDeleteDraft, openDraft };
   }
