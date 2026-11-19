@@ -874,3 +874,14 @@ test('Bilingual empties a Hindi line that would contradict typed English, and sa
   await expect(page.locator('[data-card-field="occasionHi"]')).toHaveValue('');
   expect(errors).toEqual([]);
 });
+
+// Cold review 6, L6: the unit colours say what else each colour sets.
+test('unit colours say which words and lines each colour also sets', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="regimental"]').click();
+  const uses = page.locator('.clg-card-colours__uses');
+  await expect(uses).toContainText('Top: the host');
+  await expect(uses).toContainText('the ring round the logo');
+  await expect(uses).toContainText('Bottom: the occasion');
+  expect(errors).toEqual([]);
+});

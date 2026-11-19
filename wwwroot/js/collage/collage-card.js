@@ -869,7 +869,27 @@
     /** The unit's three colours, for a design with a band in them (Regimental). */
     function colourFields(text) {
       const colours = designs.colourList(text);
-      return `<div class="clg-section clg-card-colours"><p class="clg-section__title">Unit colours</p><div class="clg-card-colours__row">${colours.map((colour, i) => `<label class="clg-card-colour"><input type="color" value="${colour}" data-card-colour="${i + 1}" aria-label="${COLOUR_NAMES[i]} colour of the band"><span>${COLOUR_NAMES[i]}</span></label>`).join('')}</div></div>`;
+      // What else each colour changes besides its band, from the card's own parts (cold review 6).
+      const uses = colourUses(state.collage);
+      const said = COLOUR_NAMES.map((name, i) => (uses[i].length ? `${name}: ${uses[i].join(', ')}` : '')).filter(Boolean);
+      const hint = said.length ? `<p class="clg-hint clg-card-colours__uses">Besides the band, each colour also sets: ${escapeHtml(said.join('; '))}.</p>` : '';
+      return `<div class="clg-section clg-card-colours"><p class="clg-section__title">Unit colours</p><div class="clg-card-colours__row">${colours.map((colour, i) => `<label class="clg-card-colour"><input type="color" value="${colour}" data-card-colour="${i + 1}" aria-label="${COLOUR_NAMES[i]} colour of the band"><span>${COLOUR_NAMES[i]}</span></label>`).join('')}</div>${hint}</div>`;
+    }
+
+    /** For each unit colour, the parts other than the bands that follow it, in plain words. */
+    function colourUses(collage) {
+      const names = { roundel: 'the ring round the logo', rule: 'the line at the bottom', backrule: 'the line on the back', coverrule: 'the line on the cover' };
+      const labels = Object.fromEntries(FORM.map(([field, label]) => [field, label.toLowerCase().replace(/^back: /, 'back ')]));
+      const uses = [[], [], []];
+      for (const item of [...(collage?.items || []), ...(collage?.back?.items || [])]) {
+        if (!item.tint || /^band\d$/.test(item.role || '')) continue;
+        const what = item.field ? `the ${labels[item.field] || item.field}` : names[item.role];
+        if (!what) continue;
+        for (const index of new Set(Object.values(item.tint))) {
+          if (uses[index - 1] && !uses[index - 1].includes(what)) uses[index - 1].push(what);
+        }
+      }
+      return uses;
     }
 
     /**
