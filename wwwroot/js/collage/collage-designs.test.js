@@ -509,3 +509,14 @@ test('a locked part keeps its place behind the logo; a field locked on the front
   // A field not on the card: the side the design puts it on.
   assert.equal(designs.sideOf(designs.applyDesign(core.newCollage('fold6'), 'classic', {}, opts), 'venue'), 'back');
 });
+
+// Codex on #3452: a back logo the user locked keeps its lock and turn through a size change.
+test('a locked back logo keeps its lock and turn when the card is resized', () => {
+  const opts = { measure, newId };
+  const card = designs.addBack(designs.applyDesign(core.newCollage('a5p'), 'classic', {}, opts), opts);
+  const locked = { ...card, back: { ...card.back, items: card.back.items.map((item) => (item.role === 'backlogo' ? { ...item, locked: true, angle: 12 } : item)) } };
+  const resized = designs.applyDesign({ ...locked, size: 'a6p' }, 'classic', designs.detailsOf(locked), opts);
+  const backLogo = resized.back.items.find((item) => item.role === 'backlogo');
+  assert.equal(backLogo.locked, true);
+  assert.equal(backLogo.angle, 12);
+});

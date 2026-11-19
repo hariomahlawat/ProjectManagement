@@ -848,9 +848,13 @@
     // none when the front has none. `collage` here shows its front.
     const front = (collage.items || []).find((item) => item.role === 'logo');
     const at = made.findIndex((item) => item.role === 'backlogo');
-    if (at >= 0) {
-      if (front) made.splice(at, 1, { ...front, id: made[at].id, x: made[at].x, y: made[at].y, width: made[at].width, angle: 0, role: 'backlogo' });
-      else made.splice(at, 1);
+    // A back logo the user locked stays exactly as it is, turn and all (Codex on #3452); the front
+    // logo's own lock and hiding are its own, not the back's.
+    if (at >= 0 && !made[at].locked) {
+      if (front) {
+        const { locked, hidden, ...picture } = front;
+        made.splice(at, 1, { ...picture, id: made[at].id, x: made[at].x, y: made[at].y, width: made[at].width, angle: 0, role: 'backlogo', ...(made[at].hidden ? { hidden: true } : {}) });
+      } else made.splice(at, 1);
     }
     return { background: { ...look.background }, items: made };
   }
