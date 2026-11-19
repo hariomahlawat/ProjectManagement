@@ -4740,7 +4740,7 @@ test('the message toolbar goes below a message with no room above it in the wind
     const win = app.openWindow('peer', { focus: false });
     await tick(); await tick();
     const rect = (top) => ({ top, bottom: top + 30, left: 0, right: 300, width: 300, height: 30 });
-    win.body.getBoundingClientRect = () => rect(100);
+    win.body.getBoundingClientRect = () => ({ top: 100, bottom: 400, left: 0, right: 300, width: 300, height: 300 });
     const first = win.log.querySelector('[data-message-id="1"]');
     const second = win.log.querySelector('[data-message-id="2"]');
     first.getBoundingClientRect = () => rect(102); // at the top of the visible area
@@ -4756,6 +4756,21 @@ test('the message toolbar goes below a message with no room above it in the wind
     first.getBoundingClientRect = () => rect(200);
     first.querySelector('.pm-chat__action').dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
     assert.ok(!first.querySelector('.pm-chat__actions').classList.contains('is-below'));
+
+    // A tall message filling the visible area (room on neither side): pinned to the top of what
+    // can be seen of it, never placed out of sight.
+    const firstBar = first.querySelector('.pm-chat__actions');
+    win.body.getBoundingClientRect = () => ({ top: 100, bottom: 400, left: 0, right: 300, width: 300, height: 300 });
+    first.getBoundingClientRect = () => ({ top: 60, bottom: 520, left: 0, right: 300, width: 300, height: 460 });
+    first.querySelector('.pm-chat__bubble').dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
+    assert.ok(firstBar.classList.contains('is-pinned'));
+    assert.ok(!firstBar.classList.contains('is-below'));
+    assert.equal(firstBar.style.top, '44px');
+    // Room above again: back to the usual place.
+    first.getBoundingClientRect = () => rect(200);
+    first.querySelector('.pm-chat__bubble').dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
+    assert.ok(!firstBar.classList.contains('is-pinned'));
+    assert.equal(firstBar.style.top, '');
   } finally {
     window.close();
   }

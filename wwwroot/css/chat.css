@@ -1620,6 +1620,12 @@
     bottom: auto;
 }
 
+/* No room above or below (a tall message filling the visible area): the top offset is set by
+   bindActionPlacement to the top of the part that can be seen. */
+.pm-chat__actions.is-pinned {
+    bottom: auto;
+}
+
 .pm-chat__msg:hover .pm-chat__actions,
 .pm-chat__msg:focus-within .pm-chat__actions {
     opacity: 1;

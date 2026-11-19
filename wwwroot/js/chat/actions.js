@@ -111,7 +111,8 @@
    * The message toolbar sits above its message, on the side with free space (to the right of
    * someone else's message, to the left of yours), so it covers neither the text being pointed
    * at nor the window's edge. A message at the top of the visible area has no room above it:
-   * there the toolbar goes below it instead. Decided as the pointer or focus arrives.
+   * there the toolbar goes below it instead, and over the top of what can be seen of it when a
+   * tall message leaves no room either side. Decided as the pointer or focus arrives.
    */
   ChatApp.prototype.bindActionPlacement = function (win) {
     const place = (event) => {
@@ -119,8 +120,17 @@
       if (!item || !win.body.contains(item)) return;
       const bar = Array.from(item.children).find((child) => child.classList.contains('pm-chat__actions'));
       if (!bar) return;
-      const room = item.getBoundingClientRect().top - win.body.getBoundingClientRect().top;
-      bar.classList.toggle('is-below', room < bar.offsetHeight + 4);
+      const view = win.body.getBoundingClientRect();
+      const box = item.getBoundingClientRect();
+      const needed = bar.offsetHeight + 4;
+      const above = box.top - view.top >= needed;
+      const below = !above && view.bottom - box.bottom >= needed;
+      bar.classList.toggle('is-below', below);
+      // A tall message filling the visible area has room on neither side: the toolbar is pinned
+      // to the top of the part of it that can be seen, over its text, rather than out of sight.
+      const pinned = !above && !below;
+      bar.classList.toggle('is-pinned', pinned);
+      bar.style.top = pinned ? `${Math.max(0, view.top - box.top) + 4}px` : '';
     };
     win.log.addEventListener('mouseover', place);
     win.log.addEventListener('focusin', place);
