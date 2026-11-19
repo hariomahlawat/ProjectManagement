@@ -286,9 +286,15 @@ draft format. Drafts made before keep working: a card opened from a draft keeps 
 - Round 2, PR 2: page size. **For: WhatsApp (square) / Printing (A4)** beside Add photos picks the
   page photos and layouts open on; Printing (A4 landscape, as before) is chosen at first, since no
   default was decided and it keeps earlier behaviour. The top bar's size menu shows on phones,
-  narrow, and lists the sizes for what is open; Page settings keep Custom size only.
+  narrow, and lists the sizes for what is open; Page settings keep Custom size only. #3476, merged
+  19 Nov 2026.
 - Round 2, PR 3: the date starts empty. New cards and posters open with Date and time empty, the
   example as the hint; Save's note names it until it has words. Not done from the plan's first
   wording: no dotted line on the card where the date goes (the owner's decision did not ask for
   one; the space shows where it goes), and Save names the empty date in its note rather than
   asking with Save anyway. #3477, merged 19 Nov 2026.
+- Round 2, PR 4: Printing a card starts on A4 sheets with cut marks, until the user picks another
+  sheet in that dialog; a PDF's summary names its paper, not pixels; the sheet note reads "With
+  room left for cutting only one fits; A4, edge to edge fits 2". The flip hint is worked out after
+  the sheet is set (Codex). Three card browser tests that check a card's own pages now pick "Each
+  card on its own page".

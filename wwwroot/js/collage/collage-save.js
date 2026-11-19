@@ -108,7 +108,8 @@
     // Cards on a print sheet: how many to which sheet, in print words.
     // "4 × RSVP card 3.5 × 5 in": a size's name is never made plural.
     if (format === 'pdf' && sheet) return `A PDF at ${how}: ${sheet.count === 1 ? `one ${paper || 'card'}` : `${sheet.count} × ${paper || 'card'}`} to each ${sheet.label} sheet, at true size.`;
-    if (format === 'pdf') return `A PDF at ${how}: ${paper ? `${paper} at its true size, ` : ''}${size}.`;
+    // On paper the size is the paper's; pixel counts mean nothing there (round 2, PR 4).
+    if (format === 'pdf') return paper ? `A PDF at ${how}: ${paper} at its true size.` : `A PDF at ${how}: ${size}.`;
     const kind = format === 'jpeg' ? 'JPG' : 'PNG';
     return `A ${kind} picture at ${how}: ${size}${format === 'jpeg' && target ? `, kept under ${target}` : ''}.`;
   }
@@ -261,6 +262,9 @@
 
     const chosen = (name) => saveDialog.querySelector(`input[name="${name}"]:checked`)?.value;
 
+    // A sheet the user picks stays picked while the dialog is open (round 2, PR 4).
+    let sheetPicked = false;
+
     function syncSaveDialog() {
       // Sides are offered for a card with a back (PR 8).
       const sidesBox = $('[data-save-sides]');
@@ -293,7 +297,7 @@
         const edgeMore = (key, fits) => {
           const edge = Object.keys(print.SHEETS).find((other) => print.SHEETS[other].edge && print.SHEETS[other].mm.join() === print.SHEETS[key].mm.join());
           const more = edge ? print.sheetLayout(getCollage().size, edge)?.count || 0 : 0;
-          return more > fits ? ` The margins and gaps for cutting leave room for only ${fits === 1 ? 'one' : fits}; ${print.SHEETS[edge].label} fits ${more}.` : '';
+          return more > fits ? ` With room left for cutting only ${fits === 1 ? 'one fits' : `${fits} fit`}; ${print.SHEETS[edge].label} fits ${more}.` : '';
         };
         for (const key of Object.keys(print.SHEETS)) {
           const layout = print.sheetLayout(getCollage().size, key);
@@ -313,6 +317,14 @@
             input.disabled = !fits || !offered;
             if (input.disabled && input.checked) sheetBox.querySelector('input[name="sheet"][value="card"]').checked = true;
           }
+        }
+        // Printing a card starts on A4 sheets with cut marks, ready for an office printer, until the
+        // user picks a sheet (docs/ux/collage-usability-plan.md, round 2, PR 4); each card on its
+        // own page stays one click away.
+        const a4 = sheetBox.querySelector('input[name="sheet"][value="a4"]');
+        if (!sheetPicked && a4 && !sheetBox.hidden) {
+          if (!a4.disabled) a4.checked = true;
+          else sheetBox.querySelector('input[name="sheet"][value="card"]').checked = true;
         }
       }
       const size = core.sizeOf(getCollage().size);
@@ -425,11 +437,16 @@
       if (heading) heading.textContent = design ? (design.poster ? 'Save the poster' : 'Save the card') : 'Save the collage';
       choosePurpose(rememberedPurpose());
       saveMore.open = rememberedMore();
+      sheetPicked = false;
       syncSaveDialog();
       saveDialog.showModal();
     }
 
-    saveDialog.addEventListener('change', () => { markPurpose(); syncSaveDialog(); });
+    saveDialog.addEventListener('change', (event) => {
+      if (event.target?.name === 'sheet') sheetPicked = true;
+      markPurpose();
+      syncSaveDialog();
+    });
     // Typing a "keep it under" size updates the line under the purposes.
     saveDialog.addEventListener('input', (event) => { if (event.target === targetValue) syncSaveDialog(); });
     // Tab stays inside the dialog: past Save it comes back to Close, not to the page behind.

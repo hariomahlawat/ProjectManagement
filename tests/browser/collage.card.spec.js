@@ -414,6 +414,8 @@ test('a back with the programme: added and shown, typed from the front, and save
   await page.getByRole('button', { name: 'Save as…' }).click();
   await expect(page.locator('[data-save-sides]')).toBeVisible();
   await page.getByRole('button', { name: 'Printing' }).click();
+  // Printing starts on A4 sheets (round 2, PR 4); this checks the card's own pages.
+  await page.locator('[data-save-sheet] input[value="card"]').check();
   let download = page.waitForEvent('download');
   await page.locator('[data-action="save-go"]').click();
   let file = await download;
