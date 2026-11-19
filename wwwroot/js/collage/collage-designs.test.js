@@ -859,3 +859,34 @@ test('a tall own logo on a poster stays no taller than its place through design 
   assert.equal(designs.posterLogoWidth(100, 0.6, 0.5), 100 / 0.6 * 0.5);
   assert.equal(designs.posterLogoWidth(100, 0.6, 2), designs.logoWidth(100, 0.6, 2), 'a wide logo keeps its area');
 });
+
+// Tests review 5, L1: the size rules at their limits.
+test('long words shrink to the 6 pt floor and no further, at the smallest sizes', () => {
+  const long = 'Annual Regimental Raising Day Dinner and Ceremonial Parade of the Battalion '.repeat(3);
+  for (const size of ['a7p', 'passl', 'a6p', 'fold6']) {
+    const mmPerUnit = core.sizeOf(size).mm[0] / core.PAGE_WIDTH;
+    for (const design of designs.designsFor(size, 'card')) {
+      const wording = Object.fromEntries(designs.FIELDS.filter((field) => !/Hi$|colours|logoMode/.test(field)).map((field) => [field, long]));
+      const card = designs.applyDesign(core.newCollage(size), design.key, wording, { measure, newId });
+      const texts = [...card.items, ...(card.back?.items || [])].filter((each) => each.kind === 'text');
+      let shrank = false;
+      for (const item of texts) {
+        const layout = core.layoutText(item, measure);
+        const pt = layout.size * mmPerUnit * 72 / 25.4;
+        assert.ok(pt >= 5.99, `${design.key} ${size}: ${item.field} prints at ${pt.toFixed(1)} pt`);
+        if (layout.size < item.size - 0.5) shrank = true;
+      }
+      assert.ok(shrank, `${design.key} ${size}: long words did shrink, so the floor was reached for`);
+    }
+  }
+});
+
+test('a guest name\'s floor is 60% of its design size; a wide logo is at most 2.4 times its place', () => {
+  for (const size of ['a5p', 'a6p']) {
+    const card = designs.applyDesign(core.newCollage(size), 'classic', { guest: 'Maj A' }, { measure, newId });
+    const guest = card.items.find((item) => item.field === 'guest');
+    assert.ok(Math.abs(guest.minSize - Math.max(Math.ceil(designs.minTextUnits ? designs.minTextUnits(size) : 0), Math.round(guest.size * 0.6))) <= 1, `${size}: floor ${guest.minSize} for ${guest.size}`);
+  }
+  assert.equal(designs.logoWidth(100, 1, 100), 240, 'a very wide logo stops at 2.4 times the place');
+  assert.ok(designs.logoWidth(100, 1, 2) < 240);
+});

@@ -632,9 +632,26 @@ test('a programme card\'s programme is typed in Card details; a folded card prin
   await page.getByRole('button', { name: 'Printing' }).click();
   const download = page.waitForEvent('download');
   await page.locator('[data-action="save-go"]').click();
-  await download;
+  const file = await download;
   // Outside and inside for each guest; the names are inside, where the guest line is.
   await expect(page.locator('[data-save-result]')).toContainText('2 guest cards on 4 pages');
+  // The picture on each page (tests review 5, M2): both guests share one outside, drawn once,
+  // and each inside is their own, so names put on the outside would fail here.
+  const pictures = await page.evaluate(async (base64) => {
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
+    const pdf = await window.PDFLib.PDFDocument.load(bytes);
+    const { PDFName, PDFDict } = window.PDFLib;
+    return pdf.getPages().map((each) => {
+      const xobjects = each.node.Resources().lookupMaybe(PDFName.of('XObject'), PDFDict);
+      return xobjects ? xobjects.values().map(String).join(' ') : '';
+    });
+  }, (await streamBytes(file)).toString('base64'));
+  expect(pictures).toHaveLength(4);
+  expect(pictures[0]).toBe(pictures[2]);
+  expect(pictures[1]).not.toBe(pictures[3]);
+  expect(pictures[0]).not.toBe(pictures[1]);
   expect(errors).toEqual([]);
 });
 

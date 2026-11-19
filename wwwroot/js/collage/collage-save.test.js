@@ -86,6 +86,8 @@ test('each guest\'s name goes on the side that holds it, and only the sides chos
   assert.deepEqual(save.guestCards(['O', 'I'], ['O'], ['A', 'B2'], 1, name), { cards: [{ front: 'O', back: null }, { front: 'O', back: null }], namesLeftOut: true });
   assert.deepEqual(save.guestCards(['F', 'B'], ['B'], ['A', 'B2', 'C'], 0, name).cards.map((card) => card.back), ['B', 'B', 'B']);
   assert.deepEqual(save.guestCards(['F'], ['F'], [], 0, name), { cards: null, namesLeftOut: false });
+  // Fronts only: each guest's front, and no back (tests review 5, M4).
+  assert.deepEqual(save.guestCards(['F', 'B'], ['F'], ['A', 'B2'], 0, name).cards, [{ front: 'F:A', back: null }, { front: 'F:B2', back: null }]);
 });
 
 test('guest cards fill sheets: each batch\'s fronts, then its backs, slot by slot', () => {

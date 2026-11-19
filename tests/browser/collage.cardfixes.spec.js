@@ -142,8 +142,11 @@ async function bytesOf(download) {
   return Buffer.concat(chunks);
 }
 
-/** Saves the page as a screen PNG and counts its dark (ink) pixels. */
-async function saveAndCountInk(page) {
+/**
+ * Saves the page as a screen PNG and counts its dark (ink) pixels; with `slot`, the picture is
+ * also kept in the page under that name for inkChanged.
+ */
+async function saveAndCountInk(page, slot) {
   await page.getByRole('button', { name: 'Save as…' }).click();
   await page.getByRole('button', { name: 'A slide or a screen' }).click();
   const download = page.waitForEvent('download');
@@ -152,7 +155,7 @@ async function saveAndCountInk(page) {
   await expect(page.locator('[data-save-result]')).toContainText('Saved');
   const result = await page.locator('[data-save-result]').textContent();
   await page.keyboard.press('Escape');
-  const ink = await page.evaluate(async (base64) => {
+  const ink = await page.evaluate(async ([base64, slot]) => {
     const text = atob(base64);
     const bytes = new Uint8Array(text.length);
     for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
@@ -163,11 +166,49 @@ async function saveAndCountInk(page) {
     const context = canvas.getContext('2d');
     context.drawImage(bitmap, 0, 0);
     const data = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+    if (slot) (window.__savedPictures = window.__savedPictures || {})[slot] = data;
     let dark = 0;
     for (let i = 0; i < data.length; i += 4) if (data[i] + data[i + 1] + data[i + 2] < 300) dark += 1;
     return dark;
-  }, (await bytesOf(file)).toString('base64'));
+  }, [(await bytesOf(file)).toString('base64'), slot || '']);
   return { ink, result };
+}
+
+/**
+ * Saves the page, empties its first field of `fields` that Card details shows, saves again, puts
+ * the words back, and returns how many pixels changed: a fair "the words are drawn" on any
+ * background, a navy one too (tests review 5, M3).
+ */
+async function wordsDrawn(page, fields) {
+  const { result } = await saveAndCountInk(page, 'with');
+  let input = null;
+  for (const field of fields) {
+    const candidate = page.locator(`[data-card-field="${field}"]`);
+    if (await candidate.count()) { input = candidate; break; }
+  }
+  if (!input) throw new Error(`none of ${fields.join(', ')} in Card details`);
+  const words = await input.inputValue();
+  await input.fill('');
+  await input.blur();
+  await saveAndCountInk(page, 'without');
+  const changed = await inkChanged(page, 'with', 'without');
+  await input.fill(words);
+  await input.blur();
+  return { changed, result };
+}
+
+/** How many pixels differ clearly between two pictures kept by saveAndCountInk. */
+async function inkChanged(page, a, b) {
+  return page.evaluate(([one, two]) => {
+    const x = window.__savedPictures[one];
+    const y = window.__savedPictures[two];
+    if (!x || !y || x.length !== y.length) return -1;
+    let changed = 0;
+    for (let i = 0; i < x.length; i += 4) {
+      if (Math.abs(x[i] - y[i]) + Math.abs(x[i + 1] - y[i + 1]) + Math.abs(x[i + 2] - y[i + 2]) > 90) changed += 1;
+    }
+    return changed;
+  }, [a, b]);
 }
 
 test('every card design saves with its words drawn, the Bilingual Hindi included', async ({ page }) => {
@@ -179,9 +220,10 @@ test('every card design saves with its words drawn, the Bilingual Hindi included
   for (const key of keys) {
     await page.locator(`[data-card-design="${key}"]`).click();
     await expect(page.locator(`[data-card-design="${key}"]`)).toHaveAttribute('aria-pressed', 'true');
-    const { ink, result } = await saveAndCountInk(page);
-    expect(ink, `${key}: words drawn`).toBeGreaterThan(2000);
+    const { changed, result } = await wordsDrawn(page, ['occasion']);
+    expect(changed, `${key}: the occasion is drawn`).toBeGreaterThan(1500);
     expect(result, key).not.toMatch(/left out|could not/);
+    const { ink } = await saveAndCountInk(page);
     if (key === 'bilingual') {
       // The Hindi is drawn too: emptied, the picture loses ink.
       const hindi = page.locator('[data-card-field="occasionHi"]');
@@ -359,8 +401,8 @@ test('every pocket design and every poster saves with its words drawn', async ({
   for (const key of pocket) {
     await page.locator(`[data-card-design="${key}"]`).click();
     await expect(page.locator(`[data-card-design="${key}"]`)).toHaveAttribute('aria-pressed', 'true');
-    const { ink, result } = await saveAndCountInk(page);
-    expect(ink, `${key}: words drawn`).toBeGreaterThan(500);
+    const { changed, result } = await wordsDrawn(page, ['occasion', 'host', 'when']);
+    expect(changed, `${key}: words drawn`).toBeGreaterThan(300);
     expect(result, key).not.toMatch(/could not/);
   }
   await openFresh(page);
@@ -370,8 +412,8 @@ test('every pocket design and every poster saves with its words drawn', async ({
   for (const key of posters) {
     await page.locator(`[data-card-design="${key}"]`).click();
     await expect(page.locator(`[data-card-design="${key}"]`)).toHaveAttribute('aria-pressed', 'true');
-    const { ink, result } = await saveAndCountInk(page);
-    expect(ink, `${key}: words drawn`).toBeGreaterThan(2000);
+    const { changed, result } = await wordsDrawn(page, ['title', 'occasion']);
+    expect(changed, `${key}: the heading is drawn`).toBeGreaterThan(1500);
     expect(result, key).not.toMatch(/could not/);
   }
   expect(errors).toEqual([]);
@@ -720,5 +762,70 @@ test('the At Home pick reads "at an At Home"; another pick puts "at the" back; t
   await page.locator('[data-card-pick="occasion"][data-value="At Home"]').click();
   await expect(page.locator('[data-card-field="occasion"]')).toHaveValue('At Home');
   await expect.poll(atText).toBe('in the');
+  expect(errors).toEqual([]);
+});
+
+// Tests review 5, M4: the guest sheets' rules the page applies.
+test('guest sheets: cut marks only round the cards a sheet has; fronts only have no back sheets', async ({ page }) => {
+  test.setTimeout(90000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a6p');
+  await page.locator('[data-start-design="classic"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await expect(page.locator('[data-card-side="back"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('[data-card-guests]').fill('Maj A\nCapt B\nLt C');
+  await page.locator('[data-card-guests]').blur();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await page.locator('[data-save-sheet] input[value="a4"]').check();
+  await page.locator('input[name="sides"][value="front"]').check();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  const sheets = await sheetsOf(page, await download);
+  // Two A6 to a sheet: three guests take two sheets of fronts, and no back sheets.
+  expect(sheets.map((sheet) => sheet.pictures.length)).toEqual([2, 1]);
+  // Eight short lines round each card: none round the empty place on the last sheet.
+  expect(sheets.map((sheet) => sheet.lines)).toEqual([16, 8]);
+  await page.keyboard.press('Escape');
+  expect(errors).toEqual([]);
+});
+
+test('edge to edge is offered only where it fits more cards than A4 with room for cutting', async ({ page }) => {
+  const errors = await openFresh(page);
+  const edgeOffered = async (size) => {
+    await page.locator('[data-card-size]').selectOption(size);
+    await page.locator('[data-start-design="classic"]').click();
+    await page.getByRole('button', { name: 'Save as…' }).click();
+    await page.getByRole('button', { name: 'Printing' }).click();
+    const shown = await page.locator('[data-save-sheet] input[value="a4edge"]').isVisible();
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Back to the start' }).click();
+    return shown;
+  };
+  // A6: 4 edge to edge against 2 with margins; 5 × 7 in: 2 either way.
+  expect(await edgeOffered('a6p')).toBe(true);
+  expect(await edgeOffered('in57p')).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+// Tests review 5, L2: a left-aligned field (a programme, set flush left) keeps its left edge.
+test('typing in a left-aligned field keeps its left edge', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a7p');
+  await page.locator('[data-start-design="programmecard"]').click();
+  const programme = page.locator('[data-card-field="programme"]');
+  await programme.fill('1900 h · Arrival');
+  await programme.blur();
+  const left = async () => {
+    const item = (await newestDraft(page))?.model?.items?.find((each) => each.field === 'programme');
+    return item ? { edge: item.x - item.width / 2, text: item.text, align: item.align } : null;
+  };
+  await expect.poll(async () => (await left())?.text).toBe('1900 h · Arrival');
+  const before = await left();
+  expect(before.align).toBe('left');
+  await programme.fill('1900 h · Arrival of the Chief Guest and all officers');
+  await programme.blur();
+  await expect.poll(async () => (await left()).text).toBe('1900 h · Arrival of the Chief Guest and all officers');
+  expect(Math.abs((await left()).edge - before.edge)).toBeLessThan(1);
   expect(errors).toEqual([]);
 });
