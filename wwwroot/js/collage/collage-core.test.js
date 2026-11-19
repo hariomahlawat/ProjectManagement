@@ -538,6 +538,8 @@ test('a text item has every font shipped with PRISM and a plain look', () => {
   assert.equal(item.kind, 'text');
   assert.equal(collage.fontOf(item), '700 80px "Dancing Script", Kalam, cursive');
   assert.equal(collage.fontOf({ ...item, italic: true, bold: false, font: 'nope' }), 'italic 400 80px Mulish, "Noto Sans Devanagari", sans-serif');
+  assert.equal(collage.fontOf({ ...item, bold: false, font: 'engraved' }), '400 80px Cinzel, "Tiro Devanagari Hindi", serif');
+  assert.equal(collage.fontOf({ ...item, bold: false, font: 'formal' }), '400 80px "Pinyon Script", Kalam, cursive');
   // Every English font falls back to a Devanagari one, so Hindi always shows.
   for (const [key, font] of Object.entries(collage.FONTS)) {
     assert.match(font.css, /Kalam|Devanagari|Baloo 2/, key);
