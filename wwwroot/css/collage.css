@@ -287,6 +287,17 @@
     font-size: 0.86rem;
 }
 
+/* Save: colour runs to the page's edge, saved for printing (UX review 9). A hint, not a warning. */
+.clg-save-edge {
+    margin: 0.4rem 0;
+    padding: 0.5rem 0.7rem;
+    border-left: 3px solid var(--bs-info);
+    border-radius: 6px;
+    background: var(--bs-info-bg-subtle);
+    color: var(--bs-info-text-emphasis);
+    font-size: 0.86rem;
+}
+
 .clg-card-question,
 .clg-card-photo {
     margin: 0 0 0.6rem;
@@ -1328,6 +1339,19 @@ details.clg-custom-size[open] > summary {
     justify-content: flex-end;
     gap: 0.5rem;
     margin-top: 0.9rem;
+}
+
+/* Save stays in view however many choices the dialog shows (UX review 9: with a back, a guest
+   list and Printing, it was below the fold at 1440 x 900): the foot sticks to the dialog's
+   bottom edge while the choices scroll under it. */
+.clg-dialog[data-save-dialog] .clg-dialog__foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin: 0.9rem -1.25rem -1.1rem;
+    padding: 0.7rem 1.25rem 1.1rem;
+    border-top: 1px solid var(--pdft-border);
+    background: var(--pdft-surface);
 }
 
 .clg-options {

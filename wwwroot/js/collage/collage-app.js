@@ -801,6 +801,12 @@
       // Words take the size they need inside the change, so Undo and the draft keep it.
       if (draft.kind === 'text') fitText(draft);
     }, 'none');
+    // A cover title still following the occasion takes the words typed into the occasion on the
+    // page too, in the same change (Codex on #3460).
+    if (collage.card && selectedItem()?.kind === 'text') {
+      const followed = window.PrismCollageDesigns?.followFallbacks?.(collage, measureText);
+      if (followed && followed !== collage) edit(() => followed, 'none');
+    }
     const item = selectedItem();
     if (record) commit();
     else {

@@ -328,3 +328,65 @@ test('zero-width joiners stay inside a name; a line of only invisible characters
   const name = 'श्' + zwj + 'री कुमार';
   assert.deepEqual(print.guestNames([name, zwnj + zwj, 'Capt B'].join(nl)), [name, 'Capt B']);
 });
+
+// Code review 9, M1 and L1: one rule for a name, for a list given and one kept in a draft alike.
+test('a draft guest of only invisible characters is no guest, and a long name is cut between whole letters', () => {
+  const zws = String.fromCharCode(0x200b);
+  const joiner = String.fromCharCode(0x2060);
+  const bom = String.fromCharCode(0xfeff);
+  const zwj = String.fromCharCode(0x200d);
+  const zwnj = String.fromCharCode(0x200c);
+  const draft = (guests) => collage.readDraftModel({ version: 1, size: 'a5p', background: { type: 'color', value: '#ffffff' }, layout: null, items: [], card: { design: 'classic', details: {}, guests } })?.card?.guests;
+  // Kept in a draft: a name of nothing visible is dropped, so Save never makes a blank card.
+  assert.deepEqual(draft([zws, bom, joiner + ' ' + zwj + zwnj, 'Maj A']), ['Maj A']);
+  // The same name read from a list and from a draft is the same name.
+  const name = 'Brig' + zws + ' P. Singh' + String.fromCharCode(0) + ', SM';
+  assert.deepEqual(draft([name]), print.guestNames(name));
+  assert.deepEqual(draft([name]), ['Brig P. Singh, SM']);
+  // At the limit, an emoji or a Hindi syllable is never split in half.
+  const smile = String.fromCodePoint(0x1f600);
+  for (const long of ['x'.repeat(collage.GUEST_LIMITS.length - 1) + smile + 'yz', 'x'.repeat(collage.GUEST_LIMITS.length - 1) + 'क्षि' + 'yz']) {
+    for (const got of [print.guestNames(long)[0], draft([long])[0]]) {
+      assert.equal(collage.graphemes(got).length, collage.GUEST_LIMITS.length);
+      assert.ok(long.startsWith(got));
+      assert.ok(!/[\uD800-\uDBFF]$/.test(got), 'no half of an emoji at the end');
+      assert.ok(got.endsWith(smile) || got.endsWith('क्षि'));
+    }
+  }
+  assert.equal(collage.cleanGuestName(zwj + zwnj + ' '), '');
+  assert.equal(collage.isVisibleName(zwj), false);
+  assert.equal(collage.isVisibleName('श्' + zwj + 'री'), true);
+});
+
+// Code review 9, M2: the heading guess never drops a real guest or makes one up.
+test('a first guest with a rank is never a heading; a heading with no name column makes no guests; serial numbers are skipped', () => {
+  const nl = String.fromCharCode(10);
+  // "Col R. Names, VSM" has the word Names in it, but a rank and initials: it is a guest.
+  const pasted = print.readGuests(['Col R. Names, VSM', 'Brig A'].join(nl));
+  assert.deepEqual(pasted.names, ['Col R. Names, VSM', 'Brig A']);
+  assert.deepEqual(pasted.headings, []);
+  assert.deepEqual(print.guestNames(['Names, Unit', 'Brig A, HQ'].join(nl)), ['Brig A']);
+  // "Name of the Unit" is not a person's name: the heading row is not a guest, and none is made up.
+  const unit = print.readGuests(['Rank,Name of the Unit', 'Brig,50 Bde'].join(nl), { csv: true });
+  assert.deepEqual(unit.names, []);
+  assert.equal(unit.noNameColumn, true);
+  assert.deepEqual(unit.headings, ['Rank', 'Name of the Unit']);
+  // With the name there too, it is read as before.
+  assert.deepEqual(print.guestNames(['Rank,Name,Name of the Unit', 'Brig,A Singh,50 Bde'].join(nl), { csv: true }), ['Brig A Singh']);
+  // No heading row, a first column of serial numbers: the names are in the next column.
+  const serial = print.readGuests(['1,Brig A', '2,Col B', '3.,Maj C'].join(nl), { csv: true });
+  assert.deepEqual(serial.names, ['Brig A', 'Col B', 'Maj C']);
+  assert.equal(serial.column, 1);
+  assert.equal(serial.firstColumnOnly, false);
+  const tab = String.fromCharCode(9);
+  const serialMore = print.readGuests(['1' + tab + 'Brig A' + tab + 'HQ', '2' + tab + 'Col B' + tab + '5 Sikh'].join(nl));
+  assert.deepEqual(serialMore.names, ['Brig A', 'Col B']);
+  assert.equal(serialMore.firstColumnOnly, true, 'the unit column after the name is said');
+  // A list of only numbers is still read (it may be seat numbers), as before.
+  assert.deepEqual(print.guestNames(['1', '2'].join(nl), { csv: true }), ['1', '2']);
+  // A first line taken as headings is said, so a guest left out shows.
+  assert.deepEqual(print.readGuests(['Guests', 'Maj A'].join(nl)).headings, ['Guests']);
+  assert.deepEqual(print.readGuests(['Rank,Name,Unit', 'Brig,A,HQ'].join(nl), { csv: true }).headings, ['Rank', 'Name', 'Unit']);
+  assert.equal(print.readGuests(['Rank,Name,Unit', 'Brig,A,HQ'].join(nl), { csv: true }).column, null, 'no serial column is said for a headed list');
+  assert.deepEqual(print.readGuests(['Maj A', 'Capt B'].join(nl)).headings, []);
+});

@@ -124,8 +124,11 @@ its npm package by hand; the libman entry records the version.
   - **Typing:** typing in a field changes the words on the card at once. They're kept in the
     draft, and recorded for Undo when typing pauses, as on the page. Words typed on the card show
     in the field the next time the panel is drawn. A field emptied takes its words off the card;
-    filled again, they come back in the design's place. Words set by their left or right edge
-    keep that edge as they grow.
+    filled again, they come back in the design's place. Words keep the edge their design sets
+    them by as they grow (`fieldAnchor`): a left-set line its left, a block the design centres
+    (the back's left-aligned programme) its middle, so a long line never runs past the border
+    (cold review 9, H1). Words still at their design's width take the width the design gives
+    the new words, and a longer occasion moves "at the" and its rule clear of it (L1, L3).
   - **Changing the design** keeps every word, replaces only the design's own parts, keeps
     anything the user added, and offers Undo.
   - **Title:** a card's automatic title is its occasion ("Raising Day Dinner card").
@@ -133,7 +136,7 @@ its npm package by hand; the libman entry records the version.
     - a title ("Programme") and the programme, one line each;
     - a frame for a route sketch or venue photo;
     - a note at the bottom;
-    - the front's logo, small.
+    - the front's logo, small, under the note (on a landscape back too since cold review 9).
 
     **Front** and **Back** turn the card over; the side showing is edited on the page, and Undo
     covers turning over. The back's fields are typed in Card details whichever side shows.
@@ -175,10 +178,21 @@ its npm package by hand; the libman entry records the version.
     headings, a guest's name is made from the rank columns, then the name columns (Rank, Name,
     Unit or Name, Rank give "Brig P. Singh"; First name, Surname gives both). "Officer", "Guest"
     and "Invitee" head a name column; a rank column with an unknown heading after it takes that
-    column as the name. With no headings, it is the first column. A file may be UTF-8, UTF-16 (a
+    column as the name. A heading is made of heading words only: a first line such as "Col R.
+    Names, VSM" (a rank and initials) is a guest, not a heading. A first row with a Rank heading
+    but no column for a person's name ("Rank, Name of the Unit") gives no names, and the list says
+    none of its headings is a name. With no headings, it is the first column, or the next one when
+    the first holds only serial numbers ("1, Brig A. Rao"); the list says which. Whenever a first
+    line is taken for headings, the line under the list says so ("First line read as column
+    headings: …"), so a guest it held shows before Save. A file may be UTF-8, UTF-16 (a
     spreadsheet's "Unicode Text") or ANSI (Windows-1252); control characters never print. Quoted cells may hold commas and line breaks; a CSV saved with semicolons is
     read too. A heading line ("Name", "Guests") is left out; there are at most 300 names of 120
-    characters each, and names past 300 are counted and the user is told how many were left out.
+    letters each, and names past 300 are counted and the user is told how many were left out.
+    One rule says what a name may hold, for a list given and one read back from a draft alike
+    (`core.cleanGuestName`): zero-width spaces, word joiners, byte-order marks and control
+    characters go, the joiners that shape Hindi stay, a name of nothing visible is no guest (Save
+    never makes a blank card), and a long name is cut between whole letters, never inside an
+    emoji or a Hindi syllable.
     If the side that holds the names is not saved (a folded card's outside, or a flat card's
     back, only), that side still comes once for each guest, so it matches the named side
     printed apart, and the result says the names were not saved. **Clear names** offers Undo. The names are kept in the card's `guests`, in the draft in
@@ -186,7 +200,10 @@ its npm package by hand; the libman entry records the version.
 
     Saved as a PDF, **One card for each guest** puts each guest's name in the guest field (or in
     the place the design has for it, where it leaves a line), in the list's order. A name too long
-    for one line breaks before its "and" or "&" when that takes no more lines. Each card goes
+    for one line breaks before its "and" or "&" when that takes no more lines. A long name (rank
+    and decorations) takes two lines at 80% of the design's size, or a plainer face (serif italic,
+    then clean) before it would shrink below 70%; only a name that fits none goes down to 60%
+    (cold review 9, M5). Card details sets a typed guest's name by the same rule. Each card goes
     on its own page (with the back after it), or fills the chosen A4 or A3 sheets, each sheet of
     fronts followed by its sheet of backs. Cards are drawn one canvas at a time, each let go before
     the next, and a page all guests share (the back) is drawn once; each card's picture stays in
@@ -196,17 +213,20 @@ its npm package by hand; the libman entry records the version.
     **Folded cards** (PR 9c): **Folded A6 card** (an A5 sheet) and **Folded A5 card** (an A4
     sheet) are in the size menus' **Folded cards** group. A folded card is always two-sided:
     - its **outside** has the back cover on the left (the note, in the middle of the panel
-      between two short lines) and the front cover on the right (the logo and the occasion, the
-      card's title);
-    - its **inside** has the invitation on the left (the host, the invitation line and the
-      guest's line, so the opened card reads "The Commandant and Officers request the pleasure
-      of the company of ____") and the details on the right (when, where, dress, R.S.V.P.).
+      between two short lines) and the front cover on the right (the logo and the **Front
+      cover title**, which shows the occasion until other words are typed for it);
+    - its **inside** has the whole invitation on the left (the host, the invitation line, the
+      guest's line, "at the" and the occasion, so the opened card reads "The Commandant and
+      Officers request the pleasure of the company of ____ at the Raising Day Dinner") and the
+      details on the right (when, where, dress, R.S.V.P.).
 
-    Each field is on one side only. A folded card has no "at the": with the occasion on the
-    cover it would end the left page dangling (UX review 8, M2; before, the cover had the host
-    and the inside started "request the pleasure of…", with the left page half empty). Both
-    inside pages are centred at about the same height. Folded drafts made before keep their
-    words where they are; the new arrangement comes with the next design or size change.
+    Each field is on one side only: the cover title is its own field (`coverTitle`, empty means
+    "the occasion", kept in step by `FALLBACKS`), so the occasion can be on the cover and inside
+    as folded invitations usually have it (cold review 9, M2; before, the inside left ended
+    "…the company of ____" with the occasion only on the cover). Clearing the cover title in
+    Card details shows the occasion again; deleting it on the page leaves the cover without one.
+    Both inside pages are centred on the panel. Folded drafts made before keep their words where
+    they are; the new arrangement comes with the next design or size change.
 
     Every panel has a frame, and each card design keeps its own look when folded (cold review 7):
     Classic ivory and Navy and gold a double border, the host in Engraved and the invitation in
@@ -261,9 +281,11 @@ its npm package by hand; the libman entry records the version.
   felicitation photo) and **Talk or seminar**, at A3 or A4.
   - The panel is **Poster details**, with a heading, the line under it, a small heading above,
     when, where, details (one a line) and contact. A poster starts with a poster's wording.
-  - **No logo until one is chosen.** At first the logo's place is an empty frame, which Preview
-    and Save leave out, and the panel asks **Which logo goes on this poster?**: pick a crest or
-    the SDD logo, use your own, **No logo**, or **Decide later**.
+  - **No logo until one is chosen.** At first the logo's place is an empty frame, and the panel
+    asks **Which logo goes on this poster?**: pick a crest or the SDD logo, use your own, **No
+    logo**, or **Decide later**. Preview leaves the empty frame out; Save lays the poster out as
+    with No logo (`closeLogoPlace`), so no blank strip prints where the logo would go (cold
+    review 9, M3). The poster itself keeps the place until a logo or No logo is chosen.
   - With **No logo** (also **Remove logo** on a poster) the design moves the heading up into the
     space (`yNoLogo`). A logo picked afterwards brings the place back. The choice is the card's
     `logoMode` detail ('' asks, 'later', 'none').
@@ -362,7 +384,14 @@ its npm package by hand; the libman entry records the version.
 - **Save as** PNG, JPEG (optionally under a size in KB) or PDF whose page is the paper's real
   size; at print quality (300 dpi) or for the screen (1920 px on the long side). The dialog asks
   first **what it is for** (WhatsApp or email: a JPG for the screen; Printing: a PDF at print
-  quality; A slide or a screen: a PNG for the screen). The chosen purpose shows pressed, with a
+  quality; A slide or a screen: a PNG for the screen). The **Save** button stays in view at the
+  dialog's foot however many choices it shows (a card with a back and a guest list, for
+  printing). Saved for printing, a page whose colour runs to its edge (a dark background such as
+  Navy and gold, or a band, bar or photo touching an edge: `core.colourToEdge`) gets a hint that
+  most office printers leave a white margin: print on a larger sheet and trim, or use a print
+  shop. On a Bilingual card Save names every Hindi line that is empty while its English is not.
+  A collage named after its first words is cut between words at 40 letters, and so is its file
+  name. The chosen purpose shows pressed, with a
   tick, and a line under it says what Save will make. The type, the quality and "Keep it under"
   are under **More options**, closed at first; once opened it stays open next time (both choices
   are remembered in this browser only). A type or quality changed there is what Save makes, and
@@ -371,7 +400,8 @@ its npm package by hand; the libman entry records the version.
   original photo again at the size its frame needs, so the saved picture is sharper than the
   screen; empty frames and hidden items are left out, and Save says how many ("2 hidden items
   left out"). In the editor a hidden item shows as a faint dashed outline, never in Preview or
-  Save. The purposes not chosen keep full-strength words, so they do not look disabled.
+  Save; a design part the design hid itself (`autoHidden`: a roundel or light tile with no logo
+  that needs it) has no outline (cold review 9, L6). The purposes not chosen keep full-strength words, so they do not look disabled.
 
 ## How it is built
 
@@ -381,8 +411,9 @@ its npm package by hand; the libman entry records the version.
 | `wwwroot/js/collage/collage-draw.js` (`window.PrismCollageDraw`) | Drawing a photo, text, sticker, shape (line, rectangle, oval) and background on a 2D canvas. The editor uses it inside Konva shapes and Save uses it on its own canvas, so **the saved picture always matches the screen** |
 | `wwwroot/js/collage/collage-designs.js` (`window.PrismCollageDesigns`) | Ready-made card designs as data ([ux/invitations-posters.md](ux/invitations-posters.md), PR 4b and PR 6). There are six:
   - **Classic ivory** and **Navy and gold**. These and Regimental set the host in engraved
-    capitals (Cinzel, the Engraved font) and the invitation line in formal script (Pinyon Script,
-    Formal script), on flat and folded cards;
+    capitals (Cinzel, the Engraved font); Classic and Navy set the invitation line in formal
+    script (Pinyon Script, Formal script), and flat Regimental cards in italic Elegant, which
+    reads better under its coloured host (folded Regimental cards use Formal script);
   - **Regimental**: three bands in the unit's colours with the logo in a roundel. The host's words, the dress and the rules follow the same colours, set under **Unit colours** in Card details and kept in the card's `colours` detail. Each part that follows a colour records which in `tint`;
   - **Ceremonial photo**: a frame for the user's own photo, `role: "photo"`. A photo put in it moves to the next design's frame with its crop, or stays as the user's own when that design has none. An emptied frame stays the design's. **No photo** leaves the frame out and closes the gap (`photoMode`);
   - **Bilingual**: Hindi and English side by side, with `hostHi`, `inviteHi` and `occasionHi`. Card details shows those fields only for this design; it shows only the fields the current design uses;

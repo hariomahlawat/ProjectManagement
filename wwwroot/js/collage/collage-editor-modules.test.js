@@ -17,7 +17,7 @@ const GROUPS = {
   doc: ['edit', 'editItem', 'itemById', 'selectedItem', 'isFrame', 'photos', 'newItemId', 'nextId', 'pageHeight', 'firstSlot', 'hasContent', 'collageTitle', 'photoCount'],
   history: ['commit', 'holdEdit', 'flushNudge', 'changes', 'updateUndo', 'restore', 'scheduleDraft', 'session'],
   messages: ['announce', 'showAlert', 'clearAlert', 'busy', 'sayLocked', 'offerUndo', 'askConfirm', 'keepingFocus'],
-  surface: ['stage', 'layer', 'backLayer', 'world', 'nodes', 'transformer', 'syncPage', 'syncAll', 'layout', 'setZoom', 'startPreview', 'stopPreview', 'clampedCrop', 'layoutTextItem', 'stickerSource', 'visibleSheetTop', 'setShift', 'fontsArrived'],
+  surface: ['stage', 'layer', 'backLayer', 'world', 'nodes', 'transformer', 'syncPage', 'syncAll', 'layout', 'setZoom', 'startPreview', 'stopPreview', 'clampedCrop', 'layoutTextItem', 'stickerSource', 'visibleSheetTop', 'setShift', 'fontsArrived', 'measureText'],
   selection: ['select', 'startAdjust', 'stopAdjust', 'startPan', 'changeSelected', 'lockedNow', 'placeNewItem', 'zoomCrop', 'setTarget', 'focusTextField', 'act'],
   screens: ['startCollage', 'goHome', 'openDraft', 'renderDrafts', 'undoDeleteDraft', 'resetEditor', 'showView', 'refreshTitle', 'applyLayoutKey', 'setPanel', 'renderBackgroundPanel']
 };
@@ -514,7 +514,7 @@ const DRAFTS_HTML = `<main id="root">
   </section>
 </main>`;
 
-function makeDraftsScreen(t, session, initial = {}) {
+function makeDraftsScreen(t, session, initial = {}, extra = {}) {
   const dom = page(t, DRAFTS_HTML);
   const editor = editorValues(initial);
   const { calls, fns } = recorder(['announce', 'showAlert', 'busy', 'showView', 'syncAll', 'refreshTitle', 'askConfirm', 'setPanel']);
@@ -548,7 +548,8 @@ function makeDraftsScreen(t, session, initial = {}) {
     hasContent: () => true,
     resetEditor: () => { resets += 1; photos.clear(); },
     collageTitle: () => 'Collage',
-    ...fns
+    ...fns,
+    ...extra
   }));
   return { ...dom, ...editor, screen, calls, photos, readers, resets: () => resets, sessionOptions: () => sessionOptions };
 }
@@ -636,6 +637,41 @@ test('drafts screen: an open asked for before a slower one finishes wins; the sl
   assert.equal(env.resets(), 1);
   assert.deepEqual([...env.photos.keys()], ['p2']);
   assert.equal(env.$('[data-name]').value, 'Fast');
+});
+
+// Code review 9, L4: a folded card's draft with no inside opens with its design's inside again.
+test('drafts screen: a folded card read back without its inside gets it back; an unreadable back is kept', async (t) => {
+  const designs = require('./collage-designs.js');
+  const measure = (text, font) => [...text].length * Number(/(\d+(?:\.\d+)?)px/.exec(font)[1]) * 0.56;
+  let sequence = 0;
+  const card = designs.applyDesign(core.newCollage('fold5'), 'classic', { occasion: 'Raising Day' }, { measure, newId: () => `f${++sequence}` });
+  // The user moved and recoloured the cover title: opening keeps it (Codex on #3460).
+  const moved = { ...card, items: card.items.map((item) => (item.field === 'coverTitle' ? { ...item, x: item.x + 40, color: '#123456' } : item)) };
+  const { back, ...outside } = core.draftModel({ ...moved, card: { ...moved.card, guests: ['Maj A'] } });
+  assert.ok(back, 'a folded card has its inside');
+  const withoutInside = { id: 'a', title: 'Folded', size: 'fold5', saved: Date.now(), autoTitle: false, model: outside };
+  const unreadable = { ...withoutInside, id: 'b', model: { ...outside, back: { items: 'from a newer PRISM' } } };
+  const session = openableSession({ a: { record: withoutInside, photos: [] }, b: { record: unreadable, photos: [] } });
+  const env = makeDraftsScreen(t, session, {}, { measureText: measure, newItemId: () => `n${++sequence}` });
+  env.window.PrismCollageDesigns = designs;
+  const opening = env.screen.openDraft('a');
+  session.release('a');
+  await opening;
+  const opened = env.values.collage;
+  assert.ok(opened.back, 'the inside is back');
+  assert.ok(designs.fieldsOnCard(opened).includes('guest'), 'with the guest line');
+  assert.deepEqual(opened.card.guests, ['Maj A']);
+  assert.equal(opened.card.details.occasion, 'Raising Day');
+  const cover = opened.items.find((item) => item.field === 'coverTitle');
+  const coverBefore = outside.items.find((item) => item.field === 'coverTitle');
+  assert.equal(cover.x, coverBefore.x, 'the moved cover title stays where it was');
+  assert.equal(cover.color, '#123456');
+  // A back this PRISM could not read stays as it was in the draft: no inside is made over it.
+  const second = env.screen.openDraft('b');
+  session.release('b');
+  await second;
+  assert.equal(env.values.collage.back, undefined);
+  assert.deepEqual(core.draftModel(env.values.collage).back, { items: 'from a newer PRISM' });
 });
 
 test('drafts screen: a photo that cannot be read stays as a grey stand-in, and the user is told', async (t) => {
@@ -967,4 +1003,29 @@ test('add panels: without PRISM\'s crests the other stickers still work, and the
   sticker.click();
   assert.equal(env.values.collage.items[0].kind, 'sticker');
   assert.deepEqual(env.calls.announce.at(-1), ['Sticker added.']);
+});
+
+// Codex on #3460: an older folded draft (the occasion itself on the cover) with no inside gets
+// its inside back without a second occasion.
+test('drafts screen: an older folded draft with its occasion on the cover gets an inside with no second occasion', async (t) => {
+  const designs = require('./collage-designs.js');
+  const measure = (text, font) => [...text].length * Number(/(\d+(?:\.\d+)?)px/.exec(font)[1]) * 0.56;
+  let sequence = 0;
+  const card = designs.applyDesign(core.newCollage('fold6'), 'classic', { occasion: 'Raising Day' }, { measure, newId: () => `g${++sequence}` });
+  const legacy = { ...card, items: card.items.map((item) => (item.field === 'coverTitle' ? { ...item, field: 'occasion', color: '#123456' } : item)) };
+  const { back, ...outside } = core.draftModel({ ...legacy, card: { ...legacy.card, placed: (legacy.card.placed || []).filter((field) => field !== 'coverTitle') } });
+  assert.ok(back);
+  const record = { id: 'a', title: 'Folded', size: 'fold6', saved: Date.now(), autoTitle: false, model: outside };
+  const session = openableSession({ a: { record, photos: [] } });
+  const env = makeDraftsScreen(t, session, {}, { measureText: measure, newItemId: () => `m${++sequence}` });
+  env.window.PrismCollageDesigns = designs;
+  const opening = env.screen.openDraft('a');
+  session.release('a');
+  await opening;
+  const opened = env.values.collage;
+  assert.ok(opened.back, 'the inside is back');
+  const occasions = [...opened.items, ...opened.back.items].filter((item) => item.kind === 'text' && item.field === 'occasion');
+  assert.equal(occasions.length, 1, 'one occasion');
+  assert.equal(occasions[0].color, '#123456', 'the cover\u2019s own, as the draft had it');
+  assert.ok(opened.back.items.some((item) => item.field === 'guest' || item.role === 'guestline'), 'with the guest line');
 });

@@ -844,8 +844,10 @@ test('edge to edge is offered only where it fits more cards than A4 with room fo
   expect(errors).toEqual([]);
 });
 
-// Tests review 5, L2: a left-aligned field (a programme, set flush left) keeps its left edge.
-test('typing in a left-aligned field keeps its left edge', async ({ page }) => {
+// Tests review 5, L2, as changed by cold review 9, H1: a programme is set flush left in a block
+// the design centres, so as it grows the block keeps its middle (keeping its left edge ran a long
+// line past the border); every line stays inside the border.
+test('typing in a left-aligned field the design centres keeps the block centred, inside the border', async ({ page }) => {
   const errors = await openFresh(page);
   await page.locator('[data-card-size]').selectOption('a7p');
   await page.locator('[data-start-design="programmecard"]').click();
@@ -853,8 +855,10 @@ test('typing in a left-aligned field keeps its left edge', async ({ page }) => {
   await programme.fill('1900 h · Arrival');
   await programme.blur();
   const left = async () => {
-    const item = (await newestDraft(page))?.model?.items?.find((each) => each.field === 'programme');
-    return item ? { edge: item.x - item.width / 2, text: item.text, align: item.align } : null;
+    const items = (await newestDraft(page))?.model?.items || [];
+    const item = items.find((each) => each.field === 'programme');
+    const border = items.find((each) => each.role === 'border');
+    return item ? { middle: item.x, right: item.x + item.width / 2, left: item.x - item.width / 2, frame: border && [border.x - border.width / 2, border.x + border.width / 2], text: item.text, align: item.align } : null;
   };
   await expect.poll(async () => (await left())?.text).toBe('1900 h · Arrival');
   const before = await left();
@@ -862,7 +866,10 @@ test('typing in a left-aligned field keeps its left edge', async ({ page }) => {
   await programme.fill('1900 h · Arrival of the Chief Guest and all officers');
   await programme.blur();
   await expect.poll(async () => (await left()).text).toBe('1900 h · Arrival of the Chief Guest and all officers');
-  expect(Math.abs((await left()).edge - before.edge)).toBeLessThan(1);
+  const after = await left();
+  expect(Math.abs(after.middle - before.middle)).toBeLessThan(1);
+  expect(after.left).toBeGreaterThan(after.frame[0]);
+  expect(after.right).toBeLessThan(after.frame[1]);
   expect(errors).toEqual([]);
 });
 

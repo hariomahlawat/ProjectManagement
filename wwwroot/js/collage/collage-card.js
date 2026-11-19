@@ -23,6 +23,8 @@
     ['at', 'Before the occasion'],
     ['occasion', 'Occasion'],
     ['occasionHi', 'Occasion in Hindi'],
+    // A folded card's cover (cold review 9, M2): empty shows the occasion.
+    ['coverTitle', 'Front cover title'],
     ['when', 'Date and time'],
     ['venue', 'Venue'],
     ['dress', 'Dress'],
@@ -445,7 +447,7 @@
         const value = escapeHtml(details[field] || '');
         const input = long
           ? `<textarea class="form-control form-control-sm" id="${id}" rows="${field === 'programme' ? 5 : field === 'host' ? 3 : 2}" maxlength="${core.TEXT_LIMITS.maxLength}" data-card-field="${field}">${value}</textarea>`
-          : `<input class="form-control form-control-sm" id="${id}" type="text" maxlength="${core.TEXT_LIMITS.maxLength}" value="${value}" data-card-field="${field}" autocomplete="off">`;
+          : `<input class="form-control form-control-sm" id="${id}" type="text" maxlength="${core.TEXT_LIMITS.maxLength}" value="${value}" data-card-field="${field}" autocomplete="off"${designs.FALLBACKS[field] ? ' placeholder="Same as the occasion"' : ''}>`;
         const picks = field === 'occasion' ? OCCASIONS : field === 'dress' ? DRESSES : null;
         const chips = picks ? `<div class="clg-chips clg-card-picks">${picks.map((pick) => `<button type="button" class="clg-chip" data-card-pick="${field}" data-value="${escapeHtml(pick)}" aria-pressed="${(details[field] || '') === pick}">${escapeHtml(pick.replace(/^Dress: /, ''))}</button>`).join('')}</div>` : '';
         const note = field === 'occasionHi' ? '<p class="clg-hint clg-card-hindi-note">An occasion quick pick fills this in too. Other English is not translated: an old Hindi line is emptied for you to type.</p>'
@@ -478,7 +480,7 @@
     function logoName(item) {
       if (!item || item.kind === 'slot') {
         if (!isPoster()) return 'No logo';
-        return designs.detailsOf(state.collage).logoMode === 'none' ? 'No logo on this poster.' : 'No logo chosen yet. Its place on the page is left out of Save.';
+        return designs.detailsOf(state.collage).logoMode === 'none' ? 'No logo on this poster.' : 'No logo chosen yet. Save closes up its place, as with No logo.';
       }
       if (item.kind === 'photo') return `Your own logo (${doc.photos.get(item.photo)?.name || 'picture'})`;
       return stickers.find(item.sticker)?.label || 'Logo';
@@ -592,7 +594,7 @@
           ${prompt}
           <div class="clg-stickers clg-card-logo__choices">${choices}</div>
           <div class="clg-stack">
-            <button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="own"><i class="bi bi-upload" aria-hidden="true"></i> Your own logo…</button>
+            ${asking ? '' : '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="own"><i class="bi bi-upload" aria-hidden="true"></i> Your own logo…</button>'}
             ${first && !second && !picking ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="second"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add a second logo</button>' : ''}
             ${picking ? '<button type="button" class="btn btn-outline-secondary btn-sm" data-card-logo="cancel-second">Cancel the second logo</button>' : ''}
             ${current && !picking ? `<button type="button" class="btn btn-outline-danger btn-sm" data-card-logo="remove"><i class="bi bi-x-lg" aria-hidden="true"></i> ${!second ? 'Remove logo' : role === 'logo2' ? 'Remove second logo' : 'Remove first logo'}</button>` : ''}
@@ -813,7 +815,7 @@
       surface.syncAll();
       renderPanel();
       if (mode === 'none') messages.offerUndo('No logo on this poster. The heading moves up into the space.');
-      else messages.announce('The logo can be chosen later. Its place is left out of Save until then.');
+      else messages.announce('The logo can be chosen later. Until then Save closes up its place, as with No logo.');
     }
 
     /**
@@ -955,26 +957,38 @@
 
     // What reading the last list given found: names past the limit, other columns. It belongs to
     // that list only (cold review 6): another draft, or Undo to another list, shows none of it.
-    let guestNotes = { names: '', over: 0, firstColumn: false, extraCells: false };
-    const notesFor = (names) => (guestNotes.names === (names || []).join(String.fromCharCode(10)) ? guestNotes : { over: 0, firstColumn: false, extraCells: false });
+    const NO_NOTES = Object.freeze({ over: 0, firstColumn: false, column: 0, extraCells: false, headings: [], noNameColumn: false });
+    let guestNotes = { names: '', session: null, ...NO_NOTES };
+    const notesFor = (names) => (guestNotes.session === state.collageSession && guestNotes.names === (names || []).join(String.fromCharCode(10)) ? guestNotes : NO_NOTES);
+    const ordinal = (index) => ['first', 'second', 'third', 'fourth', 'fifth'][index] || `number ${index + 1}`;
 
-    /** The line under the guest list: how many guests, and how many names were left out. */
+    /**
+     * The line under the guest list: how many guests, how many names were left out, and what was
+     * taken for headings (code review 9), so a guest read as a heading shows before Save.
+     * Headings and names are the user's (or a file's) words: escaped, never markup.
+     */
     function guestCountText(count) {
-      if (!count) return 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.';
-      const { over: guestsOver, firstColumn: guestsFirstColumn, extraCells: guestsExtraCells } = notesFor(state.collage.card?.guests);
-      const left = guestsOver ? ` Only the first ${core.GUEST_LIMITS.names} are kept: ${guestsOver} name${guestsOver === 1 ? ' was' : 's were'} left out.` : '';
-      const column = guestsFirstColumn ? ' Only the first column was used; give the list a heading row (Rank, Name) to join columns.'
-        : guestsExtraCells ? ' Some rows have a comma inside a name without quotes ("Col X, VSM"): put such names in quotes so all of it is used.' : '';
+      const notes = notesFor(state.collage.card?.guests);
+      const quoted = (list) => list.map((words) => `“${escapeHtml(words)}”`).join(', ');
+      const read = notes.headings.length ? ` First line read as column headings: ${quoted(notes.headings)}.` : '';
+      if (!count) {
+        if (notes.noNameColumn) return `No names were read.${read} None of them is a person's name: head the names' column Name (or Rank and Name), or leave the heading row out.`;
+        return 'Leave empty to print the card as it is, with a line for the name. The names stay in this browser.';
+      }
+      const left = notes.over ? ` Only the first ${core.GUEST_LIMITS.names} are kept: ${notes.over} name${notes.over === 1 ? ' was' : 's were'} left out.` : '';
+      const which = notes.column > 0 ? `The first column holds only serial numbers, so the ${ordinal(notes.column)} column was used` : '';
+      const column = notes.firstColumn ? ` ${which || 'Only the first column was used'}; give the list a heading row (Rank, Name) to join columns.`
+        : which ? ` ${which}.`
+        : notes.extraCells ? ' Some rows have a comma inside a name without quotes ("Col X, VSM"): put such names in quotes so all of it is used.' : '';
       // The first names as they will print, so a wrong column shows before Save.
-      // Names are the user's (or a file's) words: escaped, never markup.
-      const first = (state.collage.card?.guests || []).slice(0, 3).map((name) => `“${escapeHtml(name)}”`).join(', ');
-      return `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it. First on the cards: ${first}${count > 3 ? ', …' : '.'}${left}${column} The names stay in this browser.`;
+      const first = quoted((state.collage.card?.guests || []).slice(0, 3));
+      return `${count} guest${count === 1 ? '' : 's'}: Save as PDF can make a card for each, with the name on it. First on the cards: ${first}${count > 3 ? ', …' : '.'}${read}${left}${column} The names stay in this browser.`;
     }
 
     /** Sets the guest list from text (pasted, typed, or a file's); kept with the draft, recorded for Undo. */
     function setGuests(text, { csv = false, held = false } = {}) {
-      const { names: guests, over, firstColumnOnly, extraCells } = print.readGuests(text, { csv });
-      guestNotes = { names: guests.join(String.fromCharCode(10)), over, firstColumn: firstColumnOnly, extraCells };
+      const { names: guests, over, firstColumnOnly, column, extraCells, headings, noNameColumn } = print.readGuests(text, { csv });
+      guestNotes = { names: guests.join(String.fromCharCode(10)), session: state.collageSession, over, firstColumn: firstColumnOnly, column, extraCells, headings, noNameColumn };
       doc.edit((draft) => {
         const card = { ...(draft.card || { design: 'classic', details: {} }) };
         if (guests.length) card.guests = guests;
@@ -1027,8 +1041,8 @@
 
     /** For each unit colour, the parts other than the bands that follow it, in plain words. */
     function colourUses(collage) {
-      const frames = 'the frames round the panels';
-      const names = { roundel: 'the ring round the logo', logotile: 'the tile behind the logo', backlogotile: 'the tile behind the logo', rule: 'the line at the bottom', backrule: 'the line on the back', coverrule: 'the line on the cover', innerrule: 'the line inside', backcoverrule: 'the lines on the back cover', backcoverrule2: 'the lines on the back cover', coverborder: frames, backcover: frames, innerborder: frames, innerborder2: frames };
+      // What each part is, in plain words, is the designs' (designs.COLOUR_USES).
+      const names = designs.COLOUR_USES;
       const labels = Object.fromEntries(FORM.map(([field, label]) => [field, label.toLowerCase().replace(/^back: /, 'back ')]));
       const uses = [[], [], []];
       for (const item of [...(collage?.items || []), ...(collage?.back?.items || [])]) {
@@ -1104,27 +1118,75 @@
         return;
       }
       const details = { ...designs.detailsOf(collage), [field]: text };
-      const fresh = !textFor(collage, field) && text.trim() ? designs.fieldItem(collage, field, details, options()) : null;
+      // A cover title emptied shows the occasion again (cold review 9, M2): its item takes the
+      // occasion's words rather than going. Fields that follow this one (the cover title, while it
+      // shows the occasion) take the new words too.
+      const from = designs.FALLBACKS[field];
+      const shown = from && !text.trim() ? String(details[from] || '') : text;
+      if (from && !text.trim()) details[field] = '';
+      // Followers follow an emptied field too (Codex on #3460): they go with it, and come back
+      // still following when words are typed again, so the cover never keeps an old occasion.
+      const followers = Object.keys(designs.FALLBACKS).filter((each) => designs.FALLBACKS[each] === field && details[each] === '');
+      // An older folded card with the occasion itself on its cover gets no second title on it.
+      const followerBack = new Map(followers.filter((each) => text.trim() && !textFor(collage, each) && designs.mayFollow(collage, each)).map((each) => [each, designs.fieldItem(collage, each, { ...details, [each]: '' }, options())]).filter(([, item]) => item));
+      const fresh = !textFor(collage, field) && shown.trim() ? designs.fieldItem(collage, field, details, options()) : null;
+      // Words still at the width their design gave them take the width the design gives the new
+      // words (no word left alone on a line: cold review 9, L1); words the user resized keep theirs.
+      // A guest's name is set as the design sets that name (cold review 9, M5).
+      const guestLook = field === 'guest' && current && shown.trim() ? designs.guestStyle(collage, current, shown, options()) : null;
+      const widths = new Map();
+      for (const each of [field, ...followers]) {
+        const item = textFor(collage, each);
+        const before = item && designs.fieldItem(collage, each, designs.detailsOf(collage), options());
+        if (!before || Math.abs(before.maxWidth - item.maxWidth) > 0.5) continue;
+        const after = designs.fieldItem(collage, each, each === field ? details : { ...details, [each]: '' }, options());
+        if (after) widths.set(each, after.maxWidth);
+      }
       let removed = null;
       let edited = null;
       doc.edit((draft) => {
         // A field filled again is one the design has placed.
-        const placed = [...new Set([...(draft.card?.placed || []), ...(fresh ? [field] : [])])];
+        // A follower taken off with an emptied field is not one the user deleted: not placed.
+        const gone = text.trim() ? [] : followers.filter((each) => !textFor(draft, each)?.locked);
+        const placed = [...new Set([...(draft.card?.placed || []), ...(fresh ? [field] : []), ...followerBack.keys()])].filter((each) => !gone.includes(each));
         draft.card = { ...draft.card, design: draft.card?.design || 'classic', details, placed };
         const list = fieldsHere(draft, field);
         const index = list.findIndex((item) => item.kind === 'text' && item.field === field);
-        if (index >= 0 && !text.trim()) {
+        // Words keep the edge the design sets them by; a block the design centres (the back's
+        // left-aligned programme) keeps its middle, so it never grows past the border (code
+        // review 9, H1). A field the design does not place keeps the edge it is aligned to.
+        const retext = (target, words) => {
+          const left = target.x - target.width / 2;
+          const right = target.x + target.width / 2;
+          const bottom = target.y + core.itemHeight(target) / 2;
+          target.text = words;
+          if (widths.has(target.field)) target.maxWidth = widths.get(target.field);
+          if (guestLook && target.field === 'guest') for (const key of ['font', 'italic', 'size', 'maxLines', 'minSize']) target[key] = guestLook[key];
+          surface.layoutTextItem(target);
+          const edge = designs.DESIGNS[draft.card?.design] && designs.fieldsOnCard(draft).includes(target.field) ? designs.fieldAnchor(draft, target.field) : target.align;
+          if (edge === 'left') target.x = left + target.width / 2;
+          if (edge === 'right') target.x = right - target.width / 2;
+          // A guest's name keeps its last line on the line drawn under it: a second line grows upwards.
+          if (target.field === 'guest') target.y = bottom - core.itemHeight(target) / 2;
+        };
+        for (const follower of followers) {
+          const item = textFor(draft, follower);
+          const here = fieldsHere(draft, follower);
+          if (item && !item.locked && !text.trim()) here.splice(here.indexOf(item), 1);
+          else if (item && !item.locked) retext(item, text);
+          else if (!item && followerBack.has(follower)) {
+            const own = here.findIndex((each) => !each.role);
+            here.splice(own < 0 ? here.length : own, 0, followerBack.get(follower));
+          }
+        }
+        if (index >= 0 && !shown.trim()) {
           removed = list[index].id;
           list.splice(index, 1);
         } else if (index >= 0) {
-          const target = list[index];
-          edited = target.id;
-          const left = target.x - target.width / 2;
-          const right = target.x + target.width / 2;
-          target.text = text;
-          surface.layoutTextItem(target);
-          if (target.align === 'left') target.x = left + target.width / 2;
-          if (target.align === 'right') target.x = right - target.width / 2;
+          edited = list[index].id;
+          retext(list[index], shown);
+          // A longer occasion keeps "at the" and its rule clear of it (cold review 9, L3).
+          if (field === 'occasion' || field === 'at') designs.clearOccasion(list, surface.measureText, { shrink: false });
         } else if (fresh) {
           // Among the design's parts, behind anything the user added.
           const own = list.findIndex((item) => !item.role);
@@ -1135,7 +1197,7 @@
       // The selected item's Words box shows the words just typed here, unless it is being typed in.
       if (edited && state.selectedId === edited) {
         const words = ui.props.querySelector('[data-text]');
-        if (words && document.activeElement !== words) words.value = text;
+        if (words && document.activeElement !== words) words.value = shown;
       }
       surface.syncPage();
       history.holdEdit();
