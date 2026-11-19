@@ -287,6 +287,29 @@ async function sheetsOf(page, file) {
   }, (await bytesOf(file)).toString('base64'));
 }
 
+/**
+ * PDF placements (points, from the bottom left) for cards at `slots` (mm from the sheet's top
+ * left), each `w` × `h` mm, on a sheet `sh` mm tall; turned cards start at their top right.
+ */
+function placements(slots, [w, h], sh, turned) {
+  const pt = 72 / 25.4;
+  return slots.map(([x, y]) => (turned
+    ? { x: (x + w) * pt, y: (sh - y) * pt, width: w * pt, height: h * pt }
+    : { x: x * pt, y: (sh - y - h) * pt, width: w * pt, height: h * pt }));
+}
+
+/** Each picture of a sheet where `expected` says, turned or not. */
+function expectPlaced(sheet, expected, turned) {
+  expect(sheet.pictures.length).toBe(expected.length);
+  sheet.pictures.forEach(([a, , , d, e, f], i) => {
+    expect(Math.sign(a)).toBe(turned ? -1 : 1);
+    expect(Math.abs(Math.abs(a) - expected[i].width)).toBeLessThan(0.5);
+    expect(Math.abs(Math.abs(d) - expected[i].height)).toBeLessThan(0.5);
+    expect(Math.abs(e - expected[i].x)).toBeLessThan(0.5);
+    expect(Math.abs(f - expected[i].y)).toBeLessThan(0.5);
+  });
+}
+
 test('an A6 card with a back on A4: two cards a sheet where the layout says, backs turned, cut marks on both', async ({ page }) => {
   test.setTimeout(90000);
   const errors = await openFresh(page);
@@ -299,12 +322,13 @@ test('an A6 card with a back on A4: two cards a sheet where the layout says, bac
   const download = page.waitForEvent('download');
   await page.locator('[data-action="save-go"]').click();
   const sheets = await sheetsOf(page, await download);
-  const expected = await page.evaluate(() => {
-    const print = window.PrismCollagePrint;
-    const front = print.sheetLayout('a6p', 'a4');
-    const back = print.sheetLayout('a6p', 'a4', { back: true });
-    return { front: print.sheetPlacements(front, false), back: print.sheetPlacements(back, true), marks: print.cutMarks(front).length };
-  });
+  // Worked out by hand, not by the print module: two A6 (105 × 148 mm) across a turned A4
+  // (297 × 210 mm), centred, 4 mm apart: x 41.5 and 150.5 mm, y 31 mm. Backs turned 180°.
+  const expected = {
+    front: placements([[41.5, 31], [150.5, 31]], [105, 148], 210, false),
+    back: placements([[41.5, 31], [150.5, 31]], [105, 148], 210, true),
+    marks: 16
+  };
   expect(sheets.length).toBe(2);
   const [fronts, backs] = sheets;
   for (const [sheet, places, turned] of [[fronts, expected.front, false], [backs, expected.back, true]]) {
@@ -451,7 +475,8 @@ test('Tab straight after typing in Card details goes to the next field, not to t
     await page.keyboard.type('!');
     await page.keyboard.press('Tab');
     expect(await active()).toBe(next);
-    await page.waitForTimeout(300);
+    // Once the panel has had its chance to be drawn again (after focus lands, then a frame).
+    await page.evaluate(() => new Promise((resolve) => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(resolve)), 0)));
     expect(await active(), `still on ${next} after the panel is drawn`).toBe(next);
   }
   expect(errors).toEqual([]);
@@ -480,6 +505,7 @@ test('looking through designs keeps no drafts; the first change keeps one', asyn
   for (const key of ['classic', 'navy', 'regimental']) {
     await page.locator(`[data-start-design="${key}"]`).click();
     await page.locator('[data-view="editor"]').waitFor();
+    // Longer than the draft's save delay (half a second): proving none is kept needs a wait.
     await page.waitForTimeout(800);
     await page.locator('.clg-editor [data-action="home"], [data-view="editor"] [data-action="home"]').first().click();
     await page.locator('[data-view="start"]').waitFor();
@@ -498,7 +524,8 @@ test('Ctrl+Z in a Card details field undoes the words typed, and Ctrl+Y brings t
   const venue = page.locator('[data-card-field="venue"]');
   await venue.click();
   await venue.fill('Cariappa Hall');
-  await page.waitForTimeout(700);
+  // The words are recorded for Undo once typing pauses: the draft shows them then.
+  await expect.poll(async () => (await newestDraft(page)).model.items.find((item) => item.field === 'venue')?.text).toBe('Cariappa Hall');
   await page.keyboard.press('Control+z');
   await expect(venue).toHaveValue('Sudarshan Hall');
   await page.keyboard.press('Control+y');
@@ -536,7 +563,7 @@ test('Ctrl+Z in the guest list box undoes the list', async ({ page }) => {
   await expect(page.locator('[data-card-guest-count]')).toContainText('2 guests');
   await box.click();
   await box.fill('Maj A\nCapt B\nLt C');
-  await page.waitForTimeout(700);
+  await expect.poll(async () => (await newestDraft(page))?.model?.card?.guests?.length).toBe(3);
   await page.keyboard.press('Control+z');
   await expect(box).toHaveValue('Maj A\nCapt B');
   expect(errors).toEqual([]);
@@ -560,5 +587,81 @@ test('a car pass offers no guest list; a reopened card opens on Card details and
   await draft.locator('button, [role="button"]').first().click();
   await page.locator('[data-view="editor"]').waitFor();
   await expect(page.locator('[data-drawer-panel="card"]')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+// An upright sheet of several columns (cold review 4): each back goes behind its own front,
+// columns swapped for a long-edge flip, on the plain PDF and on the guest PDF.
+test('A7 cards with a back on an upright A4: backs mirrored across, plain and one for each guest', async ({ page }) => {
+  test.setTimeout(120000);
+  const errors = await openFresh(page);
+  await page.locator('[data-card-size]').selectOption('a7p');
+  await page.locator('[data-start-design="pocketinvite"]').click();
+  await page.locator('[data-card-side="add"]').click();
+  await page.locator('[data-card-side="front"]').click();
+  // By hand: 2 × 2 A7 (74 × 105 mm) on an upright A4, centred, 4 mm apart.
+  const fronts = placements([[29, 41.5], [107, 41.5], [29, 150.5], [107, 150.5]], [74, 105], 297, false);
+  const backs = placements([[107, 41.5], [29, 41.5], [107, 150.5], [29, 150.5]], [74, 105], 297, false);
+  const saveOnA4 = async () => {
+    await page.getByRole('button', { name: 'Save as…' }).click();
+    await page.getByRole('button', { name: 'Printing' }).click();
+    await page.locator('[data-save-sheet] input[value="a4"]').check();
+    const download = page.waitForEvent('download');
+    await page.locator('[data-action="save-go"]').click();
+    const sheets = await sheetsOf(page, await download);
+    await page.keyboard.press('Escape');
+    return sheets;
+  };
+  let sheets = await saveOnA4();
+  expect(sheets.length).toBe(2);
+  expectPlaced(sheets[0], fronts, false);
+  expectPlaced(sheets[1], backs, false);
+  // One for each guest: the same places.
+  const list = page.locator('[data-card-guests]');
+  await list.fill('Maj A\nCapt B\nLt C\nMaj D');
+  await list.blur();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await page.getByRole('button', { name: 'Printing' }).click();
+  await page.locator('[data-save-guests] input[value="each"]').check();
+  await page.keyboard.press('Escape');
+  sheets = await saveOnA4();
+  expect(sheets.length).toBe(2);
+  expectPlaced(sheets[0], fronts, false);
+  expectPlaced(sheets[1], backs, false);
+  expect(errors).toEqual([]);
+});
+
+test('typing in a right-aligned field keeps its right edge', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="classic"]').click();
+  await touch(page);
+  const right = async () => {
+    const note = (await newestDraft(page)).model.items.find((item) => item.field === 'note');
+    return { edge: note.x + note.width / 2, text: note.text, align: note.align };
+  };
+  const before = await right();
+  expect(before.align).toBe('right');
+  await page.locator('[data-card-field="note"]').fill('Kindly bring this card and your identity card');
+  await page.locator('[data-card-field="note"]').blur();
+  await expect.poll(async () => (await right()).text).toBe('Kindly bring this card and your identity card');
+  expect(Math.abs((await right()).edge - before.edge)).toBeLessThan(1);
+  expect(errors).toEqual([]);
+});
+
+test('the 2nd and 3rd unit colours reach the parts that follow them', async ({ page }) => {
+  const errors = await openFresh(page);
+  await page.locator('[data-start-design="regimental"]').click();
+  await touch(page);
+  for (const [index, value] of [[2, '#3a5f1f'], [3, '#5b1f6e']]) {
+    await page.locator(`[data-card-colour="${index}"]`).evaluate((input, colour) => {
+      input.value = colour;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, value);
+    await expect.poll(async () => {
+      const items = (await newestDraft(page)).model.items.filter((item) => item.tint && Object.values(item.tint).includes(index));
+      return items.length > 0 && items.every((item) => Object.entries(item.tint).every(([prop, which]) => which !== index || item[prop] === value));
+    }).toBe(true);
+  }
   expect(errors).toEqual([]);
 });

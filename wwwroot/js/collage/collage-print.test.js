@@ -205,3 +205,22 @@ test('an Honours column follows the name after a comma', () => {
   const nl = String.fromCharCode(10);
   assert.deepEqual(print.guestNames(['Rank,Name,Honours', 'Lt Gen,Arvind Kumar,"PVSM, AVSM"', 'Col,D Nair,'].join(nl), { csv: true }), ['Lt Gen Arvind Kumar, PVSM, AVSM', 'Col D Nair']);
 });
+
+// Sheet rules pinned exactly (cold review 4): the 8 mm margin decides how many fit, and a tie
+// between an upright and a turned sheet stays upright.
+test('the 8 mm margin decides the count, and a tie stays upright', () => {
+  // 96 mm wide: two across an upright A4 only with 7 mm margins, so 8 mm gives 6 on a turned sheet.
+  const tight = print.sheetLayout('mm:96x60', 'a4');
+  assert.equal(tight.count, 6);
+  assert.equal(tight.upright, false);
+  const tie = print.sheetLayout('in45p', 'a4');
+  assert.equal(tie.count, 2);
+  assert.equal(tie.upright, true, 'upright on a tie');
+});
+
+test('a draft keeps at most 300 guests', () => {
+  const guests = Array.from({ length: 1000 }, (_, i) => `Guest ${i + 1}`);
+  const read = collage.readDraftModel({ version: 1, size: 'a5p', items: [], card: { design: 'classic', details: {}, guests } }, []);
+  assert.equal(read.card.guests.length, 300);
+  assert.equal(read.card.guests[299], 'Guest 300');
+});

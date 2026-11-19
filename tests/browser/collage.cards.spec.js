@@ -199,6 +199,8 @@ test('a guest list makes one card for each guest: on their own pages, or filling
   await page.locator('[data-action="save-go"]').click();
   let file = await download;
   expect((await pagesOf(file)).length).toBe(3);
+  // Each on an A6 page, upright: 105 mm wide.
+  expect((await pagesOf(file)).every((width) => Math.abs(width - 105 / 25.4 * 72) < 1)).toBe(true);
   expect(await picturesIn(file)).toBe(3);
   await expect(page.locator('[data-save-result]')).toContainText('3 guest cards on 3 pages');
   // Two to a turned A4 sheet: two sheets for three guests.
