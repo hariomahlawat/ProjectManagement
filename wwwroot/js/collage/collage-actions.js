@@ -105,6 +105,9 @@
               const at = draft.items.findIndex((i) => i.id === item.id);
               if (leavesFrame) draft.items[at] = core.emptyFrame(draft.items[at]);
               else draft.items.splice(at, 1);
+              // A poster's date deleted on the page takes its band with it, as emptying it in
+              // Poster details does (Codex on #3483).
+              if (item.field === 'when') window.PrismCollageDesigns?.followBand?.(draft.items);
             }, 'none');
             change.choose(leavesFrame ? item.id : null);
             selection.stopAdjust(false);

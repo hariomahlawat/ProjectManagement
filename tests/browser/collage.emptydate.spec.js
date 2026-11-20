@@ -111,3 +111,21 @@ test('Save names a dated poster\'s band the user hid', async ({ page }) => {
   await expect(page.locator('[data-save-empty]')).toContainText('hidden');
   expect(errors).toEqual([]);
 });
+
+// Codex on #3483: a poster's date deleted on the page takes its band with it.
+test('deleting a poster\'s date on the page hides its band, as emptying it in Poster details does', async ({ page }) => {
+  const errors = await openFresh(page);
+  await startOn(page, 'poster');
+  await page.locator('[data-start-poster="event"]').click();
+  const when = page.locator('[data-card-field="when"]');
+  await when.fill('Saturday, 10 January 2027 · 0700 h');
+  await when.blur();
+  const shapesShown = () => page.evaluate(() => window.Konva.stages[0].find('.item').filter((n) => n.getAttr('kind') === 'shape' && n.visible()).length);
+  await expect.poll(shapesShown).toBeGreaterThan(0);
+  const dated = await shapesShown();
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator('[data-layer-select]').filter({ hasText: 'Saturday, 10 January 2027' }).click();
+  await page.locator('[data-toolbar] [data-action="delete"]').click();
+  await expect.poll(shapesShown).toBe(dated - 1);
+  expect(errors).toEqual([]);
+});
