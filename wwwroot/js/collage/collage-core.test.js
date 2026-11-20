@@ -1598,11 +1598,11 @@ test('the layout made for a number of photos: that many frames, else the next la
 });
 
 test('the layouts that fit a number of photos are every one with that many frames', () => {
-  assert.deepEqual(collage.layoutsThatFit(3), ['t3', 't3c']);
+  assert.deepEqual(collage.layoutsThatFit(3), ['t3', 't3c', 't3r']);
   assert.deepEqual(collage.layoutsThatFit(4), ['t4', 't4s']);
-  assert.deepEqual(collage.layoutsThatFit(6), ['t6']);
+  assert.deepEqual(collage.layoutsThatFit(6), ['t6', 't6r']);
   assert.deepEqual(collage.layoutsThatFit(10), ['t12']);
-  assert.deepEqual(collage.layoutsThatFit(12), ['t12']);
+  assert.deepEqual(collage.layoutsThatFit(12), ['t12', 't12r']);
   // Past the largest layout none fits them all, so none is marked (Codex review, PR 3).
   assert.deepEqual(collage.layoutsThatFit(13), []);
   assert.deepEqual(collage.layoutsThatFit(60), []);
@@ -1650,4 +1650,38 @@ test('a layout must take each placed copy of a photo and every photo still waiti
   assert.equal(collage.photosToLayOut(card, ['A', 'D', 'E']), 2);
   assert.equal(collage.photosToLayOut(collage.newCollage('a4l'), []), 0);
   assert.equal(collage.photosToLayOut(null, null), 0);
+});
+
+// docs/ux/collage-usability-plan.md, round 3, PR 2: rows for wide photos.
+test('row versions of the 2, 3, 6, 8 and 12 layouts fill reading order with wide frames', () => {
+  for (const [key, count] of [['t2r', 2], ['t3r', 3], ['t6r', 6], ['t8r', 8], ['t12r', 12]]) {
+    const frames = collage.layoutFrames('a4l', key, collage.LAYOUT_LIMITS.defaultGap);
+    assert.equal(frames.length, count, key);
+    // Left to right, then down.
+    for (let i = 1; i < frames.length; i += 1) {
+      const a = frames[i - 1];
+      const b = frames[i];
+      assert.ok(b.y > a.y + 1 || (Math.abs(b.y - a.y) <= 1 && b.x > a.x), `${key} cell ${i}`);
+    }
+  }
+  // The plain layout still comes first for a number of photos.
+  assert.deepEqual([2, 3, 6, 8, 12].map((n) => collage.layoutForCount(n)), ['t2', 't3', 't6', 't8', 't12']);
+});
+
+test('photos chosen first go into the layout that suits their shapes', () => {
+  const wide = [1.5, 1.5, 1.5, 1.5, 1.33, 1.33];
+  const tall = [0.75, 0.75, 0.75, 0.75, 0.75, 0.75];
+  assert.equal(collage.layoutForPhotos('square', wide), 't6r');
+  assert.equal(collage.layoutForPhotos('a4l', wide), 't6r');
+  assert.equal(collage.layoutForPhotos('a4l', tall), 't6');
+  // Evenly mixed: the plain layout stays.
+  assert.equal(collage.layoutForPhotos('square', [1.33, 1.33, 1.33, 0.75, 0.75, 0.75]), 't6');
+  // Two wide photos lose less stacked than side by side, even on A4 landscape.
+  assert.equal(collage.layoutForPhotos('a4l', [1.5, 1.5]), 't2r');
+  assert.equal(collage.layoutForPhotos('a4l', [0.75, 0.75]), 't2');
+  assert.equal(collage.layoutForPhotos('square', [1.5, 1.5]), 't2r');
+  assert.equal(collage.layoutForPhotos('square', [1.33]), null);
+  assert.equal(collage.layoutForPhotos('square', []), null);
+  // 10 photos take a 12-frame layout, rows when they are wide.
+  assert.equal(collage.layoutForPhotos('square', Array(10).fill(1.5)), 't12r');
 });

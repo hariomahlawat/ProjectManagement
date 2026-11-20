@@ -130,3 +130,29 @@ test('a smaller layout chosen by hand offers the one that fits all the photos', 
 
   expect(errors).toEqual([]);
 });
+
+// docs/ux/collage-usability-plan.md, round 3, PR 2: wide photos for WhatsApp go into rows.
+test('six wide photos for WhatsApp open in "6 in rows", in the order picked, as one Undo step', async ({ page }) => {
+  const errors = await openFresh(page);
+  await startOn(page, 'collage');
+  await page.locator('[data-start-for="share"]').click();
+  const files = [];
+  for (let i = 0; i < 6; i += 1) files.push(await photoFile(page, { name: `w${i + 1}.jpg`, width: 1600, height: 900, colour: `hsl(${i * 50}, 55%, 40%)` }));
+  const chooser = page.waitForEvent('filechooser');
+  await page.locator('[data-start-drop]').getByRole('button', { name: 'Add photos' }).click();
+  await (await chooser).setFiles(files);
+  await expect.poll(() => placed(page)).toBe(6);
+  const draft = await newestDraft(page);
+  expect(draft.model.size).toBe('square');
+  expect(draft.model.layout.key).toBe('t6r');
+  // Wide frames: wider than tall.
+  for (const item of draft.model.items.filter((i) => i.kind === 'photo')) expect(item.aspect).toBeGreaterThan(1);
+  // Layouts shows both 6-photo layouts as fitting, the chosen one pressed.
+  await page.locator('.clg-rail [data-panel="layouts"]').click();
+  await expect(page.locator('[data-layout-grid] [data-layout="t6r"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-layout-grid] [data-layout="t6"] [data-layout-fit]')).toBeVisible();
+  // One Undo takes the photos and the layout away together, back to the empty start.
+  await page.keyboard.press('Control+z');
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.filter((item) => item.kind === 'photo').length ?? 0).toBe(0);
+  expect(errors).toEqual([]);
+});
