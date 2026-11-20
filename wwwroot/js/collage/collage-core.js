@@ -1024,16 +1024,22 @@
   /** Grids on 12 × 12 units: [x, y, width, height] for each frame. */
   const LAYOUTS = lookupTable({
     t2: Object.freeze({ label: '2 side by side', cells: [[0, 0, 6, 12], [6, 0, 6, 12]] }),
+    // Row versions, with wide frames for wide photos (docs/ux/collage-usability-plan.md, round 3, PR 2).
+    t2r: Object.freeze({ label: '2 in rows', cells: [[0, 0, 12, 6], [0, 6, 12, 6]] }),
     t3: Object.freeze({ label: '1 big, 2 small', cells: [[0, 0, 7, 12], [7, 0, 5, 6], [7, 6, 5, 6]] }),
     t3c: Object.freeze({ label: '3 columns', cells: [[0, 0, 4, 12], [4, 0, 4, 12], [8, 0, 4, 12]] }),
+    t3r: Object.freeze({ label: '3 in rows', cells: [[0, 0, 12, 4], [0, 4, 12, 4], [0, 8, 12, 4]] }),
     t4: Object.freeze({ label: '4 grid', cells: [[0, 0, 6, 6], [6, 0, 6, 6], [0, 6, 6, 6], [6, 6, 6, 6]] }),
     t4s: Object.freeze({ label: '4 in a strip', cells: [[0, 0, 3, 12], [3, 0, 3, 12], [6, 0, 3, 12], [9, 0, 3, 12]] }),
     t5: Object.freeze({ label: '2 over 3', cells: [[0, 0, 6, 7], [6, 0, 6, 7], [0, 7, 4, 5], [4, 7, 4, 5], [8, 7, 4, 5]] }),
     t6: Object.freeze({ label: '6 grid', cells: [[0, 0, 4, 6], [4, 0, 4, 6], [8, 0, 4, 6], [0, 6, 4, 6], [4, 6, 4, 6], [8, 6, 4, 6]] }),
+    t6r: Object.freeze({ label: '6 in rows', cells: [0, 1, 2].flatMap((r) => [0, 1].map((c) => [c * 6, r * 4, 6, 4])) }),
     t7: Object.freeze({ label: 'Mosaic of 7', cells: [[0, 0, 5, 7], [5, 0, 4, 4], [9, 0, 3, 4], [5, 4, 7, 3], [0, 7, 4, 5], [4, 7, 4, 5], [8, 7, 4, 5]] }),
     t8: Object.freeze({ label: '8 grid', cells: [[0, 0, 3, 6], [3, 0, 3, 6], [6, 0, 3, 6], [9, 0, 3, 6], [0, 6, 3, 6], [3, 6, 3, 6], [6, 6, 3, 6], [9, 6, 3, 6]] }),
+    t8r: Object.freeze({ label: '8 in rows', cells: [0, 1, 2, 3].flatMap((r) => [0, 1].map((c) => [c * 6, r * 3, 6, 3])) }),
     t9: Object.freeze({ label: '9 grid', cells: [0, 1, 2].flatMap((r) => [0, 1, 2].map((c) => [c * 4, r * 4, 4, 4])) }),
-    t12: Object.freeze({ label: '12 grid', cells: [0, 1, 2].flatMap((r) => [0, 1, 2, 3].map((c) => [c * 3, r * 4, 3, 4])) })
+    t12: Object.freeze({ label: '12 grid', cells: [0, 1, 2].flatMap((r) => [0, 1, 2, 3].map((c) => [c * 3, r * 4, 3, 4])) }),
+    t12r: Object.freeze({ label: '12 in rows', cells: [0, 1, 2, 3].flatMap((r) => [0, 1, 2].map((c) => [c * 4, r * 3, 4, 3])) })
   });
   const LAYOUT_LIMITS = Object.freeze({ gapMax: 60, radiusMax: 60, defaultGap: 12 });
 
@@ -1086,6 +1092,32 @@
     const width = PAGE_WIDTH - 2 * gap;
     const place = { x: PAGE_WIDTH / 2, y: height / 2, width, aspect: width / (height - 2 * gap) };
     return { ...collage, items: [...collage.items, slotItem(newId(), place)] };
+  }
+
+  /**
+   * The layout for photos chosen first, by their shapes (round 3, PR 2): among the layouts made for
+   * their number (layoutForCount's frame count), the one whose frames fit the photos best on this
+   * page. Frames and photos are paired by shape, widest with widest, and the fit is how far each
+   * pair's shapes differ; on a tie the first, plain layout stays. `aspects` are width over height.
+   */
+  function layoutForPhotos(sizeKey, aspects) {
+    const list = (aspects || []).filter((aspect) => aspect > 0);
+    const first = layoutForCount(list.length);
+    if (!first) return null;
+    const frames = LAYOUTS[first].cells.length;
+    const candidates = Object.keys(LAYOUTS).filter((key) => LAYOUTS[key].cells.length === frames);
+    const photos = [...list].slice(0, frames).sort((a, b) => b - a);
+    const misfit = (key) => {
+      const shapes = layoutFrames(sizeKey, key, LAYOUT_LIMITS.defaultGap).map((frame) => frame.aspect).sort((a, b) => b - a);
+      return photos.reduce((sum, aspect, index) => sum + Math.abs(Math.log(shapes[index] / aspect)), 0);
+    };
+    let best = first;
+    let bestMisfit = misfit(first);
+    for (const key of candidates) {
+      const value = misfit(key);
+      if (value < bestMisfit - 1e-9) { best = key; bestMisfit = value; }
+    }
+    return best;
   }
 
   /** How many of the files chosen look like photos, by their type or their name. */
@@ -2296,6 +2328,7 @@
     LAYOUTS,
     LAYOUT_LIMITS,
     layoutForCount,
+    layoutForPhotos,
     layoutsThatFit,
     photoFileCount,
     photosToLayOut,
