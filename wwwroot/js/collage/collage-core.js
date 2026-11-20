@@ -1751,6 +1751,8 @@
    */
   function fileStem(name) {
     const clean = String(name ?? '')
+      // A time such as 00:15 is written 0015, as PRISM writes times (round 3, PR 5).
+      .replace(/\b(\d{1,2}):(\d{2})\b/g, (all, h, m) => `${h.padStart(2, '0')}${m}`)
       // eslint-disable-next-line no-control-regex
       .replace(/[\u0000-\u001f<>:"/\\|?*]+/g, ' ')
       .replace(/\s+/g, ' ')
