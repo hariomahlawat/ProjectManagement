@@ -377,4 +377,7 @@ file name; 11 font styles.
   #3482, merged 20 Nov 2026.
 - Round 3, PR 3: a poster's date band waits for the date. The Event poster's band is hidden by the
   design while the date is empty and shows once it has words (`followBand`); a band the user hid
-  or locked is left as it is, and Save names it only when the user hid it (Codex).
+  or locked is left as it is, and Save names it only when the user hid it (Codex); deleting the date on the page hides it too.
+- Round 3, PR 4: fewer choices. The start screen's Card size lists the common sizes (A5 and A6,
+  upright and landscape, A7 pocket, Folded A6) and **More sizes…**, which lists every size; Save's
+  Print on shows A4 sheets and own pages, with A3 and A4 edge to edge under **More sheets**. #3484, merged 20 Nov 2026.
