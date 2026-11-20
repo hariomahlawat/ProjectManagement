@@ -997,6 +997,7 @@
     // The roundel behind the logo follows it: hidden with none, wide enough for a wide logo or two.
     const roundel = made.find((item) => item.role === 'roundel');
     if (roundel) fitRoundel([...made, ...seconds], { width: roundel.width, aspect: roundel.aspect }, { hadLogo: (items || []).some((item) => item.role === 'logo' && item.kind !== 'slot') });
+    followBand(made);
     // Photos from the last design's frame with no frame here become the user's own.
     const leftOver = framed.map(({ role, ...item }) => item);
     // The user's own items, and a second logo they added, stay where they are.
@@ -1730,6 +1731,24 @@
    * hidden with no logo; around one logo, at least the design's size (`base`) and wide enough for
    * a wide logo; around two side by side. A locked roundel stays as it is.
    */
+  /**
+   * A poster's date band follows its date (docs/ux/collage-usability-plan.md, round 3, PR 3): a new
+   * poster opens with the date empty, and an empty band looked unfinished. Hidden by the design
+   * (autoHidden, as the roundel is) while the date has no words; back when it has. A band the user
+   * hid, or locked, is left as it is.
+   */
+  function followBand(items) {
+    const band = (items || []).find((item) => item.role === 'band' && !item.locked);
+    if (!band) return;
+    const dated = (items || []).some((item) => item.kind === 'text' && item.field === 'when' && String(item.text || '').trim());
+    if (!dated) {
+      if (!band.hidden) { band.hidden = true; band.autoHidden = true; }
+    } else if (band.autoHidden) {
+      delete band.hidden;
+      delete band.autoHidden;
+    }
+  }
+
   function fitRoundel(items, base, { hadLogo = true } = {}) {
     const roundel = items.find((item) => item.role === 'roundel' && !item.locked);
     if (!roundel || !base) return;
@@ -2106,10 +2125,10 @@
 
   // Parts a design shows and hides by itself (the roundel and a logo's tile while there is no
   // logo): never counted as hidden by the user (code review 9).
-  const AUTO_PARTS = Object.freeze(['roundel', ...Object.keys(TILE_LOGOS)]);
+  const AUTO_PARTS = Object.freeze(['roundel', 'band', ...Object.keys(TILE_LOGOS)]);
   // What each part that takes a unit colour is, in plain words, for the colours' hint.
   const FRAMES_WORDS = 'the frames round the panels';
   const COLOUR_USES = lookupTable({ roundel: 'the ring round the logo', logotile: 'the tile behind the logo', backlogotile: 'the tile behind the logo', rule: 'the line at the bottom', backrule: 'the line on the back', backborder: 'the border on the back', coverrule: 'the line on the cover', innerrule: 'the line inside', leftrule: 'the line inside', backcoverrule: 'the lines on the back cover', backcoverrule2: 'the lines on the back cover', coverborder: FRAMES_WORDS, backcover: FRAMES_WORDS, innerborder: FRAMES_WORDS, innerborder2: FRAMES_WORDS });
 
-  return Object.freeze({ AUTO_PARTS, COLOUR_USES, DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, mayFollow, followFallbacks, followLogo, roleItemOn, designOnSize, hindiInStep, fieldAnchor, FALLBACKS, closeLogoPlace, fitGuest, guestStyle, clearOccasion });
+  return Object.freeze({ AUTO_PARTS, COLOUR_USES, DESIGNS, DEFAULT_DETAILS, FIELDS, SETTINGS, SDD_ASPECT, unitOf, isPortrait, detailsOf, applyDesign, fieldItem, roleItem, fieldsOf, usesColours, colourList, backPage, addBack, deleteBack, designsFor, POSTER_DETAILS, isBackField, moveForLogo, setLogoMode, setPhotoMode, hasPhotoFrame, isFolded, partsFor, sideOf, fieldsOnCard, startDetails, logoWidth, posterLogoWidth, fitRoundel, followBand, fitLogoTile, logoTileItems, secondLogoPlace, fitLogoBox, mayFollow, followFallbacks, followLogo, roleItemOn, designOnSize, hindiInStep, fieldAnchor, FALLBACKS, closeLogoPlace, fitGuest, guestStyle, clearOccasion });
 });

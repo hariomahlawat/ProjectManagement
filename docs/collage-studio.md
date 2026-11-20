@@ -150,7 +150,9 @@ its npm package by hand; the libman entry records the version.
     box's grey hint, so a card is never printed with a sample date. Save's note names it while it
     is empty ("The date and time are empty: type them in Card details, or save without them";
     `dateLine` in `collage-save.js`). The start screen's pictures keep the example; drafts keep the
-    date they have.
+    date they have. The Event poster's date band is hidden by the design while the date is empty
+    and shows once it has words (round 3, PR 3; `followBand`, marked `autoHidden` like the roundel);
+    a band the user hid stays hidden.
   - **One place to type** ([ux/collage-usability-plan.md](ux/collage-usability-plan.md), PR 5):
     words that come from a Card details field are typed there only. Selected on the page, their
     settings say "These words come from Card details: Venue" with **Edit in Card details**, which

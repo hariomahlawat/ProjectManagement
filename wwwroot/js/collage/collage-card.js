@@ -1221,6 +1221,8 @@
           const own = list.findIndex((item) => !item.role);
           list.splice(own < 0 ? list.length : own, 0, fresh);
         }
+        // A poster's date band shows once the date has words (round 3, PR 3).
+        if (field === 'when') designs.followBand(list);
       }, 'none');
       if (removed && state.selectedId === removed) selection.select(null);
       // The selected item's Words box shows the words just typed here, unless it is being typed in.
