@@ -105,7 +105,9 @@ its npm package by hand; the libman entry records the version.
     a button for the layout that fits them all, such as **Use a 6-photo layout**; Undo goes back.
 - **Invitation cards** ([ux/invitations-posters.md](ux/invitations-posters.md), PR 5).
   - **Start screen:** "Make an invitation card" shows each ready-made design drawn at the chosen
-    **Card size** (A5 at first; any size from the Cards group). Each picture is drawn the way Save
+    **Card size** (A5 at first; any size from the Cards group). The menu lists the common sizes
+    (A5 and A6, upright and landscape, A7 pocket, Folded A6) and **More sizes…**, which lists
+    every size for the rest of the visit ([ux/collage-usability-plan.md](ux/collage-usability-plan.md), round 3, PR 4). Each picture is drawn the way Save
     draws. Clicking a design opens the card in the editor, with the SDD logo and realistic
     wording, every part editable. The pocket cards follow the designs.
   - **Card panel:** a card has a **Card** button at the top of the rail, which opens **Card
@@ -190,7 +192,8 @@ its npm package by hand; the libman entry records the version.
 
     **Print sheets** (PR 9): a card, pocket card or custom size saved as a PDF can go **on A4
     sheets** or **on A3 sheets**, or each card on its own page. **Printing** starts on A4 sheets
-    with cut marks, ready for an office printer, until another is picked in that dialog
+    with cut marks, ready for an office printer, until another is picked in that dialog; A3 and A4
+    edge to edge are under **More sheets**, open while one of them is chosen
     ([ux/collage-usability-plan.md](ux/collage-usability-plan.md), round 2, PR 4); a folded card,
     saved one to a page, has no sheet choice. The note says how many fit, and the summary line
     says how many cards go to each sheet; a PDF's summary names its paper, not pixels. Where it fits more, **A4 sheets, edge

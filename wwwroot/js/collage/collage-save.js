@@ -343,6 +343,14 @@
           else sheetBox.querySelector('input[name="sheet"][value="card"]').checked = true;
         }
         syncFlipNote();
+        // A3 and edge to edge are folded under More sheets (round 3, PR 4): open while one of them
+        // is chosen, and gone when neither can be used for this card.
+        const moreSheets = sheetBox.querySelector('[data-more-sheets]');
+        if (moreSheets) {
+          const inside = [...moreSheets.querySelectorAll('input[name="sheet"]')];
+          moreSheets.hidden = !inside.some((input) => !input.disabled && !input.closest('label')?.hidden);
+          if (inside.some((input) => input.checked)) moreSheets.open = true;
+        }
       }
       const size = core.sizeOf(getCollage().size);
       const pixels = core.savePixels(getCollage().size, 'print');

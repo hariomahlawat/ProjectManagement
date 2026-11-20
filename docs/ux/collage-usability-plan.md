@@ -374,3 +374,7 @@ file name; 11 font styles.
   Layouts 11 to 16). Photos chosen first go into the layout for their number whose frames fit
   their shapes best, widest with widest (`layoutForPhotos`); an evenly mixed or tall set keeps the
   plain layout. A mixed set is still cropped somewhere: equal frames cannot fit both shapes.
+  #3482, merged 20 Nov 2026.
+- Round 3, PR 4: fewer choices. The start screen's Card size lists the common sizes (A5 and A6,
+  upright and landscape, A7 pocket, Folded A6) and **More sizes…**, which lists every size; Save's
+  Print on shows A4 sheets and own pages, with A3 and A4 edge to edge under **More sheets**.
