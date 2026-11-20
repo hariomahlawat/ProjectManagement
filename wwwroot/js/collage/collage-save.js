@@ -353,7 +353,11 @@
       const autoParts = designs?.AUTO_PARTS || [];
       // A poster's empty logo place is not a photo frame: its own question says it is left out.
       const empty = sides.filter((item) => item.kind === 'slot' && item.role !== 'logo').length;
-      const hidden = sides.filter((item) => item.kind !== 'slot' && item.hidden && !autoParts.includes(item.role)).length;
+      // A poster's band counts as the design's only while the design hid it (autoHidden): one the
+      // user hid is named like any other (Codex on #3483). Roundels and tiles keep their rule, since
+      // an earlier PRISM hid them without the mark.
+      const designsOwn = (item) => (item.role === 'band' ? Boolean(item.autoHidden) : autoParts.includes(item.role));
+      const hidden = sides.filter((item) => item.kind !== 'slot' && item.hidden && !designsOwn(item)).length;
       // A design's own photo frame (Ceremonial photo, a photo poster) has No photo in the details.
       const designFrames = getCollage().card ? sides.filter((item) => item.kind === 'slot' && item.role === 'photo').length : 0;
       const word = designs?.DESIGNS?.[getCollage().card?.design]?.poster ? 'Poster' : 'Card';

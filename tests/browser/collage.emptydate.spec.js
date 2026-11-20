@@ -93,3 +93,21 @@ test('the poster band shown and hidden again by the user stays hidden when the d
   expect(await shown()).toBe(false);
   expect(errors).toEqual([]);
 });
+
+// Codex on #3483: a band the user hid on a dated poster is named by Save, as any hidden part is.
+test('Save names a dated poster\'s band the user hid', async ({ page }) => {
+  const errors = await openFresh(page);
+  await startOn(page, 'poster');
+  await page.locator('[data-start-poster="event"]').click();
+  const when = page.locator('[data-card-field="when"]');
+  await when.fill('Saturday, 10 January 2027 · 0700 h');
+  await when.blur();
+  const bandId = await page.evaluate(() => window.Konva.stages[0].find('.item')
+    .filter((n) => n.getAttr('kind') === 'shape' && n.visible())
+    .sort((a, b) => b.width() - a.width())[0].id());
+  await page.locator('.clg-props [data-props-tab="layers"]').click();
+  await page.locator(`[data-layer-hide="${bandId}"]`).click();
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-empty]')).toContainText('hidden');
+  expect(errors).toEqual([]);
+});
