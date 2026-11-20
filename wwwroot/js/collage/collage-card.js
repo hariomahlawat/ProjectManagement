@@ -89,6 +89,8 @@
     const pocketList = ui.$('[data-start-pockets]');
     // The pocket designs on the start screen (UX review 8, M6), each with the pocket size it opens
     // on: the car pass on the visiting card, the RSVP card on its own size, the others on A7.
+    // The card sizes most used, shown at first (round 3, PR 4); the rest under "More sizes…".
+    const COMMON_CARD_SIZES = Object.freeze(['a5p', 'a5l', 'a6p', 'a6l', 'a7p', 'fold6']);
     const POCKET_STARTS = Object.freeze([['pass', 'passl', 'bi-car-front'], ['reply', 'in355p', 'bi-envelope-check'], ['programmecard', 'a7p', 'bi-list-ol'], ['pocketinvite', 'a7p', 'bi-envelope-paper']]);
     const isPoster = () => Boolean(designs.DESIGNS[state.collage?.card?.design]?.poster);
     const options = () => ({ measure: surface.measureText, newId: doc.newItemId });
@@ -118,6 +120,14 @@
           }
           startSize.appendChild(list);
         }
+        // The common sizes show at first; the rest wait behind "More sizes…" (docs/ux/collage-usability-plan.md,
+        // round 3, PR 4). The size shown is always one of those listed.
+        for (const option of startSize.querySelectorAll('option')) if (!COMMON_CARD_SIZES.includes(option.value)) option.hidden = true;
+        const more = document.createElement('option');
+        more.value = 'more';
+        more.textContent = 'More sizes…';
+        more.dataset.moreSizes = '';
+        startSize.appendChild(more);
         // A size typed in mm (PR 5b).
         const typed = document.createElement('option');
         typed.value = 'custom';
@@ -125,6 +135,8 @@
         startSize.appendChild(typed);
         startSize.value = DEFAULT_CARD_SIZE;
       }
+      const chosen = startSize.selectedOptions[0];
+      if (chosen?.hidden) chosen.hidden = false;
       const size = core.isSize(startSize.value) ? startSize.value : DEFAULT_CARD_SIZE;
       // The pocket designs, offered beside the cards while a full-size card is chosen (with a
       // pocket size chosen they are the designs themselves).
@@ -253,7 +265,19 @@
       const hint = ui.$('[data-card-small]');
       if (hint) hint.hidden = !(core.isSize(startSize.value) && startSize.value.startsWith('mm:') && core.smallCard(startSize.value));
     }
+    /** Shows every card size, for good: "More sizes…" was chosen. */
+    function showAllSizes() {
+      for (const option of startSize.querySelectorAll('option')) option.hidden = false;
+      startSize.querySelector('[data-more-sizes]')?.remove();
+    }
     startSize?.addEventListener('change', () => {
+      if (startSize.value === 'more') {
+        startSize.value = lastSize;
+        showAllSizes();
+        messages.announce('Every card size is listed now.');
+        startSize.focus();
+        return;
+      }
       if (startSize.value === 'custom') {
         startSize.value = lastSize;
         if (customBox) {

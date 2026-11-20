@@ -562,6 +562,8 @@ test('Save offers A4 edge to edge where it fits more cards: 4 A6 touching, no cu
   await page.locator('[data-start-design="classic"]').click();
   await page.getByRole('button', { name: 'Save as…' }).click();
   await page.getByRole('button', { name: 'Printing' }).click();
+  // Edge to edge is under More sheets (docs/ux/collage-usability-plan.md, round 3, PR 4).
+  await page.locator('[data-more-sheets] > summary').click();
   const edge = page.locator('[data-save-sheet] input[value="a4edge"]');
   await expect(edge).toBeVisible();
   await expect(page.locator('[data-sheet-note="a4edge"]')).toContainText('4 cards touching');
@@ -887,7 +889,8 @@ test('edge to edge is offered only where it fits more cards than A4 with room fo
     await page.locator('[data-start-design="classic"]').click();
     await page.getByRole('button', { name: 'Save as…' }).click();
     await page.getByRole('button', { name: 'Printing' }).click();
-    const shown = await page.locator('[data-save-sheet] input[value="a4edge"]').isVisible();
+    // Offered, under More sheets (round 3, PR 4): enabled, and its line not hidden.
+    const shown = await page.locator('[data-save-sheet] input[value="a4edge"]').evaluate((input) => !input.disabled && !input.closest('label').hidden);
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Back to the start' }).click();
     return shown;

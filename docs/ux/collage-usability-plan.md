@@ -364,3 +364,6 @@ file name; 11 font styles.
   poster heading's gap; a PDF whose words can be selected. #3479, merged 20 Nov 2026.
 - Second first-time check (20 Nov): invitation 8, collage 7, depth 8.5. Round 3 planned above,
   with the owner's decisions of 20 Nov.
+- Round 3, PR 4: fewer choices. The start screen's Card size lists the common sizes (A5 and A6,
+  upright and landscape, A7 pocket, Folded A6) and **More sizes…**, which lists every size; Save's
+  Print on shows A4 sheets and own pages, with A3 and A4 edge to edge under **More sheets**.

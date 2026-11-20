@@ -446,10 +446,14 @@
                         <span><b>Each card on its own page</b><small data-sheet-note="card">The card's own paper size.</small></span></label>
                     <label class="clg-option"><input type="radio" name="sheet" value="a4">
                         <span><b>A4 sheets</b><small data-sheet-note="a4"></small></span></label>
-                    <label class="clg-option"><input type="radio" name="sheet" value="a3">
-                        <span><b>A3 sheets</b><small data-sheet-note="a3"></small></span></label>
-                    <label class="clg-option"><input type="radio" name="sheet" value="a4edge">
-                        <span><b>A4 sheets, edge to edge</b><small data-sheet-note="a4edge"></small></span></label>
+                    @* Less used sheets, folded away (docs/ux/collage-usability-plan.md, round 3, PR 4). *@
+                    <details class="clg-more clg-more-sheets" data-more-sheets>
+                        <summary>More sheets <span class="clg-more__hint">A3, or A4 edge to edge</span></summary>
+                        <label class="clg-option"><input type="radio" name="sheet" value="a3">
+                            <span><b>A3 sheets</b><small data-sheet-note="a3"></small></span></label>
+                        <label class="clg-option"><input type="radio" name="sheet" value="a4edge">
+                            <span><b>A4 sheets, edge to edge</b><small data-sheet-note="a4edge"></small></span></label>
+                    </details>
                 </fieldset>
                 <details class="clg-more" data-save-more>
                 <summary>More options <span class="clg-more__hint">type and quality</span></summary>
