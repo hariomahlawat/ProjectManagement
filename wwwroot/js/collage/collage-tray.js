@@ -283,6 +283,8 @@
       // The background photo of either side.
       const backgrounds = new Set([state.collage.background, state.collage.back?.background].filter((b) => b?.type === 'photo').map((b) => b.photo));
       ui.tray.textContent = '';
+      // Whether some photo in the tray is on neither side nor a background (round 3, PR 5).
+      const someUnused = [...doc.photos.values()].some((photo) => !photo.removed && !used.get(photo.id) && !backgrounds.has(photo.id));
       for (const photo of doc.photos.values()) {
         if (photo.removed) continue;
         const tile = document.createElement('div');
@@ -299,7 +301,8 @@
         img.alt = '';
         button.appendChild(img);
         const times = used.get(photo.id) || 0;
-        if (times || backgrounds.has(photo.id)) {
+        // "Used" says something only while some photo is not used; a count or Background always does (round 3, PR 5).
+        if (times > 1 || backgrounds.has(photo.id) || (times && someUnused)) {
           const badge = document.createElement('span');
           badge.className = 'clg-tray__used';
           badge.textContent = times > 1 ? `${times}×` : times ? 'Used' : 'Background';

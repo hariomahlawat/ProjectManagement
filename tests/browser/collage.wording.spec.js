@@ -49,3 +49,21 @@ test('after a batch of photos nothing is chosen; one photo added stays chosen', 
   await expect(page.locator('[data-toolbar]')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+// Round 3, PR 5: "Used" on the tray says something only while some photo is not used.
+test('the tray marks photos Used only while another photo is not used', async ({ page }) => {
+  const errors = await openFresh(page);
+  await startOn(page, 'collage');
+  await page.getByRole('button', { name: /^2 side by side/ }).click();
+  await page.locator('[data-file-input]').setInputFiles([
+    await photoFile(page, { name: 'a.jpg' }),
+    await photoFile(page, { name: 'b.jpg', colour: '#7a3b2e' })
+  ]);
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.filter((item) => item.kind === 'photo').length).toBe(2);
+  await expect(page.locator('[data-tray] .clg-tray__used')).toHaveCount(0);
+  await page.locator('[data-file-input]').setInputFiles(await photoFile(page, { name: 'c.jpg', colour: '#2e4a7a' }));
+  await expect(page.locator('[data-photo-count]')).toHaveText('3 of 60 photos');
+  await expect(page.locator('[data-tray] .clg-tray__used')).toHaveCount(2);
+  await expect(page.locator('[data-tray] .clg-tray__used').first()).toHaveText('Used');
+  expect(errors).toEqual([]);
+});

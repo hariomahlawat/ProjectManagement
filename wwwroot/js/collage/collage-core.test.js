@@ -357,6 +357,9 @@ test('file names lose characters a computer refuses and fall back to Collage', (
   assert.equal(collage.fileStem(''), 'Collage');
   assert.equal(collage.fileStem('शुभकामनाएँ'), 'शुभकामनाएँ');
   assert.equal(collage.fileStem('x'.repeat(200)).length, 80);
+  // A time is written as PRISM writes times (docs/ux/collage-usability-plan.md, round 3, PR 5).
+  assert.equal(collage.fileStem('Collage, 20 Nov 00:15'), 'Collage, 20 Nov 0015');
+  assert.equal(collage.fileStem('Mess night 9:30'), 'Mess night 0930');
 });
 
 test('a draft read back keeps what is usable and drops what is not', () => {
