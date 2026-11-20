@@ -90,23 +90,39 @@ test('any photo can have a caption, shown on a strip under it and kept in the dr
   expect(errors).toEqual([]);
 });
 
-test('Save starts on WhatsApp, shows the purpose chosen, and remembers it next time', async ({ page }) => {
+test('Save opens on the purpose that fits, shows the purpose chosen, and keeps a pick for this piece', async ({ page }) => {
   const errors = await openFresh(page);
-  await page.evaluate(() => { try { localStorage.removeItem('prism-collage-save-purpose'); } catch { /* none */ } });
   await startOn(page, 'collage');
+  // An A4 page is made for printing (docs/ux/collage-usability-plan.md, round 3, PR 1).
   await page.getByRole('button', { name: /^A4 landscape/ }).click();
   await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
   await page.getByRole('button', { name: 'Save as…' }).click();
-  await expect(page.getByRole('button', { name: 'WhatsApp or email' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('input[name="format"][value="jpeg"]')).toBeChecked();
-  await page.getByRole('button', { name: 'Printing' }).click();
   await expect(page.getByRole('button', { name: 'Printing' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: 'WhatsApp or email' })).toHaveAttribute('aria-pressed', 'false');
-  // Changing the type by hand (under More options): no purpose matches it any more.
+  await expect(page.locator('input[name="format"][value="pdf"]')).toBeChecked();
+  await page.getByRole('button', { name: 'WhatsApp or email' }).click();
+  await expect(page.getByRole('button', { name: 'WhatsApp or email' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Printing' })).toHaveAttribute('aria-pressed', 'false');
+  // Changing the type by hand (under More options): a PDF at screen size matches no purpose.
   await page.locator('[data-save-more] > summary').click();
-  await page.locator('input[name="format"][value="png"]').check();
+  await page.locator('input[name="format"][value="pdf"]').check();
   await expect(page.locator('[data-save-purpose][aria-pressed="true"]')).toHaveCount(0);
   await page.locator('[data-action="save-close"]').first().click();
+  // Opened again, the purpose picked for this piece is kept.
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.getByRole('button', { name: 'WhatsApp or email' })).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('[data-action="save-close"]').first().click();
+
+  // A square collage opens on WhatsApp, a slide on a slide, a card on Printing.
+  await page.getByRole('button', { name: 'Back to the start' }).click();
+  await startOn(page, 'collage');
+  await page.getByRole('button', { name: /^Square/ }).click();
+  await page.locator('[data-file-input]').setInputFiles(await photos(page, 1));
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.getByRole('button', { name: 'WhatsApp or email' })).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('[data-action="save-close"]').first().click();
+  await page.getByRole('button', { name: 'Back to the start' }).click();
+  await startOn(page, 'card');
+  await page.locator('[data-start-design="classic"]').click();
   await page.getByRole('button', { name: 'Save as…' }).click();
   await expect(page.getByRole('button', { name: 'Printing' })).toHaveAttribute('aria-pressed', 'true');
   expect(errors).toEqual([]);

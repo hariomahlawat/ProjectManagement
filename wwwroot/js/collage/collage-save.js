@@ -243,13 +243,26 @@
   }
 
   /**
+   * The purpose Save opens on for what is open (docs/ux/collage-usability-plan.md, round 3, PR 1):
+   * Printing for a card or poster; for a collage, the one its page was made for: WhatsApp or email
+   * for a square or phone-status page, a slide for a slide, Printing for paper.
+   */
+  function fittingPurpose(collage, core) {
+    if (collage?.card) return 'print';
+    const size = collage?.size;
+    if (size === 'square' || size === 'story') return 'share';
+    if (size === 'slide') return 'slide';
+    return core?.isSize?.(size) || size ? 'print' : 'share';
+  }
+
+  /**
    * $ finds an element on the page; getCollage() is the collage now; photos is its photo Map;
    * the rest are the editor's own helpers (see collage-app.js).
    */
   function createSaveDialog({
     $, core, draw, stickers, measureText, fontsReady, stickerImage,
     getCollage, photos, announce, showAlert, collageTitle, hasContent, stopAdjust, flushNudge, designs = null,
-    print = window.PrismCollagePrint
+    print = window.PrismCollagePrint, getPieceId = null
   }) {
     const saveDialog = $('[data-save-dialog]');
     const saveResult = $('[data-save-result]');
@@ -391,19 +404,15 @@
       try { window.localStorage?.setItem(MORE_KEY, saveMore.open ? 'open' : 'closed'); } catch { /* not kept; fine */ }
     });
 
-    // The last purpose is remembered in this browser; the first time, WhatsApp or email, the
-    // commonest job (a phone especially). Only a convenience: nothing breaks without storage.
-    const PURPOSE_KEY = 'prism-collage-save-purpose';
-    const rememberedPurpose = () => {
-      try {
-        const value = window.localStorage?.getItem(PURPOSE_KEY);
-        return SAVE_PURPOSES[value] ? value : 'share';
-      } catch {
-        return 'share';
-      }
-    };
+    // Save opens on the purpose that fits what is open (docs/ux/collage-usability-plan.md,
+    // round 3, PR 1): Printing for a card or poster, and for a collage the one its page was made
+    // for. A purpose the user picks is kept for that piece while the page is open.
+    const picked = new Map();
+    const pieceKey = () => getPieceId?.() || null;
+    const rememberedPurpose = () => picked.get(pieceKey()) || fittingPurpose(getCollage(), core);
     const rememberPurpose = (value) => {
-      try { window.localStorage?.setItem(PURPOSE_KEY, value); } catch { /* not kept; fine */ }
+      const key = pieceKey();
+      if (key) picked.set(key, value);
     };
 
     /** Sets the type and quality for a purpose and shows that purpose as chosen. */
@@ -750,6 +759,8 @@
         if (saveLeftOut) line += ` ${saveLeftOut === 1 ? 'One photo' : `${saveLeftOut} photos`} shown grey could not be opened in this browser and ${saveLeftOut === 1 ? 'was' : 'were'} left out.`;
         if (saveStickersLeftOut) line += ` ${saveStickersLeftOut === 1 ? 'One sticker' : `${saveStickersLeftOut} stickers`} could not be loaded and ${saveStickersLeftOut === 1 ? 'was' : 'were'} left out; check the connection to PRISM and save again.`;
         saveResult.textContent = line;
+        // In view, under More options too, so the user sees it is done (round 3, PR 1).
+        saveResult.scrollIntoView?.({ block: 'nearest' });
         announce(line);
       } catch (error) {
         saveResult.textContent = error?.message === 'stopped'
@@ -772,5 +783,5 @@
     });
   }
 
-  return Object.freeze({ createSaveDialog, SAVE_PURPOSES, EDGE_NOTE, hindiLine, dateLine, guestPage, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops, chosenSides, guestCards, guestSheets, nameInField, guestText, onTheLine });
+  return Object.freeze({ createSaveDialog, fittingPurpose, SAVE_PURPOSES, EDGE_NOTE, hindiLine, dateLine, guestPage, purposeFor, saveSummary, leftOutLine, wrapFocus, tabStops, chosenSides, guestCards, guestSheets, nameInField, guestText, onTheLine });
 });
