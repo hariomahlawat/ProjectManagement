@@ -80,7 +80,8 @@
         case 'hide':
           if (item) {
             const hidden = !item.hidden;
-            doc.editItem(item.id, (it) => { it.hidden = hidden; }, 'commit');
+            // Shown or hidden by the user, a part is no longer one the design hides by itself (Codex on #3483).
+            doc.editItem(item.id, (it) => { it.hidden = hidden; delete it.autoHidden; }, 'commit');
             messages.announce(hidden ? 'Hidden. Show it again from Layers.' : 'Shown.');
           }
           break;
@@ -219,7 +220,8 @@
       const layerHide = event.target.closest('[data-layer-hide]');
       if (layerHide) {
         const target = doc.itemById(layerHide.dataset.layerHide);
-        if (target) doc.editItem(target.id, (it) => { it.hidden = !it.hidden; }, 'commit');
+        // Shown or hidden by the user, a part is no longer one the design hides by itself (Codex on #3483).
+        if (target) doc.editItem(target.id, (it) => { it.hidden = !it.hidden; delete it.autoHidden; }, 'commit');
         return;
       }
       const layerLock = event.target.closest('[data-layer-lock]');
