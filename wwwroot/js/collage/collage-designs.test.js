@@ -1676,3 +1676,29 @@ test('followFallbacks keeps the edge the design sets the cover title by', () => 
   assert.ok(Math.abs((after.x - after.width / 2) - (before.x - before.width / 2)) < 0.5, 'the same left edge');
   assert.ok(after.x - after.width / 2 >= core.PAGE_WIDTH / 2, 'never across the fold');
 });
+
+// docs/ux/collage-usability-plan.md, round 3, PR 3: a poster's date band follows its date.
+test('the Event poster hides its date band while the date is empty, and shows it once dated', () => {
+  const band = (poster) => poster.items.find((item) => item.role === 'band');
+  const empty = designs.applyDesign(core.newCollage('a3p'), 'event', { ...designs.startDetails('event'), when: '' }, { measure, newId });
+  assert.equal(band(empty).hidden, true);
+  assert.equal(band(empty).autoHidden, true);
+  const dated = designs.applyDesign(core.newCollage('a3p'), 'event', designs.startDetails('event'), { measure, newId });
+  assert.equal(band(dated).hidden, undefined);
+  // Typed later: the band comes back; emptied again: it goes.
+  const items = empty.items.map((item) => ({ ...item }));
+  items.push({ id: 'w', kind: 'text', field: 'when', text: 'Saturday, 10 January 2027' });
+  designs.followBand(items);
+  assert.equal(items.find((item) => item.role === 'band').hidden, undefined);
+  items.find((item) => item.field === 'when').text = '  ';
+  designs.followBand(items);
+  assert.equal(items.find((item) => item.role === 'band').hidden, true);
+  // A band the user hid stays hidden; a locked band is left as it is.
+  const own = [{ role: 'band', hidden: true }, { kind: 'text', field: 'when', text: 'Today' }];
+  designs.followBand(own);
+  assert.equal(own[0].hidden, true);
+  const locked = [{ role: 'band', locked: true }];
+  designs.followBand(locked);
+  assert.equal(locked[0].hidden, undefined);
+  assert.ok(designs.AUTO_PARTS.includes('band'));
+});

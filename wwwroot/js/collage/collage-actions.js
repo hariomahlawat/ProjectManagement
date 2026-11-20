@@ -80,7 +80,8 @@
         case 'hide':
           if (item) {
             const hidden = !item.hidden;
-            doc.editItem(item.id, (it) => { it.hidden = hidden; }, 'commit');
+            // Shown or hidden by the user, a part is no longer one the design hides by itself (Codex on #3483).
+            doc.editItem(item.id, (it) => { it.hidden = hidden; delete it.autoHidden; }, 'commit');
             messages.announce(hidden ? 'Hidden. Show it again from Layers.' : 'Shown.');
           }
           break;
@@ -104,6 +105,9 @@
               const at = draft.items.findIndex((i) => i.id === item.id);
               if (leavesFrame) draft.items[at] = core.emptyFrame(draft.items[at]);
               else draft.items.splice(at, 1);
+              // A poster's date deleted on the page takes its band with it, as emptying it in
+              // Poster details does (Codex on #3483).
+              if (item.field === 'when') window.PrismCollageDesigns?.followBand?.(draft.items);
             }, 'none');
             change.choose(leavesFrame ? item.id : null);
             selection.stopAdjust(false);
@@ -219,7 +223,8 @@
       const layerHide = event.target.closest('[data-layer-hide]');
       if (layerHide) {
         const target = doc.itemById(layerHide.dataset.layerHide);
-        if (target) doc.editItem(target.id, (it) => { it.hidden = !it.hidden; }, 'commit');
+        // Shown or hidden by the user, a part is no longer one the design hides by itself (Codex on #3483).
+        if (target) doc.editItem(target.id, (it) => { it.hidden = !it.hidden; delete it.autoHidden; }, 'commit');
         return;
       }
       const layerLock = event.target.closest('[data-layer-lock]');
