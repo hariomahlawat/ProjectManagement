@@ -381,7 +381,6 @@ file name; 11 font styles.
 - Round 3, PR 4: fewer choices. The start screen's Card size lists the common sizes (A5 and A6,
   upright and landscape, A7 pocket, Folded A6) and **More sizes…**, which lists every size; Save's
   Print on shows A4 sheets and own pages, with A3 and A4 edge to edge under **More sheets**. #3484, merged 20 Nov 2026.
-  Print on shows A4 sheets and own pages, with A3 and A4 edge to edge under **More sheets**.
 - Round 3, PR 5: quick Lows. The header pill reads "Kept in this browser, not in PRISM" (it read
   "Photos are not saved in PRISM" beside "Draft saved in this browser"); a time in the file name
   is written 0015, as PRISM writes times; the tray marks a photo "Used" only while another is not
