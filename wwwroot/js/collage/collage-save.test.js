@@ -245,3 +245,16 @@ test('Save names an empty date on a card or poster, and says nothing once it has
   assert.equal(save.dateLine(designs, { size: 'a4l', items: [] }), '');
   assert.equal(save.dateLine(null, null), '');
 });
+
+// docs/ux/collage-usability-plan.md, round 3, PR 1: Save opens on the purpose that fits.
+test('Save opens on Printing for a card or poster, and for a collage on what its page is for', () => {
+  const core = { isSize: (key) => typeof key === 'string' && key.length > 0 };
+  assert.equal(save.fittingPurpose({ size: 'a5p', card: { design: 'classic' } }, core), 'print');
+  assert.equal(save.fittingPurpose({ size: 'square', card: { design: 'event' } }, core), 'print');
+  assert.equal(save.fittingPurpose({ size: 'square', items: [] }, core), 'share');
+  assert.equal(save.fittingPurpose({ size: 'story', items: [] }, core), 'share');
+  assert.equal(save.fittingPurpose({ size: 'slide', items: [] }, core), 'slide');
+  assert.equal(save.fittingPurpose({ size: 'a4l', items: [] }, core), 'print');
+  assert.equal(save.fittingPurpose({ size: 'mm:120x180', items: [] }, core), 'print');
+  assert.equal(save.fittingPurpose(null, core), 'share');
+});
