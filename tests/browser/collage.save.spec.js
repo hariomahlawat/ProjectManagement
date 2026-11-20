@@ -26,7 +26,10 @@ test('More options starts closed, and stays open next time once opened', async (
   await openSave(page);
   await expect(more).not.toHaveAttribute('open', '');
   await expect(page.locator('input[name="format"][value="png"]')).toBeHidden();
-  // What Save will make is said with the fold closed.
+  // What Save will make is said with the fold closed. An A4 collage opens on Printing
+  // (docs/ux/collage-usability-plan.md, round 3, PR 1); WhatsApp gives a screen-size JPG.
+  await expect(page.locator('[data-save-summary]')).toHaveText('A PDF at print quality: A4 landscape at its true size.');
+  await page.getByRole('button', { name: 'WhatsApp or email' }).click();
   await expect(page.locator('[data-save-summary]')).toHaveText(`A JPG picture at screen size: 1,920 × ${await screenHeight(page)} pixels.`);
 
   await more.locator('summary').click();
@@ -54,6 +57,9 @@ test('the chosen purpose is pressed, and a choice under More options still drive
   const errors = await startWithPhoto(page);
   await openSave(page);
   const pressed = page.locator('[data-save-purpose][aria-pressed="true"]');
+  // An A4 collage opens on Printing (round 3, PR 1); WhatsApp, then Printing again.
+  await expect(pressed).toHaveText('Printing');
+  await page.getByRole('button', { name: 'WhatsApp or email' }).click();
   await expect(pressed).toHaveText('WhatsApp or email');
   await page.getByRole('button', { name: 'Printing' }).click();
   await expect(pressed).toHaveText('Printing');
@@ -157,4 +163,19 @@ test.describe('on a 390 × 844 phone', () => {
     await expect(page.locator('[data-action="save-go"]')).toBeInViewport();
     expect(errors).toEqual([]);
   });
+});
+
+// docs/ux/collage-usability-plan.md, round 3, PR 1: the "Saved" line is seen, More options open too.
+test('after saving with More options open, the Saved line is in view', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  const errors = await startWithPhoto(page);
+  await openSave(page);
+  await page.locator('[data-save-more] > summary').click();
+  const download = page.waitForEvent('download');
+  await page.locator('[data-action="save-go"]').click();
+  await download;
+  const result = page.locator('[data-save-result]');
+  await expect(result).toContainText('Saved');
+  await expect(result).toBeInViewport();
+  expect(errors).toEqual([]);
 });
