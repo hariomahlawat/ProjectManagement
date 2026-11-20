@@ -431,8 +431,8 @@ its npm package by hand; the libman entry records the version.
   A collage named after its first words is cut between words at 40 letters, and so is its file
   name. The chosen purpose shows pressed, with a
   tick, and a line under it says what Save will make. The type, the quality and "Keep it under"
-  are under **More options**, closed at first; once opened it stays open next time (both choices
-  are remembered in this browser only). A type or quality changed there is what Save makes, and
+  are under **More options**, closed at first; once opened it stays open next time (remembered
+  in this browser only). A type or quality changed there is what Save makes, and
   then no purpose shows pressed. Tab stays inside the dialog, and on a phone it fits one screen
   with More options closed. Save reads each
   original photo again at the size its frame needs, so the saved picture is sharper than the
@@ -620,8 +620,11 @@ out in a neat grid, each fully in view. New words and stickers go where they cov
 yet (covering other words or stickers counts far more than covering a photo; words that land on a
 photo get a white outline so they can be read), and the item's toolbar moves below it when above would cover another item. Save asks what the picture is
 for: WhatsApp or email (JPG for the screen), printing (PDF at print quality), or a slide or a
-screen (PNG). The purpose chosen is shown pressed and remembered in this browser; the first time
-it is WhatsApp or email.
+screen (PNG). It opens on the purpose that fits what is open ([ux/collage-usability-plan.md](ux/collage-usability-plan.md),
+round 3, PR 1): Printing for a card or poster; for a collage the one its page was made for
+(WhatsApp for Square or Phone status, a slide for Slide 16:9, Printing for paper). A purpose the
+user picks is kept for that piece while the page is open (`fittingPurpose` in `collage-save.js`).
+After saving, the "Saved" line is brought into view, More options open too.
 
 Messages (a photo that did not fit, a file that could not be read, a full layout) show in PRISM's
 toast stack at the bottom, with the Undo offers, never over the page in Preview. Each goes after a
