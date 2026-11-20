@@ -368,4 +368,9 @@ file name; 11 font styles.
   for a collage, the one its page was made for), keeps a pick for that piece while the page is
   open, and brings the "Saved" line into view. The browser-wide memory of the last purpose
   (`prism-collage-save-purpose`) is no longer read. Three Save tests now expect an A4 collage to
-  open on Printing.
+  open on Printing. #3481, merged 20 Nov 2026.
+- Round 3, PR 2: photos first suit their shapes. With the owner's choice of 20 Nov, five row
+  versions are added and shown ("2 in rows", "3 in rows", "6 in rows", "8 in rows", "12 in rows";
+  Layouts 11 to 16). Photos chosen first go into the layout for their number whose frames fit
+  their shapes best, widest with widest (`layoutForPhotos`); an evenly mixed or tall set keeps the
+  plain layout. A mixed set is still cropped somewhere: equal frames cannot fit both shapes.
