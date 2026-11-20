@@ -107,7 +107,7 @@
       return importQueue;
     }
 
-    async function importFiles(files, { at = null, frameId = null } = {}, forCollage) {
+    async function importFiles(files, { at = null, frameId = null, fitLayout = false } = {}, forCollage) {
       // A collage left before its photos were read gets none of them, and neither does the next.
       const stillOpen = () => forCollage === state.collageSession;
       if (!stillOpen()) return;
@@ -155,6 +155,16 @@
         // empty frames, then go near the centre.
         // Photos placed freely are laid out in a grid for all of them at once (`among`: those still
         // to come in this batch, this one included).
+        // Photos chosen first (PR 3) go into the layout whose frames suit their shapes best, now
+        // their shapes are known: rows for mostly wide photos (round 3, PR 2). Only while the new
+        // collage still has no photo; it is part of the same Undo step as the photos.
+        const current = state.collage.layout;
+        if (fitLayout && current && !state.collage.items.some((item) => item.kind === 'photo')) {
+          const best = core.layoutForPhotos(state.collage.size, placing.map((photo) => photo.aspect));
+          if (best && best !== current.key) {
+            doc.edit((draft) => core.applyLayout(draft, best, current.gap, current.radius, [], doc.newItemId).collage, 'none');
+          }
+        }
         // On a layout, the batch is matched to the empty frames by shape (tall to tall) first.
         const matched = !frameId && !at && state.collage.layout ? core.assignToSlots(state.collage.items, placing) : null;
         // A photo the matching gave no frame waits in the tray; it never takes a frame meant for another.
@@ -228,7 +238,7 @@
       await screens.startCollage(screens.startSize(), layout, null, { pageFrame: !layout });
       // The editor did not open (another draft was being opened meanwhile): nothing is added.
       if (ui.views.editor.hidden) return;
-      await addFiles(files);
+      await addFiles(files, { fitLayout: Boolean(layout) });
     }
 
     const startDrop = ui.$('[data-start-drop]');

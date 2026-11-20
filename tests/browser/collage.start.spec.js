@@ -43,7 +43,8 @@ test('each choice shows only its own section, and every way in is still there', 
   await expect(section(page, 'poster')).toBeHidden();
   await expect(choice(page, 'collage')).toHaveAttribute('aria-pressed', 'true');
   await expect(choice(page, 'poster')).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.locator('[data-start-layout]')).toHaveCount(11);
+  // 11 layouts and 5 row versions (docs/ux/collage-usability-plan.md, round 3, PR 2).
+  await expect(page.locator('[data-start-layout]')).toHaveCount(16);
   await expect(page.locator('[data-start-size]')).toHaveCount(7);
 
   // A layout from the Collage section opens the editor as before.

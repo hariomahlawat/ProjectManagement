@@ -89,8 +89,11 @@ its npm package by hand; the libman entry records the version.
     and 12; 10 or 11 photos take "12 grid", and past 12 the rest wait in Photos). One photo goes
     in one frame that fills the page. **For: WhatsApp (square) / Printing (A4)** beside it picks
     the page these and the layouts open on (round 2, PR 2): Square or A4 landscape. Printing is
-    chosen at first, and the choice is remembered in this browser (`prism-collage-for`). Or it
-    offers a layout (2 side by side up to a 12 grid and a mosaic of 7) or a blank page in one of
+    chosen at first, and the choice is remembered in this browser (`prism-collage-for`). Photos
+    chosen first go into the layout for their number that suits their shapes best: the row
+    versions ("2 in rows", "3 in rows", "6 in rows", "8 in rows", "12 in rows", with wide frames)
+    when most are wide (round 3, PR 2; `layoutForPhotos`), in the same Undo step as the photos.
+    Or it offers a layout (2 side by side up to a 12 grid, their row versions, and a mosaic of 7) or a blank page in one of
     seven sizes: A4 landscape or portrait, A3 poster, Slide 16:9, Square, Phone status 9:16 and
     Banner 3:1.
   - **Page size:** one menu, in the top bar, on phones too (narrow). It lists the sizes for what
