@@ -46,3 +46,25 @@ test('the start screen\'s card pictures still show an example date', async ({ pa
   expect(drawn).toBeGreaterThan(0);
   expect(errors).toEqual([]);
 });
+
+// docs/ux/collage-usability-plan.md, round 3, PR 3: the Event poster's band waits for the date.
+test('the Event poster\'s date band is hidden until a date is typed', async ({ page }) => {
+  const errors = await openFresh(page);
+  await startOn(page, 'poster');
+  await page.locator('[data-start-poster="event"]').click();
+  await expect(page.locator('[data-view="editor"]')).toBeVisible();
+  // The shapes drawn on the page: the band is one of them once it shows.
+  const shapesShown = () => page.evaluate(() => window.Konva.stages[0].find('.item').filter((n) => n.getAttr('kind') === 'shape' && n.visible()).length);
+  // (The logo's backing is hidden too, while a new poster has no logo.)
+  await expect.poll(() => page.evaluate(() => window.Konva.stages[0].find('.item').length)).toBeGreaterThan(0);
+  const before = await shapesShown();
+  const when = page.locator('[data-card-field="when"]');
+  await when.fill('Saturday, 10 January 2027 · 0700 h');
+  await when.blur();
+  await expect.poll(shapesShown).toBe(before + 1);
+  await expect.poll(async () => (await newestDraft(page))?.model?.items?.find((item) => item.role === 'band')?.hidden ?? false).toBe(false);
+  // Save does not count it as a part the user hid.
+  await page.getByRole('button', { name: 'Save as…' }).click();
+  await expect(page.locator('[data-save-empty]')).not.toContainText('hidden');
+  expect(errors).toEqual([]);
+});

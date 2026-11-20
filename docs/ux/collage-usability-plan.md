@@ -364,3 +364,6 @@ file name; 11 font styles.
   poster heading's gap; a PDF whose words can be selected. #3479, merged 20 Nov 2026.
 - Second first-time check (20 Nov): invitation 8, collage 7, depth 8.5. Round 3 planned above,
   with the owner's decisions of 20 Nov.
+- Round 3, PR 3: a poster's date band waits for the date. The Event poster's band is hidden by the
+  design while the date is empty and shows once it has words (`followBand`); a band the user hid
+  or locked is left as it is, and Save does not count it as hidden.
