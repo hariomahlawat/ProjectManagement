@@ -240,6 +240,63 @@ draft format. Drafts made before keep working: a card opened from a draft keeps 
 6. **Fresh first-time check** with the same two tasks, and a real date to type. Aim: 8.5 or more
    for both.
 
+## Second first-time check, after round 2 (20 Nov 2026)
+
+A new reviewer who had not seen the work used the page as a first-time user on master after round
+2 (#3474 to #3479), at 1366 × 768 and on a 390 × 844 touch phone, with a date to type this time.
+
+| Task | First check | Second check | Aim |
+| --- | --- | --- | --- |
+| Make an invitation card | 8 | **8** | 8.5 |
+| Make a quick collage | 7 | **7** | 8.5 |
+| Depth for a confident user | 8 | **8.5** | keep 8.5 |
+
+- **Invitation, typed date and venue, PDF for an A4 printer:** 9 actions on a desktop, 10 on a
+  phone, about a minute. One A5 card centred on an A4 sheet with cut marks, words right.
+- **Six photos, wide and tall, for WhatsApp:** 6 actions, under 30 seconds, a square 1,920-pixel
+  JPG in reading order. Wide photos lost about 45% of their width in the tall frames.
+- No High finding; no page or console errors.
+
+Mediums (the first was checked in the code: Save opens on the purpose last used):
+
+- **S1. Save does not follow what it is.** It opens on "WhatsApp or email" on a card, and on a
+  collage started for printing.
+- **S2. Photos first ignores their shapes.** Three wide and three tall photos go into six equal
+  frames.
+- **S3. Saved, but not seen.** With More options open, the "Saved" line is below the dialog's
+  scroll on a desktop.
+- **S4. Print choices are many and wordy**; A3 is offered to an A4 office.
+- **S5. A poster's date band is empty** while its date is, and looks unfinished.
+- **S6. Card size has 23 choices** on the start screen.
+
+Lows: start pictures show a sample date the card does not; the Card details panel is narrow;
+the photo toolbar has icons only; on a phone the card is small while its sheet is open; the
+header's "Photos are not saved in PRISM" beside "Draft saved in this browser"; no share to
+WhatsApp on phones (a download, then attach); "Used" on every tray photo; a comma in the default
+file name; 11 font styles.
+
+### Owner decisions (20 Nov 2026)
+
+- Save opens on the purpose that fits: **Printing** for a card or poster; a collage on its
+  **For** choice; the user's own pick is kept for that piece.
+- Photos first picks the layout that suits the photos' shapes.
+- A poster's date band stays hidden until a date is typed.
+- Fewer choices: **Card size** shows the common sizes, with **More sizes…**; **Print on** shows A4
+  sheets and own pages, with A3 and edge to edge under **More**.
+
+### Round 3 PRs, in order
+
+1. **S1 and S3 Save.** The purpose follows what is open (card or poster: Printing; collage: its
+   For choice), kept per piece once the user picks; the "Saved" line comes into view.
+2. **S2 shapes.** For photos chosen first, among layouts with as many frames, the one whose frames
+   best fit the photos' shapes on the chosen page; then tall to tall as now on mixed layouts.
+3. **S5 poster band.** The date band and its shape are hidden while the date is empty.
+4. **S4 and S6 fewer choices.** Card size: the common sizes, then **More sizes…**; Print on: A4
+   sheets and own pages, then **More** for A3 and edge to edge; plainer notes.
+5. **Lows** that are quick and safe (labels on the photo toolbar's titles, the header wording, the
+   file name), each checked against the tests.
+6. **Third first-time check.** Aim 8.5 for both new-user tasks.
+
 ## Not in this plan
 
 - No feature is removed, and cards, posters and collages stay in one Collage Studio.
@@ -304,4 +361,6 @@ draft format. Drafts made before keep working: a card opened from a draft keeps 
   save twice, front and back or picture and PDF); Stickers opens on Crests and logos when the unit
   has some (an earlier owner choice); the phone header's shield already has words for screen
   readers. Not done yet: a poster draft's small picture still shows the "Add logo" place; a short
-  poster heading's gap; a PDF whose words can be selected.
+  poster heading's gap; a PDF whose words can be selected. #3479, merged 20 Nov 2026.
+- Second first-time check (20 Nov): invitation 8, collage 7, depth 8.5. Round 3 planned above,
+  with the owner's decisions of 20 Nov.
